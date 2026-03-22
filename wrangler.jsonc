@@ -5,16 +5,25 @@
 {
 	"$schema": "node_modules/wrangler/config-schema.json",
 	"name": "smilestudy-calendar",
-	"main": "worker/index.ts",
 	"compatibility_date": "2026-03-17",
+	"pages_build_output_dir": "dist",
 	"assets": {
-		"not_found_handling": "single-page-application"
+		"not_found_handling": "single-page-application",
+		"directory": "dist"
 	},
 	"observability": {
 		"enabled": true
 	},
 	"compatibility_flags": [
 		"nodejs_compat"
+	],
+	"d1_databases": [
+		{
+			"binding": "DB",
+			"database_name": "calendar-db",
+			"database_id": "local-dev",
+			"migrations_dir": "drizzle"
+		}
 	]
 	/**
 	 * Smart Placement
