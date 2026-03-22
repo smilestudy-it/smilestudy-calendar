@@ -12,6 +12,7 @@
 		"cf-typegen": "wrangler types"
 	},
 	"dependencies": {
+		"dayjs": "^1.11.20",
 		"drizzle-orm": "^0.45.1",
 		"react": "^19.2.0",
 		"react-dom": "^19.2.0"
