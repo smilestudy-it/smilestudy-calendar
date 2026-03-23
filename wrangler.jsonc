@@ -7,10 +7,6 @@
 	"name": "smilestudy-calendar",
 	"compatibility_date": "2026-03-17",
 	"pages_build_output_dir": "dist",
-	"assets": {
-		"not_found_handling": "single-page-application",
-		"directory": "dist"
-	},
 	"observability": {
 		"enabled": true
 	},
