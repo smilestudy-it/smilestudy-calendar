@@ -1,7 +1,52 @@
 import { useAuth0 } from "@auth0/auth0-react";
+import { useEffect, useState } from "react";
+
+type AppUser = {
+  role: 'admin' | 'manager' | 'staff' | null;
+  classroomId: string | null;
+};
 
 const Profile = () => {
-  const { user, isAuthenticated, isLoading } = useAuth0();
+  const { user, isAuthenticated, isLoading, getAccessTokenSilently } = useAuth0();
+  const [appUser, setAppUser] = useState<AppUser | null>(null);
+
+  useEffect(() => {
+    if (!isAuthenticated) {
+      setAppUser(null);
+      return;
+    }
+
+    let cancelled = false;
+    const loadAppUser = async () => {
+      try {
+        const token = await getAccessTokenSilently();
+        const response = await fetch('/api/getRole', {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        });
+
+        if (!response.ok) {
+          return;
+        }
+
+        const data = (await response.json()) as AppUser;
+        if (!cancelled) {
+          setAppUser(data);
+        }
+      } catch {
+        if (!cancelled) {
+          setAppUser(null);
+        }
+      }
+    };
+
+    void loadAppUser();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [isAuthenticated, getAccessTokenSilently]);
 
   if (isLoading) {
     return <div className="loading-text">Loading profile...</div>;
@@ -33,6 +78,12 @@ const Profile = () => {
           <div className="profile-email" style={{ fontSize: '1.15rem', color: '#a0aec0' }}>
             {user.email}
           </div>
+          {appUser && (
+            <div style={{ marginTop: '0.75rem', color: '#cbd5e0', fontSize: '0.95rem' }}>
+              <div>role: {appUser.role ?? '-'}</div>
+              <div>classroom_id: {appUser.classroomId ?? '-'}</div>
+            </div>
+          )}
         </div>
       </div>
     ) : null
