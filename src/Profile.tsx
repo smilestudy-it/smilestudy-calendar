@@ -12,7 +12,6 @@ const Profile = () => {
 
   useEffect(() => {
     if (!isAuthenticated) {
-      setAppUser(null);
       return;
     }
 
