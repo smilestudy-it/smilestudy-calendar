@@ -17,8 +17,7 @@
 		{
 			"binding": "DB",
 			"database_name": "calendar-db",
-			"database_id": "local-dev",
-			"migrations_dir": "drizzle"
+			"database_id": "75290388-ffe2-425a-a02d-263e044cfe86"
 		}
 	]
 	/**
