@@ -13,7 +13,7 @@ type Bindings = Env & {
   AUTH0_JWKS_URI: string;
 };
 
-const app = new Hono<{ Bindings: Bindings; Variables: JwtVariables }>().basePath('/api');
+export const app = new Hono<{ Bindings: Bindings; Variables: JwtVariables }>().basePath('/api');
 
 const auth = async (c: Context<{ Bindings: Bindings; Variables: JwtVariables }>, next: Next) =>
   jwk({
