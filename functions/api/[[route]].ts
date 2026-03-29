@@ -25,34 +25,23 @@ const auth = async (c: Context<{ Bindings: Bindings; Variables: JwtVariables }>,
     },
   })(c, next);
 
-app.get('/', (c) => c.json({ message: 'Hello' }));
-
-app.get('/protect', auth, (c) => {
-  const { sub } = c.var.jwtPayload; 
-  return c.json({ message: 'auth success', userId: sub });
-});
-
-app.get('/getRole', auth, async (c) => {
+const requireAdmin = async (c: Context<{Bindings: Bindings; Variables: JwtVariables}>, next: Next) => {
   const { sub } = c.var.jwtPayload;
-  if (!sub) {
+  if(!sub){
     return c.json({ message: 'invalid token payload' }, 401);
   }
 
   const db = getDb(c.env);
-  const [currentUser] = await db
-    .select({
-      role: users.role,
-      classroomId: users.classroomId,
-    })
-    .from(users)
-    .where(and(eq(users.id, sub), isNull(users.deletedAt)))
-    .limit(1);
+  const [currentUser] = await db.select({role: users.role}).from(users).where(and(eq(users.id, sub), isNull(users.deletedAt))).limit(1);
 
-  if (!currentUser) {
+  if(!currentUser){
     return c.json({ message: 'user not found' }, 404);
   }
+  if(currentUser.role !== 'admin'){
+    return c.json({ message: 'forbidden' }, 403);
+  }
 
-  return c.json(currentUser);
-});
+  await next();
+};
 
 export const onRequest = handle(app);
