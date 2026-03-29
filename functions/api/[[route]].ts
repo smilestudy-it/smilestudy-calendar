@@ -63,6 +63,11 @@ app.post('/classrooms', auth, requireAdmin, async (c) => {
   return c.json({ id, name }, 201);
 });
 
+app.get('/classrooms', auth, requireAdmin, async(c) =>{
+  const db = getDb(c.env);
 
+  const rows = await db.select({id: classrooms.id, name: classrooms.name}).from(classrooms).where(isNull(classrooms.deletedAt));
+  return c.json(rows, 200);
+});
 
 export const onRequest = handle(app);
