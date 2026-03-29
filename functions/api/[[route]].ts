@@ -70,6 +70,29 @@ app.get('/classrooms', auth, requireAdmin, async(c) =>{
   return c.json(rows, 200);
 });
 
+app.get('/me', auth, async (c) => {
+  const { sub } = c.var.jwtPayload;
+  if (!sub) {
+    return c.json({ message: 'invalid token payload' }, 401);
+  }
+
+  const db = getDb(c.env);
+  const [currentUser] = await db
+    .select({
+      role: users.role,
+      classroomId: users.classroomId,
+    })
+    .from(users)
+    .where(and(eq(users.id, sub), isNull(users.deletedAt)))
+    .limit(1);
+
+  if (!currentUser) {
+    return c.json({ message: 'user not found' }, 404);
+  }
+
+  return c.json(currentUser);
+});
+
 app.delete('/classrooms/:id', auth, requireAdmin, async(c) =>{
   const id = c.req.param('id');
   if(!id){
