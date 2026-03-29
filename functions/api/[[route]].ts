@@ -70,4 +70,20 @@ app.get('/classrooms', auth, requireAdmin, async(c) =>{
   return c.json(rows, 200);
 });
 
+app.delete('/classrooms/:id', auth, requireAdmin, async(c) =>{
+  const id = c.req.param('id');
+  if(!id){
+    return c.json({ message: 'id is required' }, 400);
+  }
+  const db = getDb(c.env);
+
+  const result = await db.update(classrooms).set({deletedAt: new Date()}).where(and(eq(classrooms.id, id), isNull(classrooms.deletedAt)));
+
+  if(result.meta.changes === 0){
+    return c.json({message: 'classroom not found'}, 404);
+  }
+
+  return c.json({ success: true }, 200);
+})
+
 export const onRequest = handle(app);
