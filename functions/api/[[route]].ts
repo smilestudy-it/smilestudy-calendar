@@ -5,7 +5,7 @@ import type { Context, Next } from 'hono';
 import type { JwtVariables } from 'hono/jwt';
 import { and, eq, isNull } from 'drizzle-orm';
 import { getDb } from '../../db';
-import { users } from '../../db/schema';
+import { users, classrooms } from '../../db/schema';
 
 type Bindings = Env & {
   AUTH0_AUDIENCE: string;
@@ -43,5 +43,26 @@ const requireAdmin = async (c: Context<{Bindings: Bindings; Variables: JwtVariab
 
   await next();
 };
+
+app.post('/classrooms', auth, requireAdmin, async (c) => {
+  const body = await c.req.json<{ name?: string }>().catch(() => null);
+  const name = body?.name?.trim();
+
+  if(!name){
+    return c.json({ message: 'name is required' }, 400);
+  }
+  if(name.length > 100){
+    return c.json({message: 'name must be 100 characters or less'}, 400);
+  }
+
+  const id = crypto.randomUUID();
+  const db = getDb(c.env);
+
+  await db.insert(classrooms).values({id, name, deletedAt: null});
+
+  return c.json({ id, name }, 201);
+});
+
+
 
 export const onRequest = handle(app);
