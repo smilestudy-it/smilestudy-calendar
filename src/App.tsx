@@ -64,6 +64,7 @@ function App() {
           element={
             <ClassroomPage
               currentUser={currentUser}
+              isLoadingCurrentUser={isLoadingCurrentUser}
               getAccessTokenSilently={getAccessTokenSilently}
             />
           }

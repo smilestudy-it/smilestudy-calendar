@@ -13,6 +13,7 @@ type Props = {
 type FormSubmitHandler = NonNullable<ComponentProps<'form'>['onSubmit']>;
 
 export default function ClassroomAdminPanel({ getAccessTokenSilently }: Props) {
+  const classroomNameInputId = 'classroom-name';
   const [classrooms, setClassrooms] = useState<Classroom[]>([]);
   const [name, setName] = useState('');
   const [isLoading, setIsLoading] = useState(false);
@@ -105,14 +106,20 @@ export default function ClassroomAdminPanel({ getAccessTokenSilently }: Props) {
     <section className="space-y-4">
       <h2 className="text-lg font-semibold md:text-xl">教室管理（管理者）</h2>
 
-      <form onSubmit={handleCreate} className="grid grid-cols-1 gap-2 sm:grid-cols-[1fr_auto]">
-        <input
-          value={name}
-          onChange={(e) => setName(e.target.value)}
-          placeholder="教室名を入力"
-          className="w-full rounded-lg border border-slate-700 bg-slate-800 px-3 py-2 text-slate-100 placeholder:text-slate-400 focus:border-indigo-400 focus:outline-none focus:ring-2 focus:ring-indigo-500/30"
-          maxLength={100}
-        />
+      <form onSubmit={handleCreate} className="grid grid-cols-1 gap-2 sm:grid-cols-[1fr_auto] sm:items-end">
+        <div className="space-y-1">
+          <label htmlFor={classroomNameInputId} className="text-sm text-slate-300">
+            教室名
+          </label>
+          <input
+            id={classroomNameInputId}
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            placeholder="教室名を入力"
+            className="w-full rounded-lg border border-slate-700 bg-slate-800 px-3 py-2 text-slate-100 placeholder:text-slate-400 focus:border-indigo-400 focus:outline-none focus:ring-2 focus:ring-indigo-500/30"
+            maxLength={100}
+          />
+        </div>
         <button
           type="submit"
           className="rounded-lg bg-indigo-500 px-4 py-2 font-semibold text-white transition hover:bg-indigo-400 disabled:cursor-not-allowed disabled:opacity-60"
