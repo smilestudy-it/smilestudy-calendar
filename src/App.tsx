@@ -1,4 +1,5 @@
 import { useAuth0 } from '@auth0/auth0-react';
+import { useEffect } from 'react';
 import { Navigate, Route, Routes } from 'react-router-dom';
 import LoginButton from './LoginButton';
 import AppShell from './components/AppShell';
@@ -12,6 +13,12 @@ function App() {
     isAuthenticated,
     getAccessTokenSilently,
   });
+
+  useEffect(() => {
+    if (error) {
+      console.error('Auth0 authentication error:', error);
+    }
+  }, [error]);
 
   if (isLoading) {
     return (
@@ -28,7 +35,7 @@ function App() {
       <div className="flex min-h-screen items-center justify-center bg-slate-950 px-4 py-10 text-slate-100">
         <div className="w-full max-w-lg rounded-2xl border border-rose-500/40 bg-rose-950/40 p-8 shadow-2xl">
           <h1 className="text-2xl font-bold text-rose-200">Auth Error</h1>
-          <p className="mt-3 text-sm text-rose-100/90">{error.message}</p>
+          <p className="mt-3 text-sm text-rose-100/90">認証に失敗しました。もう一度お試しください。</p>
         </div>
       </div>
     );
