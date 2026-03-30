@@ -13,9 +13,19 @@ type Bindings = Env & {
   AUTH0_JWKS_URI: string;
 };
 
-export const app = new Hono<{ Bindings: Bindings; Variables: JwtVariables }>().basePath('/api');
+type AppUser = {
+  id: string;
+  role: 'admin' | 'manager' | 'staff';
+  classroomId: string | null;
+};
 
-const auth = async (c: Context<{ Bindings: Bindings; Variables: JwtVariables }>, next: Next) =>
+type AppVariables = JwtVariables & {
+  currentUser: AppUser;
+};
+
+export const app = new Hono<{ Bindings: Bindings; Variables: AppVariables }>().basePath('/api');
+
+const auth = async (c: Context<{ Bindings: Bindings; Variables: AppVariables }>, next: Next) =>
   jwk({
     jwks_uri: c.env.AUTH0_JWKS_URI,
     alg: ['RS256'],
@@ -25,17 +35,28 @@ const auth = async (c: Context<{ Bindings: Bindings; Variables: JwtVariables }>,
     },
   })(c, next);
 
-const requireAdmin = async (c: Context<{Bindings: Bindings; Variables: JwtVariables}>, next: Next) => {
+const loadUser = async (c: Context<{Bindings: Bindings; Variables: AppVariables}>, next: Next) => {
   const { sub } = c.var.jwtPayload;
   if(!sub){
     return c.json({ message: 'invalid token payload' }, 401);
   }
 
   const db = getDb(c.env);
-  const [currentUser] = await db.select({role: users.role}).from(users).where(and(eq(users.id, sub), isNull(users.deletedAt))).limit(1);
+  const [currentUser] = await db.select({id: users.id, role: users.role, classroomId: users.classroomId}).from(users).where(and(eq(users.id, sub), isNull(users.deletedAt))).limit(1);
 
   if(!currentUser){
     return c.json({ message: 'user not found' }, 404);
+  }
+  c.set('currentUser', currentUser);
+
+  await next();
+}
+
+const requireAdmin = async (c: Context<{Bindings: Bindings; Variables: AppVariables}>, next: Next) => {
+  const currentUser = c.var.currentUser;
+
+  if(!currentUser){
+    return c.json({ message: 'user not loaded' }, 500);
   }
   if(currentUser.role !== 'admin'){
     return c.json({ message: 'forbidden' }, 403);
@@ -44,7 +65,37 @@ const requireAdmin = async (c: Context<{Bindings: Bindings; Variables: JwtVariab
   await next();
 };
 
-app.post('/classrooms', auth, requireAdmin, async (c) => {
+
+const requireManagerOrAbove = async (c: Context<{Bindings: Bindings; Variables: AppVariables}>, next: Next) => {
+  const currentUser = c.var.currentUser;
+
+  if(!currentUser){
+    return c.json({ message: 'user not loaded' }, 500);
+  }
+  if(currentUser.role !== 'admin' && currentUser.role !== 'manager'){
+    return c.json({ message: 'forbidden' }, 403);
+  }
+
+  await next();
+};
+
+const requireClassroomScope = (paramName: string) =>
+  async (c: Context<{Bindings: Bindings; Variables: AppVariables}>, next: Next) => {
+    const currentUser = c.var.currentUser;
+    
+    if(!currentUser){
+      return c.json({ message: 'user not loaded' }, 500);
+    }
+
+    const targetClassroomId = c.req.param(paramName);
+    if(currentUser.role !== 'admin' && (currentUser.role !== 'manager' || currentUser.classroomId !== targetClassroomId)){
+      return c.json({ message: 'forbidden' }, 403);
+    }
+
+    await next();
+  };
+
+app.post('/classrooms', auth, loadUser, requireAdmin, async (c) => {
   const body = await c.req.json<{ name?: unknown }>().catch(() => null);
   const name: string = (typeof body?.name === 'string' ? body.name.trim() : '');
 
@@ -63,11 +114,56 @@ app.post('/classrooms', auth, requireAdmin, async (c) => {
   return c.json({ id, name }, 201);
 });
 
-app.get('/classrooms', auth, requireAdmin, async(c) =>{
+app.get('/classrooms', auth, loadUser, requireAdmin, async(c) =>{
   const db = getDb(c.env);
 
   const rows = await db.select({id: classrooms.id, name: classrooms.name}).from(classrooms).where(isNull(classrooms.deletedAt));
   return c.json(rows, 200);
+});
+
+app.delete('/classrooms/:id', auth, loadUser, requireAdmin, async(c) =>{
+  const id = c.req.param('id');
+  if(!id){
+    return c.json({ message: 'id is required' }, 400);
+  }
+  const db = getDb(c.env);
+
+  const result = await db.update(classrooms).set({deletedAt: new Date()}).where(and(eq(classrooms.id, id), isNull(classrooms.deletedAt)));
+
+  if(result.meta.changes === 0){
+    return c.json({message: 'classroom not found'}, 404);
+  }
+
+  return c.json({ success: true }, 200);
+});
+
+
+app.delete('/users/:id', auth, loadUser, requireManagerOrAbove, async(c) => {
+  const actor = c.var.currentUser;
+  const targetId = c.req.param('id');
+  if(!targetId){
+    return c.json({ message: 'id is required' }, 400);
+  } 
+
+  const db = getDb(c.env);
+
+  const [target] = await db.select({id: users.id, role: users.role, classroomId: users.classroomId}).from(users).where(and(eq(users.id, targetId), isNull(users.deletedAt))).limit(1);
+
+  if(!target){
+    return c.json({ message: 'user not found' }, 404);
+  }
+
+  if(actor.role === 'manager' && (target.role === 'admin' || (!actor.classroomId || !target.classroomId || actor.classroomId !== target.classroomId))){
+    return c.json({ message: 'forbidden' }, 403);
+  }
+
+  const result = await db.update(users).set({ deletedAt: new Date() }).where(and(eq(users.id, targetId), isNull(users.deletedAt)));
+
+  if(result.meta.changes === 0){
+    return c.json({ message: 'user not found' }, 404);
+  }
+
+  return c.json({ success: true }, 200);
 });
 
 app.get('/me', auth, async (c) => {
@@ -93,20 +189,5 @@ app.get('/me', auth, async (c) => {
   return c.json(currentUser);
 });
 
-app.delete('/classrooms/:id', auth, requireAdmin, async(c) =>{
-  const id = c.req.param('id');
-  if(!id){
-    return c.json({ message: 'id is required' }, 400);
-  }
-  const db = getDb(c.env);
-
-  const result = await db.update(classrooms).set({deletedAt: new Date()}).where(and(eq(classrooms.id, id), isNull(classrooms.deletedAt)));
-
-  if(result.meta.changes === 0){
-    return c.json({message: 'classroom not found'}, 404);
-  }
-
-  return c.json({ success: true }, 200);
-})
 
 export const onRequest = handle(app);

@@ -15,7 +15,7 @@ export const users = sqliteTable('users', {
 id: text('id').primaryKey(), // Auth0 の user_id (sub) をそのまま使用
 email: text('email').notNull().unique(),
 name: text('name').notNull(),
-role: text('role').$type<'admin' | 'manager' | 'staff'>().default('staff'),
+role: text('role').$type<'admin' | 'manager' | 'staff'>().default('staff').notNull(),
 classroomId: text('classroom_id').references(() => classrooms.id), // 所属教室（管理者はnullの場合あり）
 color: text('color').default('#3b82f6'), // カレンダー表示色
 deletedAt: integer('deleted_at', { mode: 'timestamp' }),
