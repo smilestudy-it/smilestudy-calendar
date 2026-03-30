@@ -29,6 +29,37 @@ vi.mock('hono/jwk', () => {
 });
 
 vi.mock('../../db', () => {
+  const extractRequestedId = (predicate: unknown): string | null => {
+    if (typeof predicate === 'string') {
+      return predicate;
+    }
+
+    const visited = new Set<object>();
+    const stack: unknown[] = [predicate];
+
+    while (stack.length > 0) {
+      const current = stack.pop();
+      if (!current || typeof current !== 'object') {
+        continue;
+      }
+      if (visited.has(current)) {
+        continue;
+      }
+      visited.add(current);
+
+      const candidate = (current as { value?: unknown }).value;
+      if (typeof candidate === 'string') {
+        return candidate;
+      }
+
+      for (const value of Object.values(current)) {
+        stack.push(value);
+      }
+    }
+
+    return null;
+  };
+
   const db = {
     select: () => ({
       from: (table: unknown) => {
@@ -61,8 +92,15 @@ vi.mock('../../db', () => {
     }),
     update: () => ({
       set: (value: { deletedAt: Date | null }) => ({
-        where: async () => {
-          const target = state.classrooms.find((row) => row.deletedAt === null);
+        where: async (predicate: unknown) => {
+          const requestedId = extractRequestedId(predicate);
+          if (!requestedId) {
+            return { meta: { changes: 0 } };
+          }
+
+          const target = state.classrooms.find(
+            (row) => row.id === requestedId && row.deletedAt === null,
+          );
           if (!target) {
             return { meta: { changes: 0 } };
           }
