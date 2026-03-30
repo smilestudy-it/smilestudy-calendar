@@ -13,6 +13,7 @@ export function useCurrentUser({ isAuthenticated, getAccessTokenSilently }: UseC
 
   useEffect(() => {
     if (!isAuthenticated) {
+      setCurrentUser(null);
       return;
     }
 
@@ -30,6 +31,7 @@ export function useCurrentUser({ isAuthenticated, getAccessTokenSilently }: UseC
 
         if (!response.ok) {
           if (!cancelled) {
+            setCurrentUser(null);
             setCurrentUserError('ユーザー情報の取得に失敗しました。');
           }
           return;
@@ -41,6 +43,7 @@ export function useCurrentUser({ isAuthenticated, getAccessTokenSilently }: UseC
         }
       } catch {
         if (!cancelled) {
+          setCurrentUser(null);
           setCurrentUserError('ユーザー情報の取得に失敗しました。');
         }
       } finally {
