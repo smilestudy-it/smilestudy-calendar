@@ -45,8 +45,8 @@ const requireAdmin = async (c: Context<{Bindings: Bindings; Variables: JwtVariab
 };
 
 app.post('/classrooms', auth, requireAdmin, async (c) => {
-  const body = await c.req.json<{ name?: string }>().catch(() => null);
-  const name = body?.name?.trim();
+  const body = await c.req.json<{ name?: unknown }>().catch(() => null);
+  const name: string = (typeof body?.name === 'string' ? body.name.trim() : '');
 
   if(!name){
     return c.json({ message: 'name is required' }, 400);
