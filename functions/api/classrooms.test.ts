@@ -116,6 +116,24 @@ vi.mock('../../db', () => {
         }
 
         if (table === classrooms) {
+          const keys = Object.keys(selection);
+          if (keys.length === 1 && keys.includes('id')) {
+            return {
+              where: (predicate: unknown) => ({
+                limit: async () => {
+                  const requestedName = extractRequestedId(predicate);
+                  if (!requestedName) {
+                    return [];
+                  }
+                  const target = state.classrooms.find(
+                    (row) => row.name === requestedName && row.deletedAt === null,
+                  );
+                  return target ? [{ id: target.id }] : [];
+                },
+              }),
+            };
+          }
+
           return {
             where: async () =>
               state.classrooms
@@ -317,6 +335,22 @@ describe('classrooms api flow', () => {
       body: JSON.stringify({ name: tooLongName }),
     }, env);
     expect(response.status).toBe(400);
+  });
+
+  it('returns 409 when creating classroom with duplicate name', async () => {
+    const first = await app.request('/api/classrooms', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ name: 'Class Duplicate' }),
+    }, env);
+    expect(first.status).toBe(201);
+
+    const second = await app.request('/api/classrooms', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ name: 'Class Duplicate' }),
+    }, env);
+    expect(second.status).toBe(409);
   });
 
   it('returns 404 when deleting a non-existing classroom', async () => {

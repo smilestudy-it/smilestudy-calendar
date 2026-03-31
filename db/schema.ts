@@ -1,25 +1,39 @@
-import { sqliteTable, text, integer } from 'drizzle-orm/sqlite-core';
+import { sql } from 'drizzle-orm';
+import { sqliteTable, text, integer, uniqueIndex } from 'drizzle-orm/sqlite-core';
 
 // ----------------------------------------------------
 // 1. 教室 (Classrooms)
 // ----------------------------------------------------
-export const classrooms = sqliteTable('classrooms', {
-id: text('id').primaryKey(), // UUID
-name: text('name').notNull(),
-deletedAt: integer('deleted_at', { mode: 'timestamp' }), // 論理削除用
-});
+export const classrooms = sqliteTable(
+  'classrooms',
+  {
+    id: text('id').primaryKey(), // UUID
+    name: text('name').notNull(),
+    deletedAt: integer('deleted_at', { mode: 'timestamp' }), // 論理削除用
+  },
+  (table) => [
+    uniqueIndex('classrooms_name_active_unique').on(table.name).where(sql`${table.deletedAt} is null`),
+  ],
+);
 // ----------------------------------------------------
 // 2. ユーザー（管理者 / 教室長 / 講師）
 // ----------------------------------------------------
-export const users = sqliteTable('users', {
-id: text('id').primaryKey(), // Auth0 の user_id (sub) をそのまま使用
-email: text('email').notNull().unique(),
-name: text('name').notNull(),
-role: text('role').$type<'admin' | 'manager' | 'staff'>().default('staff').notNull(),
-classroomId: text('classroom_id').references(() => classrooms.id), // 所属教室（管理者はnullの場合あり）
-color: text('color').default('#3b82f6'), // カレンダー表示色
-deletedAt: integer('deleted_at', { mode: 'timestamp' }),
-});
+export const users = sqliteTable(
+  'users',
+  {
+    id: text('id').primaryKey(), // Auth0 の user_id (sub) をそのまま使用
+    email: text('email').notNull(),
+    firstName: text('first_name').notNull().default(''),
+    lastName: text('last_name').notNull().default(''),
+    role: text('role').$type<'admin' | 'manager' | 'staff'>().default('staff').notNull(),
+    classroomId: text('classroom_id').references(() => classrooms.id), // 所属教室（管理者はnullの場合あり）
+    color: text('color').default('#3b82f6'), // カレンダー表示色
+    deletedAt: integer('deleted_at', { mode: 'timestamp' }),
+  },
+  (table) => [
+    uniqueIndex('users_email_active_unique').on(table.email).where(sql`${table.deletedAt} is null`),
+  ],
+);
 
 // ----------------------------------------------------
 // 3. 生徒 (Students)

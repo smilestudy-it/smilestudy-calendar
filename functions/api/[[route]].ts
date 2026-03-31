@@ -65,7 +65,7 @@ const getAuth0ManagementToken = async (env: Bindings): Promise<string> => {
   return tokenBody.access_token;
 };
 
-const createAuth0User = async (env: Bindings, token: string, email: string, name: string) => {
+const createAuth0User = async (env: Bindings, token: string, email: string, displayName: string) => {
   const response = await fetch(`https://${env.VITE_AUTH0_DOMAIN}/api/v2/users`, {
     method: 'POST',
     headers: {
@@ -75,7 +75,7 @@ const createAuth0User = async (env: Bindings, token: string, email: string, name
     body: JSON.stringify({
       connection: env.AUTH0_DB_CONNECTION,
       email,
-      name,
+      name: displayName,
       password: `${crypto.randomUUID()}aA1!`,
       email_verified: false,
       verify_email: true,
@@ -208,8 +208,18 @@ app.post('/classrooms', auth, loadUser, requireAdmin, async (c) => {
     return c.json({ message: error ?? 'invalid request' }, 400);
   }
 
-  const id = crypto.randomUUID();
   const db = getDb(c.env);
+  const [existingClassroom] = await db
+    .select({ id: classrooms.id })
+    .from(classrooms)
+    .where(and(eq(classrooms.name, input.name), isNull(classrooms.deletedAt)))
+    .limit(1);
+
+  if (existingClassroom) {
+    return c.json({ message: 'classroom already exists' }, 409);
+  }
+
+  const id = crypto.randomUUID();
 
   await db.insert(classrooms).values({id, name: input.name, deletedAt: null});
 
@@ -299,6 +309,16 @@ app.post('/users', auth, loadUser, requireManagerOrAbove, async (c) =>{
   }
 
   const db = getDb(c.env);
+  const [existingUser] = await db
+    .select({ id: users.id })
+    .from(users)
+    .where(and(eq(users.email, input.email), isNull(users.deletedAt)))
+    .limit(1);
+
+  if (existingUser) {
+    return c.json({ message: 'user already exists' }, 409);
+  }
+
   if (input.classroomId) {
     const [existingClassroom] = await db
       .select({ id: classrooms.id })
@@ -314,10 +334,11 @@ app.post('/users', auth, loadUser, requireManagerOrAbove, async (c) =>{
   let managementToken = '';
   let auth0UserId = '';
   let d1Inserted = false;
+  const displayName = `${input.lastName} ${input.firstName}`.trim();
 
   try {
     managementToken = await getAuth0ManagementToken(c.env);
-    const auth0Result = await createAuth0User(c.env, managementToken, input.email, input.name);
+    const auth0Result = await createAuth0User(c.env, managementToken, input.email, displayName);
     if (!auth0Result.ok) {
       if (auth0Result.status === 409) {
         return c.json({ message: 'user already exists' }, 409);
@@ -329,7 +350,8 @@ app.post('/users', auth, loadUser, requireManagerOrAbove, async (c) =>{
 
     await db.insert(users).values({
       id: auth0UserId,
-      name: input.name,
+      firstName: input.firstName,
+      lastName: input.lastName,
       email: input.email,
       role: input.role,
       classroomId: input.classroomId,
@@ -354,7 +376,8 @@ app.post('/users', auth, loadUser, requireManagerOrAbove, async (c) =>{
 
   return c.json({
     id: auth0UserId,
-    name: input.name,
+    firstName: input.firstName,
+    lastName: input.lastName,
     email: input.email,
     role: input.role,
     classroomId: input.classroomId,
@@ -369,7 +392,17 @@ app.get('/users/:classroomId', auth, loadUser, requireManagerOrAbove, requireCla
   }
   const db = getDb(c.env);
 
-  const rows = await db.select({id: users.id, name: users.name}).from(users).where(and(eq(users.classroomId, classroomId), isNull(users.deletedAt)));
+  const rows = await db
+    .select({
+      id: users.id,
+      firstName: users.firstName,
+      lastName: users.lastName,
+      email: users.email,
+      role: users.role,
+      classroomId: users.classroomId,
+    })
+    .from(users)
+    .where(and(eq(users.classroomId, classroomId), isNull(users.deletedAt)));
   return c.json(rows, 200);
 });
 
@@ -382,7 +415,11 @@ app.delete('/users/:id', auth, loadUser, requireManagerOrAbove, async(c) => {
 
   const db = getDb(c.env);
 
-  const [target] = await db.select({id: users.id, role: users.role, classroomId: users.classroomId}).from(users).where(and(eq(users.id, targetId), isNull(users.deletedAt))).limit(1);
+  const [target] = await db
+    .select({ id: users.id, role: users.role, classroomId: users.classroomId, email: users.email })
+    .from(users)
+    .where(and(eq(users.id, targetId), isNull(users.deletedAt)))
+    .limit(1);
 
   if(!target){
     return c.json({ message: 'user not found' }, 404);

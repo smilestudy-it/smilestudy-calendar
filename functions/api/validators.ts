@@ -8,7 +8,8 @@ const classroomSchema = z.object({
 
 const userSchema = z
   .object({
-    name: z.string().trim().min(1, 'name is required').max(100, 'name must be 100 characters or less'),
+    firstName: z.string().trim().min(1, 'first name is required').max(100, 'first name must be 100 characters or less'),
+    lastName: z.string().trim().min(1, 'last name is required').max(100, 'last name must be 100 characters or less'),
     classroomId: z.string().trim().optional(),
     color: z
       .string()
@@ -31,7 +32,8 @@ const userSchema = z
 
 type CreateClassroomInput = z.infer<typeof classroomSchema>;
 type CreateUserInput = {
-  name: string;
+  firstName: string;
+  lastName: string;
   classroomId: string | null;
   color: HexColor;
   email: string;
@@ -62,7 +64,8 @@ export function validateCreateUserInput(
 
   return {
     input: {
-      name: result.data.name,
+      firstName: result.data.firstName,
+      lastName: result.data.lastName,
       classroomId: result.data.role === 'admin' ? null : (result.data.classroomId ?? null),
       color: result.data.color,
       email: result.data.email,

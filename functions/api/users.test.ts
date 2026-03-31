@@ -4,7 +4,8 @@ import { classrooms, users } from '../../db/schema';
 type Role = 'admin' | 'manager' | 'staff';
 type UserRow = {
   id: string;
-  name: string;
+  firstName: string;
+  lastName: string;
   email: string;
   role: Role;
   classroomId: string | null;
@@ -44,6 +45,8 @@ const extractRequestedValue = (predicate: unknown): string | null => {
   const visited = new Set<object>();
   const stack: unknown[] = [predicate];
 
+  const collectedStrings: string[] = [];
+
   while (stack.length > 0) {
     const current = stack.pop();
     if (!current || typeof current !== 'object') {
@@ -56,12 +59,26 @@ const extractRequestedValue = (predicate: unknown): string | null => {
 
     const candidate = (current as { value?: unknown }).value;
     if (typeof candidate === 'string') {
-      return candidate;
+      collectedStrings.push(candidate);
     }
 
     for (const value of Object.values(current)) {
       stack.push(value);
     }
+  }
+
+  const userIds = new Set(state.users.map((row) => row.id));
+  const userEmails = new Set(state.users.map((row) => row.email));
+  const classroomIds = new Set(state.classrooms.map((row) => row.id));
+
+  for (const value of collectedStrings) {
+    if (userIds.has(value) || userEmails.has(value) || classroomIds.has(value)) {
+      return value;
+    }
+  }
+
+  if (collectedStrings.length > 0) {
+    return collectedStrings[0] ?? null;
   }
 
   return null;
@@ -71,7 +88,8 @@ const pickUser = (user: UserRow, selection: Record<string, unknown>) =>
   Object.fromEntries(
     Object.keys(selection).map((key) => {
       if (key === 'id') return [key, user.id];
-      if (key === 'name') return [key, user.name];
+      if (key === 'firstName') return [key, user.firstName];
+      if (key === 'lastName') return [key, user.lastName];
       if (key === 'email') return [key, user.email];
       if (key === 'role') return [key, user.role];
       if (key === 'classroomId') return [key, user.classroomId];
@@ -113,7 +131,22 @@ vi.mock('../../db', () => {
         }
 
         const keys = Object.keys(selection);
-        const isUserListQuery = keys.length === 2 && keys.includes('id') && keys.includes('name');
+        const isLoadUserQuery = keys.length === 3 && keys.includes('id') && keys.includes('role') && keys.includes('classroomId');
+        const isUserListQuery = keys.includes('id') && keys.includes('firstName') && keys.includes('lastName');
+
+        if (isLoadUserQuery) {
+          return {
+            where: () => ({
+              limit: async () => {
+                const target = state.users.find((row) => row.deletedAt === null && row.id === state.jwtSub);
+                if (!target) {
+                  return [];
+                }
+                return [pickUser(target, selection)];
+              },
+            }),
+          };
+        }
 
         if (isUserListQuery) {
           return {
@@ -130,7 +163,9 @@ vi.mock('../../db', () => {
           where: (predicate: unknown) => ({
             limit: async () => {
               const requestedId = extractRequestedValue(predicate);
-              const target = state.users.find((row) => row.deletedAt === null && row.id === requestedId);
+              const target = state.users.find(
+                (row) => row.deletedAt === null && (row.id === requestedId || row.email === requestedId),
+              );
               if (!target) {
                 return [];
               }
@@ -245,7 +280,8 @@ describe('users api', () => {
     state.users = [
       {
         id: 'auth0|admin-user',
-        name: 'Admin',
+        firstName: 'Admin',
+        lastName: 'User',
         email: 'admin@example.com',
         role: 'admin',
         classroomId: null,
@@ -254,7 +290,8 @@ describe('users api', () => {
       },
       {
         id: 'auth0|manager-user',
-        name: 'Manager',
+        firstName: 'Manager',
+        lastName: 'User',
         email: 'manager@example.com',
         role: 'manager',
         classroomId: 'room-1',
@@ -263,7 +300,8 @@ describe('users api', () => {
       },
       {
         id: 'auth0|staff-user',
-        name: 'Staff',
+        firstName: 'Staff',
+        lastName: 'User',
         email: 'staff@example.com',
         role: 'staff',
         classroomId: 'room-1',
@@ -291,7 +329,8 @@ describe('users api', () => {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify({
-        name: 'New Staff',
+        firstName: 'New',
+        lastName: 'Staff',
         email: 'new-staff@example.com',
         role: 'staff',
         classroomId: 'room-1',
@@ -314,7 +353,8 @@ describe('users api', () => {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify({
-        name: 'New Admin',
+        firstName: 'New',
+        lastName: 'Admin',
         email: 'new-admin@example.com',
         role: 'admin',
         color: '#123abc',
@@ -332,7 +372,8 @@ describe('users api', () => {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify({
-        name: 'Rollback User',
+        firstName: 'Rollback',
+        lastName: 'User',
         email: 'rollback@example.com',
         role: 'staff',
         classroomId: 'room-1',
@@ -378,7 +419,8 @@ describe('users api', () => {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify({
-        name: 'Conflict User',
+        firstName: 'Conflict',
+        lastName: 'User',
         email: 'conflict@example.com',
         role: 'staff',
         classroomId: 'room-1',
@@ -396,7 +438,8 @@ describe('users api', () => {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify({
-        name: 'Token Fail User',
+        firstName: 'Token',
+        lastName: 'FailUser',
         email: 'token-fail@example.com',
         role: 'staff',
         classroomId: 'room-1',
@@ -412,7 +455,8 @@ describe('users api', () => {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify({
-        name: 'No Classroom User',
+        firstName: 'NoClassroom',
+        lastName: 'User',
         email: 'noclassroom@example.com',
         role: 'staff',
         classroomId: 'room-not-found',
@@ -435,8 +479,10 @@ describe('users api', () => {
     }, env);
 
     expect(response.status).toBe(200);
-    const payload = (await response.json()) as Array<{ id: string; name: string }>;
+    const payload = (await response.json()) as Array<{ id: string; firstName: string; lastName: string }>;
     expect(payload.map((row) => row.id)).toContain('auth0|staff-user');
+    expect(payload[0]?.firstName).toBeDefined();
+    expect(payload[0]?.lastName).toBeDefined();
   });
 
   it('returns 403 when manager requests another classroom users', async () => {
