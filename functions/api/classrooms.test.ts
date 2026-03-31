@@ -7,14 +7,26 @@ type ClassroomRow = {
   deletedAt: Date | null;
 };
 
+type ClassroomUserRow = {
+  id: string;
+  classroomId: string | null;
+  deletedAt: Date | null;
+};
+
 const state: {
   classrooms: ClassroomRow[];
+  classroomUsers: ClassroomUserRow[];
   userRole: 'admin' | 'manager' | 'staff' | null;
   jwtSub: string | null;
+  deleteAuth0Ok: boolean;
+  deletedAuth0UserIds: string[];
 } = {
   classrooms: [],
+  classroomUsers: [],
   userRole: 'admin',
   jwtSub: 'auth0|admin-user',
+  deleteAuth0Ok: true,
+  deletedAuth0UserIds: [],
 };
 
 vi.mock('hono/jwk', () => {
@@ -61,13 +73,45 @@ vi.mock('../../db', () => {
   };
 
   const db = {
-    select: () => ({
+    select: (selection: Record<string, unknown>) => ({
       from: (table: unknown) => {
         if (table === users) {
+          const keys = Object.keys(selection);
+          if (keys.length === 3 && keys.includes('id') && keys.includes('role') && keys.includes('classroomId')) {
+            return {
+              where: () => ({
+                limit: async () => (state.userRole
+                  ? [{
+                    id: state.jwtSub ?? 'auth0|current-user',
+                    role: state.userRole,
+                    classroomId: state.userRole === 'admin' ? null : 'room-1',
+                  }]
+                  : []),
+              }),
+            };
+          }
+
+          if (keys.length === 1 && keys.includes('role')) {
+            return {
+              where: () => ({
+                limit: async () => (state.userRole ? [{ role: state.userRole }] : []),
+              }),
+            };
+          }
+
+          if (keys.length === 1 && keys.includes('id')) {
+            return {
+              where: async (predicate: unknown) => {
+                const classroomId = extractRequestedId(predicate);
+                return state.classroomUsers
+                  .filter((row) => row.classroomId === classroomId && row.deletedAt === null)
+                  .map((row) => ({ id: row.id }));
+              },
+            };
+          }
+
           return {
-            where: () => ({
-              limit: async () => (state.userRole ? [{ role: state.userRole }] : []),
-            }),
+            where: async () => [],
           };
         }
 
@@ -90,23 +134,42 @@ vi.mock('../../db', () => {
         state.classrooms.push(value);
       },
     }),
-    update: () => ({
+    update: (table: unknown) => ({
       set: (value: { deletedAt: Date | null }) => ({
         where: async (predicate: unknown) => {
-          const requestedId = extractRequestedId(predicate);
-          if (!requestedId) {
-            return { meta: { changes: 0 } };
+          if (table === classrooms) {
+            const requestedId = extractRequestedId(predicate);
+            if (!requestedId) {
+              return { meta: { changes: 0 } };
+            }
+
+            const target = state.classrooms.find(
+              (row) => row.id === requestedId && (value.deletedAt === null || row.deletedAt === null),
+            );
+            if (!target) {
+              return { meta: { changes: 0 } };
+            }
+
+            target.deletedAt = value.deletedAt;
+            return { meta: { changes: 1 } };
           }
 
-          const target = state.classrooms.find(
-            (row) => row.id === requestedId && row.deletedAt === null,
-          );
-          if (!target) {
-            return { meta: { changes: 0 } };
+          if (table === users) {
+            const requestedId = extractRequestedId(predicate);
+            if (!requestedId) {
+              return { meta: { changes: 0 } };
+            }
+            const target = state.classroomUsers.find(
+              (row) => row.id === requestedId && (value.deletedAt === null || row.deletedAt === null),
+            );
+            if (!target) {
+              return { meta: { changes: 0 } };
+            }
+            target.deletedAt = value.deletedAt;
+            return { meta: { changes: 1 } };
           }
 
-          target.deletedAt = value.deletedAt;
-          return { meta: { changes: 1 } };
+          return { meta: { changes: 0 } };
         },
       }),
     }),
@@ -117,20 +180,49 @@ vi.mock('../../db', () => {
   };
 });
 
+const fetchMock = vi.fn(async (input: string | URL | Request) => {
+  const url = typeof input === 'string' ? input : input.toString();
+
+  if (url.includes('/oauth/token')) {
+    return new Response(JSON.stringify({ access_token: 'm2m-token' }), { status: 200 });
+  }
+
+  if (url.includes('/api/v2/users/') && !url.endsWith('/api/v2/users')) {
+    if (!state.deleteAuth0Ok) {
+      return new Response(null, { status: 500 });
+    }
+    state.deletedAuth0UserIds.push(url.split('/api/v2/users/')[1] ?? '');
+    return new Response(null, { status: 204 });
+  }
+
+  return new Response('not found', { status: 404 });
+});
+
+vi.stubGlobal('fetch', fetchMock);
+
 import { app } from './[[route]]';
 
 const env = {
   AUTH0_AUDIENCE: 'https://api.example.local',
   AUTH0_ISSUER: 'https://issuer.example.local/',
   AUTH0_JWKS_URI: 'https://issuer.example.local/.well-known/jwks.json',
+  VITE_AUTH0_DOMAIN: 'tenant.example.auth0.com',
+  AUTH0_M2M_CLIENT_ID: 'm2m-client-id',
+  AUTH0_M2M_CLIENT_SECRET: 'm2m-client-secret',
+  AUTH0_DB_CONNECTION: 'Username-Password-Authentication',
+  VITE_AUTH0_CLIENT_ID: 'spa-client-id',
   DB: {},
 } as unknown as Env;
 
 describe('classrooms api flow', () => {
   beforeEach(() => {
     state.classrooms = [];
+    state.classroomUsers = [];
     state.userRole = 'admin';
     state.jwtSub = 'auth0|admin-user';
+    state.deleteAuth0Ok = true;
+    state.deletedAuth0UserIds = [];
+    fetchMock.mockClear();
   });
 
   it('POST -> GET -> DELETE -> GET works', async () => {
@@ -157,6 +249,48 @@ describe('classrooms api flow', () => {
     expect(getAfterDelete.status).toBe(200);
     const listAfterDelete = (await getAfterDelete.json()) as Array<{ id: string; name: string }>;
     expect(listAfterDelete).toHaveLength(0);
+  });
+
+  it('deletes classroom users together with classroom', async () => {
+    const postResponse = await app.request('/api/classrooms', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ name: 'Class A' }),
+    }, env);
+    const created = (await postResponse.json()) as { id: string };
+
+    state.classroomUsers.push({
+      id: 'auth0|staff-user',
+      classroomId: created.id,
+      deletedAt: null,
+    });
+
+    const deleteResponse = await app.request(`/api/classrooms/${created.id}`, { method: 'DELETE' }, env);
+    expect(deleteResponse.status).toBe(200);
+    expect(state.classroomUsers[0]?.deletedAt).toBeInstanceOf(Date);
+    expect(state.deletedAuth0UserIds.some((id) => id.includes('auth0%7Cstaff-user'))).toBe(true);
+  });
+
+  it('rolls back classroom deletion when auth0 user delete fails', async () => {
+    const postResponse = await app.request('/api/classrooms', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ name: 'Class A' }),
+    }, env);
+    const created = (await postResponse.json()) as { id: string };
+
+    state.classroomUsers.push({
+      id: 'auth0|staff-user',
+      classroomId: created.id,
+      deletedAt: null,
+    });
+    state.deleteAuth0Ok = false;
+
+    const deleteResponse = await app.request(`/api/classrooms/${created.id}`, { method: 'DELETE' }, env);
+    expect(deleteResponse.status).toBe(400);
+    const classroom = state.classrooms.find((row) => row.id === created.id);
+    expect(classroom?.deletedAt).toBeNull();
+    expect(state.classroomUsers[0]?.deletedAt).toBeNull();
   });
 
   it('returns 400 when name is missing or blank', async () => {
