@@ -79,7 +79,9 @@ const requireManagerOrAbove = async (c: Context<{Bindings: Bindings; Variables: 
   await next();
 };
 
-const requireClassroomScope = (paramName: string) =>
+const requireClassroomScope = (
+  resolveClassroomId: (c: Context<{Bindings: Bindings; Variables: AppVariables}>) => string | null
+) =>
   async (c: Context<{Bindings: Bindings; Variables: AppVariables}>, next: Next) => {
     const currentUser = c.var.currentUser;
     
@@ -87,7 +89,10 @@ const requireClassroomScope = (paramName: string) =>
       return c.json({ message: 'user not loaded' }, 500);
     }
 
-    const targetClassroomId = c.req.param(paramName);
+    const targetClassroomId = resolveClassroomId(c);
+    if(!targetClassroomId){
+      return c.json({ message: 'classroom id is required' }, 400);
+    }
     if(currentUser.role !== 'admin' && (currentUser.role !== 'manager' || currentUser.classroomId !== targetClassroomId)){
       return c.json({ message: 'forbidden' }, 403);
     }
@@ -137,6 +142,17 @@ app.delete('/classrooms/:id', auth, loadUser, requireAdmin, async(c) =>{
   return c.json({ success: true }, 200);
 });
 
+
+app.get('/users/:classroomId', auth, loadUser, requireManagerOrAbove, requireClassroomScope((c) => c.req.param('classroomId') ?? null), async(c) =>{
+  const classroomId = c.req.param('classroomId');
+  if(!classroomId){
+    return c.json({ message: 'classroom id is required' }, 400);
+  }
+  const db = getDb(c.env);
+
+  const rows = await db.select({id: users.id, name: users.name}).from(users).where(and(eq(users.classroomId, classroomId), isNull(users.deletedAt)));
+  return c.json(rows, 200);
+})
 
 app.delete('/users/:id', auth, loadUser, requireManagerOrAbove, async(c) => {
   const actor = c.var.currentUser;
