@@ -474,6 +474,33 @@ describe('users api', () => {
     expect(state.deletedAuth0UserIds.some((id) => id.includes('auth0%7Crollback-user'))).toBe(true);
   });
 
+  it('returns 500 when Auth0 rollback fails after create failure', async () => {
+    state.sendEmailOk = false;
+    state.deleteAuth0Ok = false;
+    state.createUserId = 'auth0|rollback-auth0-fail';
+
+    const response = await app.request('/api/users', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({
+        firstName: 'Rollback',
+        lastName: 'Auth0Fail',
+        email: 'rollback-auth0-fail@example.com',
+        role: 'staff',
+        classroomId: 'room-1',
+        color: '#123abc',
+      }),
+    }, env);
+
+    expect(response.status).toBe(500);
+    const body = (await response.json()) as { message?: string };
+    expect(body.message).toBe('failed to roll back remote user');
+    expect(state.users.some((row) => row.id === 'auth0|rollback-auth0-fail')).toBe(false);
+    expect(state.deletedAuth0UserIds.some((id) => id.includes('auth0%7Crollback-auth0-fail'))).toBe(
+      false,
+    );
+  });
+
   it('deletes user when manager is in same classroom', async () => {
     state.jwtSub = 'auth0|manager-user';
 

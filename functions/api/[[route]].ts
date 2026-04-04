@@ -432,7 +432,10 @@ app.post('/users', auth, loadUser, requireManagerOrAbove, async (c) =>{
       await db.delete(users).where(eq(users.id, auth0UserId)).catch(() => undefined);
     }
     if (managementToken && auth0UserId) {
-      await deleteAuth0User(c.env, managementToken, auth0UserId).catch(() => undefined);
+      const auth0RollbackDeleted = await deleteAuth0User(c.env, managementToken, auth0UserId);
+      if (!auth0RollbackDeleted) {
+        return c.json({ message: 'failed to roll back remote user' }, 500);
+      }
     }
     if (isD1UsersEmailUniqueViolation(error)) {
       return c.json({ message: 'user already exists' }, 409);
