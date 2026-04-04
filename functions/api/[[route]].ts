@@ -592,13 +592,22 @@ app.delete('/users/:id', auth, loadUser, requireManagerOrAbove, async(c) => {
     return c.json({ message: 'user not found' }, 404);
   }
 
-  const auth0Deleted = await deleteAuth0User(c.env, managementToken, targetId);
-  if (!auth0Deleted) {
+  const rollbackUserSoftDelete = async () => {
     await db
       .update(users)
       .set({ deletedAt: null })
       .where(eq(users.id, targetId))
       .catch(() => undefined);
+  };
+
+  try {
+    const auth0Deleted = await deleteAuth0User(c.env, managementToken, targetId);
+    if (!auth0Deleted) {
+      await rollbackUserSoftDelete();
+      return c.json({ message: 'failed to delete user' }, 400);
+    }
+  } catch {
+    await rollbackUserSoftDelete();
     return c.json({ message: 'failed to delete user' }, 400);
   }
 
