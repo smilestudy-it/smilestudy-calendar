@@ -37,6 +37,9 @@ type Auth0ErrorResponse = {
   message?: string;
 };
 
+/** Matches `drizzle/0004_demonic_talkback.sql` partial unique index on active classrooms. */
+const CLASSROOMS_NAME_ACTIVE_UNIQUE_INDEX = 'classrooms_name_active_unique';
+
 /** Matches `drizzle/0005_acoustic_night_thrasher.sql` partial unique index on active users. */
 const USERS_EMAIL_ACTIVE_UNIQUE_INDEX = 'users_email_active_unique';
 
@@ -62,6 +65,17 @@ function collectErrorTextParts(error: unknown, depth = 0): string[] {
   } catch {
     return [String(error)];
   }
+}
+
+function isD1ClassroomNameUniqueViolation(error: unknown): boolean {
+  const text = collectErrorTextParts(error).join(' ');
+  const lower = text.toLowerCase();
+  return (
+    text.includes(CLASSROOMS_NAME_ACTIVE_UNIQUE_INDEX) ||
+    lower.includes('unique constraint failed') ||
+    (lower.includes('unique constraint') && lower.includes('classroom')) ||
+    (lower.includes('sqlite_constraint') && lower.includes('unique'))
+  );
 }
 
 function isD1UsersEmailUniqueViolation(error: unknown): boolean {
@@ -258,7 +272,14 @@ app.post('/classrooms', auth, loadUser, requireAdmin, async (c) => {
 
   const id = crypto.randomUUID();
 
-  await db.insert(classrooms).values({id, name: input.name, deletedAt: null});
+  try {
+    await db.insert(classrooms).values({ id, name: input.name, deletedAt: null });
+  } catch (error) {
+    if (isD1ClassroomNameUniqueViolation(error)) {
+      return c.json({ message: 'classroom already exists' }, 409);
+    }
+    return c.json({ message: 'failed to create classroom' }, 500);
+  }
 
   return c.json({ id, name: input.name }, 201);
 });

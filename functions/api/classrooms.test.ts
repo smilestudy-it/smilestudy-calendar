@@ -22,6 +22,8 @@ const state: {
   deletedAuth0UserIds: string[];
   /** When set, Auth0 user DELETE succeeds until this many URLs have been recorded, then fails. */
   deleteAuth0FailAfterSuccessCount?: number;
+  /** Simulates D1 unique violation on classroom insert (e.g. race after preflight). */
+  insertSimulateClassroomUniqueViolation: boolean;
 } = {
   classrooms: [],
   classroomUsers: [],
@@ -29,6 +31,7 @@ const state: {
   jwtSub: 'auth0|admin-user',
   deleteAuth0Ok: true,
   deletedAuth0UserIds: [],
+  insertSimulateClassroomUniqueViolation: false,
 };
 
 vi.mock('hono/jwk', () => {
@@ -151,6 +154,11 @@ vi.mock('../../db', () => {
     }),
     insert: () => ({
       values: async (value: ClassroomRow) => {
+        if (state.insertSimulateClassroomUniqueViolation) {
+          throw new Error(
+            'UNIQUE constraint failed: index classrooms_name_active_unique',
+          );
+        }
         state.classrooms.push(value);
       },
     }),
@@ -249,6 +257,7 @@ describe('classrooms api flow', () => {
     state.deleteAuth0Ok = true;
     state.deletedAuth0UserIds = [];
     state.deleteAuth0FailAfterSuccessCount = undefined;
+    state.insertSimulateClassroomUniqueViolation = false;
     fetchMock.mockClear();
   });
 
@@ -394,6 +403,21 @@ describe('classrooms api flow', () => {
       body: JSON.stringify({ name: 'Class Duplicate' }),
     }, env);
     expect(second.status).toBe(409);
+  });
+
+  it('returns 409 when D1 insert violates classrooms_name_active_unique (race)', async () => {
+    state.insertSimulateClassroomUniqueViolation = true;
+
+    const response = await app.request('/api/classrooms', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ name: 'Race Classroom' }),
+    }, env);
+
+    expect(response.status).toBe(409);
+    const body = (await response.json()) as { message?: string };
+    expect(body.message).toBe('classroom already exists');
+    expect(state.classrooms.some((row) => row.name === 'Race Classroom')).toBe(false);
   });
 
   it('returns 404 when deleting a non-existing classroom', async () => {
