@@ -2,6 +2,7 @@ import { useAuth0 } from "@auth0/auth0-react";
 import { useEffect, useState } from "react";
 
 type AppUser = {
+  id: string;
   role: 'admin' | 'manager' | 'staff' | null;
   classroomId: string | null;
 };

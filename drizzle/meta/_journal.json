@@ -8,6 +8,41 @@
       "when": 1774182862713,
       "tag": "0000_military_miss_america",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "6",
+      "when": 1774856640837,
+      "tag": "0001_unique_gressill",
+      "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "6",
+      "when": 1774953614566,
+      "tag": "0002_remarkable_lyja",
+      "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "6",
+      "when": 1774953783420,
+      "tag": "0003_lame_vertigo",
+      "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "6",
+      "when": 1774954041490,
+      "tag": "0004_demonic_talkback",
+      "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "6",
+      "when": 1774954164488,
+      "tag": "0005_acoustic_night_thrasher",
+      "breakpoints": true
     }
   ]
 }

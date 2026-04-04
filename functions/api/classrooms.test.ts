@@ -7,14 +7,31 @@ type ClassroomRow = {
   deletedAt: Date | null;
 };
 
+type ClassroomUserRow = {
+  id: string;
+  classroomId: string | null;
+  deletedAt: Date | null;
+};
+
 const state: {
   classrooms: ClassroomRow[];
+  classroomUsers: ClassroomUserRow[];
   userRole: 'admin' | 'manager' | 'staff' | null;
   jwtSub: string | null;
+  deleteAuth0Ok: boolean;
+  deletedAuth0UserIds: string[];
+  /** When set, Auth0 user DELETE succeeds until this many URLs have been recorded, then fails. */
+  deleteAuth0FailAfterSuccessCount?: number;
+  /** Simulates D1 unique violation on classroom insert (e.g. race after preflight). */
+  insertSimulateClassroomUniqueViolation: boolean;
 } = {
   classrooms: [],
+  classroomUsers: [],
   userRole: 'admin',
   jwtSub: 'auth0|admin-user',
+  deleteAuth0Ok: true,
+  deletedAuth0UserIds: [],
+  insertSimulateClassroomUniqueViolation: false,
 };
 
 vi.mock('hono/jwk', () => {
@@ -60,18 +77,75 @@ vi.mock('../../db', () => {
     return null;
   };
 
-  const db = {
-    select: () => ({
+  type MockDb = {
+    select: (selection: Record<string, unknown>) => { from: (table: unknown) => unknown };
+    insert: () => { values: (value: ClassroomRow) => Promise<void> };
+    update: (table: unknown) => unknown;
+    transaction: <T>(fn: (tx: MockDb) => Promise<T>) => Promise<T>;
+  };
+
+  const db: MockDb = {
+    select: (selection: Record<string, unknown>) => ({
       from: (table: unknown) => {
         if (table === users) {
+          const keys = Object.keys(selection);
+          if (keys.length === 3 && keys.includes('id') && keys.includes('role') && keys.includes('classroomId')) {
+            return {
+              where: () => ({
+                limit: async () => (state.userRole
+                  ? [{
+                    id: state.jwtSub ?? 'auth0|current-user',
+                    role: state.userRole,
+                    classroomId: state.userRole === 'admin' ? null : 'room-1',
+                  }]
+                  : []),
+              }),
+            };
+          }
+
+          if (keys.length === 1 && keys.includes('role')) {
+            return {
+              where: () => ({
+                limit: async () => (state.userRole ? [{ role: state.userRole }] : []),
+              }),
+            };
+          }
+
+          if (keys.length === 1 && keys.includes('id')) {
+            return {
+              where: async (predicate: unknown) => {
+                const classroomId = extractRequestedId(predicate);
+                return state.classroomUsers
+                  .filter((row) => row.classroomId === classroomId && row.deletedAt === null)
+                  .map((row) => ({ id: row.id }));
+              },
+            };
+          }
+
           return {
-            where: () => ({
-              limit: async () => (state.userRole ? [{ role: state.userRole }] : []),
-            }),
+            where: async () => [],
           };
         }
 
         if (table === classrooms) {
+          const keys = Object.keys(selection);
+          if (keys.length === 1 && keys.includes('id')) {
+            return {
+              where: (predicate: unknown) => ({
+                limit: async () => {
+                  const requestedName = extractRequestedId(predicate);
+                  if (!requestedName) {
+                    return [];
+                  }
+                  const target = state.classrooms.find(
+                    (row) => row.name === requestedName && row.deletedAt === null,
+                  );
+                  return target ? [{ id: target.id }] : [];
+                },
+              }),
+            };
+          }
+
           return {
             where: async () =>
               state.classrooms
@@ -87,29 +161,54 @@ vi.mock('../../db', () => {
     }),
     insert: () => ({
       values: async (value: ClassroomRow) => {
+        if (state.insertSimulateClassroomUniqueViolation) {
+          throw new Error(
+            'UNIQUE constraint failed: index classrooms_name_active_unique',
+          );
+        }
         state.classrooms.push(value);
       },
     }),
-    update: () => ({
+    update: (table: unknown) => ({
       set: (value: { deletedAt: Date | null }) => ({
         where: async (predicate: unknown) => {
-          const requestedId = extractRequestedId(predicate);
-          if (!requestedId) {
-            return { meta: { changes: 0 } };
+          if (table === classrooms) {
+            const requestedId = extractRequestedId(predicate);
+            if (!requestedId) {
+              return { meta: { changes: 0 } };
+            }
+
+            const target = state.classrooms.find(
+              (row) => row.id === requestedId && (value.deletedAt === null || row.deletedAt === null),
+            );
+            if (!target) {
+              return { meta: { changes: 0 } };
+            }
+
+            target.deletedAt = value.deletedAt;
+            return { meta: { changes: 1 } };
           }
 
-          const target = state.classrooms.find(
-            (row) => row.id === requestedId && row.deletedAt === null,
-          );
-          if (!target) {
-            return { meta: { changes: 0 } };
+          if (table === users) {
+            const requestedId = extractRequestedId(predicate);
+            if (!requestedId) {
+              return { meta: { changes: 0 } };
+            }
+            const target = state.classroomUsers.find(
+              (row) => row.id === requestedId && (value.deletedAt === null || row.deletedAt === null),
+            );
+            if (!target) {
+              return { meta: { changes: 0 } };
+            }
+            target.deletedAt = value.deletedAt;
+            return { meta: { changes: 1 } };
           }
 
-          target.deletedAt = value.deletedAt;
-          return { meta: { changes: 1 } };
+          return { meta: { changes: 0 } };
         },
       }),
     }),
+    transaction: async <T>(fn: (tx: typeof db) => Promise<T>) => fn(db),
   };
 
   return {
@@ -117,20 +216,57 @@ vi.mock('../../db', () => {
   };
 });
 
+const fetchMock = vi.fn(async (input: string | URL | Request) => {
+  const url = typeof input === 'string' ? input : input.toString();
+
+  if (url.includes('/oauth/token')) {
+    return new Response(JSON.stringify({ access_token: 'm2m-token' }), { status: 200 });
+  }
+
+  if (url.includes('/api/v2/users/') && !url.endsWith('/api/v2/users')) {
+    if (!state.deleteAuth0Ok) {
+      return new Response(null, { status: 500 });
+    }
+    if (
+      state.deleteAuth0FailAfterSuccessCount !== undefined &&
+      state.deletedAuth0UserIds.length >= state.deleteAuth0FailAfterSuccessCount
+    ) {
+      return new Response(null, { status: 500 });
+    }
+    state.deletedAuth0UserIds.push(url.split('/api/v2/users/')[1] ?? '');
+    return new Response(null, { status: 204 });
+  }
+
+  return new Response('not found', { status: 404 });
+});
+
+vi.stubGlobal('fetch', fetchMock);
+
 import { app } from './[[route]]';
 
 const env = {
   AUTH0_AUDIENCE: 'https://api.example.local',
   AUTH0_ISSUER: 'https://issuer.example.local/',
   AUTH0_JWKS_URI: 'https://issuer.example.local/.well-known/jwks.json',
+  VITE_AUTH0_DOMAIN: 'tenant.example.auth0.com',
+  AUTH0_M2M_CLIENT_ID: 'm2m-client-id',
+  AUTH0_M2M_CLIENT_SECRET: 'm2m-client-secret',
+  AUTH0_DB_CONNECTION: 'Username-Password-Authentication',
+  VITE_AUTH0_CLIENT_ID: 'spa-client-id',
   DB: {},
 } as unknown as Env;
 
 describe('classrooms api flow', () => {
   beforeEach(() => {
     state.classrooms = [];
+    state.classroomUsers = [];
     state.userRole = 'admin';
     state.jwtSub = 'auth0|admin-user';
+    state.deleteAuth0Ok = true;
+    state.deletedAuth0UserIds = [];
+    state.deleteAuth0FailAfterSuccessCount = undefined;
+    state.insertSimulateClassroomUniqueViolation = false;
+    fetchMock.mockClear();
   });
 
   it('POST -> GET -> DELETE -> GET works', async () => {
@@ -159,6 +295,82 @@ describe('classrooms api flow', () => {
     expect(listAfterDelete).toHaveLength(0);
   });
 
+  it('deletes classroom users together with classroom', async () => {
+    const postResponse = await app.request('/api/classrooms', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ name: 'Class A' }),
+    }, env);
+    const created = (await postResponse.json()) as { id: string };
+
+    state.classroomUsers.push({
+      id: 'auth0|staff-user',
+      classroomId: created.id,
+      deletedAt: null,
+    });
+
+    const deleteResponse = await app.request(`/api/classrooms/${created.id}`, { method: 'DELETE' }, env);
+    expect(deleteResponse.status).toBe(200);
+    expect(state.classroomUsers[0]?.deletedAt).toBeInstanceOf(Date);
+    expect(state.deletedAuth0UserIds.some((id) => id.includes('auth0%7Cstaff-user'))).toBe(true);
+  });
+
+  it('partial rollback: keeps D1 soft-delete for users already removed from Auth0', async () => {
+    const postResponse = await app.request('/api/classrooms', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ name: 'Class A' }),
+    }, env);
+    const created = (await postResponse.json()) as { id: string };
+
+    state.classroomUsers.push(
+      {
+        id: 'auth0|user-first',
+        classroomId: created.id,
+        deletedAt: null,
+      },
+      {
+        id: 'auth0|user-second',
+        classroomId: created.id,
+        deletedAt: null,
+      },
+    );
+    state.deleteAuth0FailAfterSuccessCount = 1;
+
+    const deleteResponse = await app.request(`/api/classrooms/${created.id}`, { method: 'DELETE' }, env);
+    expect(deleteResponse.status).toBe(400);
+
+    const classroom = state.classrooms.find((row) => row.id === created.id);
+    expect(classroom?.deletedAt).toBeNull();
+
+    const first = state.classroomUsers.find((row) => row.id === 'auth0|user-first');
+    const second = state.classroomUsers.find((row) => row.id === 'auth0|user-second');
+    expect(first?.deletedAt).toBeInstanceOf(Date);
+    expect(second?.deletedAt).toBeNull();
+  });
+
+  it('rolls back classroom deletion when auth0 user delete fails', async () => {
+    const postResponse = await app.request('/api/classrooms', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ name: 'Class A' }),
+    }, env);
+    const created = (await postResponse.json()) as { id: string };
+
+    state.classroomUsers.push({
+      id: 'auth0|staff-user',
+      classroomId: created.id,
+      deletedAt: null,
+    });
+    state.deleteAuth0Ok = false;
+
+    const deleteResponse = await app.request(`/api/classrooms/${created.id}`, { method: 'DELETE' }, env);
+    expect(deleteResponse.status).toBe(400);
+    const classroom = state.classrooms.find((row) => row.id === created.id);
+    expect(classroom?.deletedAt).toBeNull();
+    expect(state.classroomUsers[0]?.deletedAt).toBeNull();
+  });
+
   it('returns 400 when name is missing or blank', async () => {
     const missingName = await app.request('/api/classrooms', {
       method: 'POST',
@@ -183,6 +395,37 @@ describe('classrooms api flow', () => {
       body: JSON.stringify({ name: tooLongName }),
     }, env);
     expect(response.status).toBe(400);
+  });
+
+  it('returns 409 when creating classroom with duplicate name', async () => {
+    const first = await app.request('/api/classrooms', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ name: 'Class Duplicate' }),
+    }, env);
+    expect(first.status).toBe(201);
+
+    const second = await app.request('/api/classrooms', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ name: 'Class Duplicate' }),
+    }, env);
+    expect(second.status).toBe(409);
+  });
+
+  it('returns 409 when D1 insert violates classrooms_name_active_unique (race)', async () => {
+    state.insertSimulateClassroomUniqueViolation = true;
+
+    const response = await app.request('/api/classrooms', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ name: 'Race Classroom' }),
+    }, env);
+
+    expect(response.status).toBe(409);
+    const body = (await response.json()) as { message?: string };
+    expect(body.message).toBe('classroom already exists');
+    expect(state.classrooms.some((row) => row.name === 'Race Classroom')).toBe(false);
   });
 
   it('returns 404 when deleting a non-existing classroom', async () => {

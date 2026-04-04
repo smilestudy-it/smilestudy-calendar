@@ -1,11 +1,13 @@
 import { useAuth0 } from '@auth0/auth0-react';
-import { useEffect } from 'react';
+import { lazy, Suspense, useEffect } from 'react';
 import { Navigate, Route, Routes } from 'react-router-dom';
 import LoginButton from './LoginButton';
 import AppShell from './components/AppShell';
 import { useCurrentUser } from './hooks/useCurrentUser';
-import HomePage from './pages/HomePage';
-import ClassroomPage from './pages/ClassroomPage';
+
+const HomePage = lazy(() => import('./pages/HomePage'));
+const ClassroomPage = lazy(() => import('./pages/ClassroomPage'));
+const TeacherManagementPage = lazy(() => import('./pages/TeacherManagementPage'));
 
 function App() {
   const { isAuthenticated, isLoading, error, user, getAccessTokenSilently } = useAuth0();
@@ -64,20 +66,32 @@ function App() {
       isLoadingCurrentUser={isLoadingCurrentUser}
       currentUserError={currentUserError}
     >
-      <Routes>
-        <Route path="/" element={<HomePage />} />
-        <Route
-          path="/classroom"
-          element={
-            <ClassroomPage
-              currentUser={currentUser}
-              isLoadingCurrentUser={isLoadingCurrentUser}
-              getAccessTokenSilently={getAccessTokenSilently}
-            />
-          }
-        />
-        <Route path="*" element={<Navigate to="/" replace />} />
-      </Routes>
+      <Suspense fallback={<p className="text-sm text-slate-400">画面を読み込み中...</p>}>
+        <Routes>
+          <Route path="/" element={<HomePage />} />
+          <Route
+            path="/classroom"
+            element={
+              <ClassroomPage
+                currentUser={currentUser}
+                isLoadingCurrentUser={isLoadingCurrentUser}
+                getAccessTokenSilently={getAccessTokenSilently}
+              />
+            }
+          />
+          <Route
+            path="/teachers"
+            element={
+              <TeacherManagementPage
+                currentUser={currentUser}
+                isLoadingCurrentUser={isLoadingCurrentUser}
+                getAccessTokenSilently={getAccessTokenSilently}
+              />
+            }
+          />
+          <Route path="*" element={<Navigate to="/" replace />} />
+        </Routes>
+      </Suspense>
     </AppShell>
   );
 }
