@@ -77,7 +77,14 @@ vi.mock('../../db', () => {
     return null;
   };
 
-  const db = {
+  type MockDb = {
+    select: (selection: Record<string, unknown>) => { from: (table: unknown) => unknown };
+    insert: () => { values: (value: ClassroomRow) => Promise<void> };
+    update: (table: unknown) => unknown;
+    transaction: <T>(fn: (tx: MockDb) => Promise<T>) => Promise<T>;
+  };
+
+  const db: MockDb = {
     select: (selection: Record<string, unknown>) => ({
       from: (table: unknown) => {
         if (table === users) {
@@ -201,6 +208,7 @@ vi.mock('../../db', () => {
         },
       }),
     }),
+    transaction: async <T>(fn: (tx: typeof db) => Promise<T>) => fn(db),
   };
 
   return {

@@ -37,6 +37,9 @@ type Auth0ErrorResponse = {
   message?: string;
 };
 
+/** Thrown when `classrooms.deleted_at` is set between preflight and user insert (create user flow). */
+const CLASSROOM_NOT_ACTIVE_ERROR = 'CLASSROOM_NOT_ACTIVE_ERROR';
+
 /** Matches `drizzle/0004_demonic_talkback.sql` partial unique index on active classrooms. */
 const CLASSROOMS_NAME_ACTIVE_UNIQUE_INDEX = 'classrooms_name_active_unique';
 
@@ -299,13 +302,13 @@ app.delete('/classrooms/:id', auth, loadUser, requireAdmin, async(c) =>{
   const db = getDb(c.env);
   const deletedAt = new Date();
 
-  const classroomUsers = await db
+  const classroomUsersPreview = await db
     .select({ id: users.id })
     .from(users)
     .where(and(eq(users.classroomId, id), isNull(users.deletedAt)));
 
   let managementToken = '';
-  if (classroomUsers.length > 0) {
+  if (classroomUsersPreview.length > 0) {
     try {
       managementToken = await getAuth0ManagementToken(c.env);
     } catch {
@@ -313,29 +316,67 @@ app.delete('/classrooms/:id', auth, loadUser, requireAdmin, async(c) =>{
     }
   }
 
-  const result = await db
-    .update(classrooms)
-    .set({ deletedAt })
-    .where(and(eq(classrooms.id, id), isNull(classrooms.deletedAt)));
+  let txResult: { notFound: true; updatedUserIds: string[] } | { notFound: false; updatedUserIds: string[] };
+  try {
+    // Serialize classroom soft-delete + member soft-deletes. `immediate` takes a write lock early.
+    // User rows are selected only after the classroom row is marked deleted so concurrent creates
+    // that re-check `classrooms.deleted_at` cannot commit a new member into an "open" classroom.
+    txResult = await db.transaction(
+      async (tx) => {
+        const result = await tx
+          .update(classrooms)
+          .set({ deletedAt })
+          .where(and(eq(classrooms.id, id), isNull(classrooms.deletedAt)));
 
-  if(result.meta.changes === 0){
-    return c.json({message: 'classroom not found'}, 404);
+        if (result.meta.changes === 0) {
+          return { notFound: true as const, updatedUserIds: [] as string[] };
+        }
+
+        const classroomUsers = await tx
+          .select({ id: users.id })
+          .from(users)
+          .where(and(eq(users.classroomId, id), isNull(users.deletedAt)));
+
+        const updatedUserIds: string[] = [];
+        for (const classroomUser of classroomUsers) {
+          const userUpdateResult = await tx
+            .update(users)
+            .set({ deletedAt })
+            .where(and(eq(users.id, classroomUser.id), isNull(users.deletedAt)));
+
+          if (userUpdateResult.meta.changes > 0) {
+            updatedUserIds.push(classroomUser.id);
+          }
+        }
+
+        return { notFound: false as const, updatedUserIds };
+      },
+      { behavior: 'immediate' },
+    );
+  } catch {
+    return c.json({ message: 'failed to delete classroom' }, 400);
   }
 
-  const updatedUserIds: string[] = [];
+  if (txResult.notFound) {
+    return c.json({ message: 'classroom not found' }, 404);
+  }
+
+  const { updatedUserIds } = txResult;
+
+  if (updatedUserIds.length > 0 && !managementToken) {
+    try {
+      managementToken = await getAuth0ManagementToken(c.env);
+    } catch {
+      await db.update(classrooms).set({ deletedAt: null }).where(eq(classrooms.id, id)).catch(() => undefined);
+      for (const userId of updatedUserIds) {
+        await db.update(users).set({ deletedAt: null }).where(eq(users.id, userId)).catch(() => undefined);
+      }
+      return c.json({ message: 'failed to delete classroom' }, 400);
+    }
+  }
+
   const successfullyDeletedAuth0Ids: string[] = [];
   try {
-    for (const classroomUser of classroomUsers) {
-      const userUpdateResult = await db
-        .update(users)
-        .set({ deletedAt })
-        .where(and(eq(users.id, classroomUser.id), isNull(users.deletedAt)));
-
-      if (userUpdateResult.meta.changes > 0) {
-        updatedUserIds.push(classroomUser.id);
-      }
-    }
-
     for (const userId of updatedUserIds) {
       const auth0Deleted = await deleteAuth0User(c.env, managementToken, userId);
       if (!auth0Deleted) {
@@ -411,6 +452,18 @@ app.post('/users', auth, loadUser, requireManagerOrAbove, async (c) =>{
 
     auth0UserId = auth0Result.userId;
 
+    if (input.classroomId) {
+      const [classroomStillActive] = await db
+        .select({ id: classrooms.id })
+        .from(classrooms)
+        .where(and(eq(classrooms.id, input.classroomId), isNull(classrooms.deletedAt)))
+        .limit(1);
+
+      if (!classroomStillActive) {
+        throw new Error(CLASSROOM_NOT_ACTIVE_ERROR);
+      }
+    }
+
     await db.insert(users).values({
       id: auth0UserId,
       firstName: input.firstName,
@@ -436,6 +489,9 @@ app.post('/users', auth, loadUser, requireManagerOrAbove, async (c) =>{
       if (!auth0RollbackDeleted) {
         return c.json({ message: 'failed to roll back remote user' }, 500);
       }
+    }
+    if (error instanceof Error && error.message === CLASSROOM_NOT_ACTIVE_ERROR) {
+      return c.json({ message: 'classroom not found' }, 404);
     }
     if (isD1UsersEmailUniqueViolation(error)) {
       return c.json({ message: 'user already exists' }, 409);
