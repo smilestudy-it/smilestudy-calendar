@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
@@ -57,6 +57,8 @@ export default function TeacherManagementPanel({ currentUser, getAccessTokenSile
   const [isLoadingAdmins, setIsLoadingAdmins] = useState(false);
   const [isLoadingClassrooms, setIsLoadingClassrooms] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const latestLoadUsersRequestId = useRef(0);
+  const latestLoadAdminsRequestId = useRef(0);
   const {
     register,
     handleSubmit,
@@ -126,48 +128,78 @@ export default function TeacherManagementPanel({ currentUser, getAccessTokenSile
   }, [authedFetch, getValues, isAdmin, selectedClassroomId, setValue]);
 
   const loadUsers = useCallback(async () => {
+    latestLoadUsersRequestId.current += 1;
+    const requestId = latestLoadUsersRequestId.current;
+
     if (!activeClassroomId) {
-      setUsers([]);
+      if (requestId === latestLoadUsersRequestId.current) {
+        setUsers([]);
+      }
       return;
     }
 
     setIsLoadingUsers(true);
-    setError(null);
+    if (requestId === latestLoadUsersRequestId.current) {
+      setError(null);
+    }
     try {
       const response = await authedFetch(`/api/users/${activeClassroomId}`);
       if (!response.ok) {
-        setError('講師一覧の取得に失敗しました。');
+        if (requestId === latestLoadUsersRequestId.current) {
+          setError('講師一覧の取得に失敗しました。');
+        }
         return;
       }
       const data = (await response.json()) as UserRow[];
-      setUsers(data);
+      if (requestId === latestLoadUsersRequestId.current) {
+        setUsers(data);
+      }
     } catch {
-      setError('講師一覧の取得に失敗しました。');
+      if (requestId === latestLoadUsersRequestId.current) {
+        setError('講師一覧の取得に失敗しました。');
+      }
     } finally {
-      setIsLoadingUsers(false);
+      if (requestId === latestLoadUsersRequestId.current) {
+        setIsLoadingUsers(false);
+      }
     }
   }, [activeClassroomId, authedFetch]);
 
   const loadAdmins = useCallback(async () => {
+    latestLoadAdminsRequestId.current += 1;
+    const requestId = latestLoadAdminsRequestId.current;
+
     if (!canListAdmins) {
-      setAdminUsers([]);
+      if (requestId === latestLoadAdminsRequestId.current) {
+        setAdminUsers([]);
+      }
       return;
     }
 
     setIsLoadingAdmins(true);
-    setError(null);
+    if (requestId === latestLoadAdminsRequestId.current) {
+      setError(null);
+    }
     try {
       const response = await authedFetch('/api/users/admins');
       if (!response.ok) {
-        setError('管理者一覧の取得に失敗しました。');
+        if (requestId === latestLoadAdminsRequestId.current) {
+          setError('管理者一覧の取得に失敗しました。');
+        }
         return;
       }
       const data = (await response.json()) as UserRow[];
-      setAdminUsers(data);
+      if (requestId === latestLoadAdminsRequestId.current) {
+        setAdminUsers(data);
+      }
     } catch {
-      setError('管理者一覧の取得に失敗しました。');
+      if (requestId === latestLoadAdminsRequestId.current) {
+        setError('管理者一覧の取得に失敗しました。');
+      }
     } finally {
-      setIsLoadingAdmins(false);
+      if (requestId === latestLoadAdminsRequestId.current) {
+        setIsLoadingAdmins(false);
+      }
     }
   }, [canListAdmins, authedFetch]);
 
