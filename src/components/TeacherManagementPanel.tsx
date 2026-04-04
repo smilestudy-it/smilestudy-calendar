@@ -203,6 +203,13 @@ export default function TeacherManagementPanel({ currentUser, getAccessTokenSile
     }
   }, [canListAdmins, authedFetch]);
 
+  const loadUsersRef = useRef(loadUsers);
+  const loadAdminsRef = useRef(loadAdmins);
+  useEffect(() => {
+    loadUsersRef.current = loadUsers;
+    loadAdminsRef.current = loadAdmins;
+  }, [loadUsers, loadAdmins]);
+
   useEffect(() => {
     void loadClassrooms();
   }, [loadClassrooms]);
@@ -254,10 +261,8 @@ export default function TeacherManagementPanel({ currentUser, getAccessTokenSile
         email: '',
         color: defaultColor,
       });
-      await loadUsers();
-      if (canListAdmins) {
-        await loadAdmins();
-      }
+      await loadUsersRef.current();
+      await loadAdminsRef.current();
     } catch {
       setError('講師招待に失敗しました。');
     }
@@ -277,10 +282,8 @@ export default function TeacherManagementPanel({ currentUser, getAccessTokenSile
         }
         return;
       }
-      await loadUsers();
-      if (canListAdmins) {
-        await loadAdmins();
-      }
+      await loadUsersRef.current();
+      await loadAdminsRef.current();
     } catch {
       setError('ユーザー削除に失敗しました。');
     }
