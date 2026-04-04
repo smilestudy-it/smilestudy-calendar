@@ -17,7 +17,7 @@ const userSchema = z
       .min(1, 'color is required')
       .regex(/^#(?:[0-9a-fA-F]{6})$/, 'invalid color')
       .transform((value) => value as HexColor),
-    email: z.email('invalid email').transform((value) => value.trim()),
+    email: z.string().trim().pipe(z.email('invalid email')),
     role: z.enum(['admin', 'manager', 'staff'], 'invalid role').default('staff'),
   })
   .superRefine((value, ctx) => {
