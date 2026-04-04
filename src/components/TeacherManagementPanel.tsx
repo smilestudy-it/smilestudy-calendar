@@ -272,8 +272,8 @@ export default function TeacherManagementPanel({ currentUser, getAccessTokenSile
               className="w-full rounded-lg border border-slate-700 bg-slate-800 px-3 py-2 text-slate-100 focus:border-indigo-400 focus:outline-none focus:ring-2 focus:ring-indigo-500/30"
             >
               {isAdmin && <option value="admin">管理者</option>}
-              <option value="staff">講師</option>
               <option value="manager">教室長</option>
+              <option value="staff">講師</option>
             </select>
             {errors.role?.message && <p className="mt-1 text-sm text-rose-300">{errors.role.message}</p>}
           </div>
