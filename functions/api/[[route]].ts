@@ -37,6 +37,43 @@ type Auth0ErrorResponse = {
   message?: string;
 };
 
+/** Matches `drizzle/0005_acoustic_night_thrasher.sql` partial unique index on active users. */
+const USERS_EMAIL_ACTIVE_UNIQUE_INDEX = 'users_email_active_unique';
+
+function collectErrorTextParts(error: unknown, depth = 0): string[] {
+  if (depth > 6) {
+    return [];
+  }
+  if (error instanceof Error) {
+    const parts = [error.message];
+    if (error.cause !== undefined) {
+      parts.push(...collectErrorTextParts(error.cause, depth + 1));
+    }
+    return parts;
+  }
+  if (typeof error === 'object' && error !== null && 'message' in error) {
+    const message = (error as { message?: unknown }).message;
+    if (typeof message === 'string') {
+      return [message];
+    }
+  }
+  try {
+    return [JSON.stringify(error)];
+  } catch {
+    return [String(error)];
+  }
+}
+
+function isD1UsersEmailUniqueViolation(error: unknown): boolean {
+  const text = collectErrorTextParts(error).join(' ');
+  const lower = text.toLowerCase();
+  return (
+    text.includes(USERS_EMAIL_ACTIVE_UNIQUE_INDEX) ||
+    lower.includes('unique constraint failed') ||
+    lower.includes('unique constraint')
+  );
+}
+
 export const app = new Hono<{ Bindings: Bindings; Variables: AppVariables }>().basePath('/api');
 
 const getAuth0ManagementToken = async (env: Bindings): Promise<string> => {
@@ -364,12 +401,15 @@ app.post('/users', auth, loadUser, requireManagerOrAbove, async (c) =>{
     if (!mailSent) {
       throw new Error('failed to send password setup email');
     }
-  } catch {
+  } catch (error) {
     if (d1Inserted && auth0UserId) {
       await db.delete(users).where(eq(users.id, auth0UserId)).catch(() => undefined);
     }
     if (managementToken && auth0UserId) {
       await deleteAuth0User(c.env, managementToken, auth0UserId).catch(() => undefined);
+    }
+    if (isD1UsersEmailUniqueViolation(error)) {
+      return c.json({ message: 'user already exists' }, 409);
     }
     return c.json({ message: 'failed to create user' }, 400);
   }

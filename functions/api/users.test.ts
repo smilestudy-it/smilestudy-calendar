@@ -24,6 +24,7 @@ const state: {
   sendEmailOk: boolean;
   deleteAuth0Ok: boolean;
   deletedAuth0UserIds: string[];
+  insertSimulateUniqueViolation: boolean;
 } = {
   users: [],
   classrooms: [],
@@ -35,6 +36,7 @@ const state: {
   sendEmailOk: true,
   deleteAuth0Ok: true,
   deletedAuth0UserIds: [],
+  insertSimulateUniqueViolation: false,
 };
 
 const extractRequestedValue = (predicate: unknown): string | null => {
@@ -180,6 +182,11 @@ vi.mock('../../db', () => {
         if (table !== users) {
           return;
         }
+        if (state.insertSimulateUniqueViolation) {
+          throw new Error(
+            'UNIQUE constraint failed: index users_email_active_unique',
+          );
+        }
         if (state.users.some((row) => row.email === value.email && row.deletedAt === null)) {
           throw new Error('duplicate email');
         }
@@ -321,7 +328,32 @@ describe('users api', () => {
     state.sendEmailOk = true;
     state.deleteAuth0Ok = true;
     state.deletedAuth0UserIds = [];
+    state.insertSimulateUniqueViolation = false;
     fetchMock.mockClear();
+  });
+
+  it('returns 409 when D1 insert violates users_email_active_unique (race)', async () => {
+    state.insertSimulateUniqueViolation = true;
+    state.createUserId = 'auth0|unique-race-user';
+
+    const response = await app.request('/api/users', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({
+        firstName: 'Race',
+        lastName: 'User',
+        email: 'race-unique@example.com',
+        role: 'staff',
+        classroomId: 'room-1',
+        color: '#123abc',
+      }),
+    }, env);
+
+    expect(response.status).toBe(409);
+    expect(state.users.some((row) => row.id === 'auth0|unique-race-user')).toBe(false);
+    expect(state.deletedAuth0UserIds.some((id) => id.includes('auth0%7Cunique-race-user'))).toBe(
+      true,
+    );
   });
 
   it('creates a user and sends password setup email', async () => {
