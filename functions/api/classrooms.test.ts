@@ -20,6 +20,8 @@ const state: {
   jwtSub: string | null;
   deleteAuth0Ok: boolean;
   deletedAuth0UserIds: string[];
+  /** When set, Auth0 user DELETE succeeds until this many URLs have been recorded, then fails. */
+  deleteAuth0FailAfterSuccessCount?: number;
 } = {
   classrooms: [],
   classroomUsers: [],
@@ -209,6 +211,12 @@ const fetchMock = vi.fn(async (input: string | URL | Request) => {
     if (!state.deleteAuth0Ok) {
       return new Response(null, { status: 500 });
     }
+    if (
+      state.deleteAuth0FailAfterSuccessCount !== undefined &&
+      state.deletedAuth0UserIds.length >= state.deleteAuth0FailAfterSuccessCount
+    ) {
+      return new Response(null, { status: 500 });
+    }
     state.deletedAuth0UserIds.push(url.split('/api/v2/users/')[1] ?? '');
     return new Response(null, { status: 204 });
   }
@@ -240,6 +248,7 @@ describe('classrooms api flow', () => {
     state.jwtSub = 'auth0|admin-user';
     state.deleteAuth0Ok = true;
     state.deletedAuth0UserIds = [];
+    state.deleteAuth0FailAfterSuccessCount = undefined;
     fetchMock.mockClear();
   });
 
@@ -287,6 +296,40 @@ describe('classrooms api flow', () => {
     expect(deleteResponse.status).toBe(200);
     expect(state.classroomUsers[0]?.deletedAt).toBeInstanceOf(Date);
     expect(state.deletedAuth0UserIds.some((id) => id.includes('auth0%7Cstaff-user'))).toBe(true);
+  });
+
+  it('partial rollback: keeps D1 soft-delete for users already removed from Auth0', async () => {
+    const postResponse = await app.request('/api/classrooms', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ name: 'Class A' }),
+    }, env);
+    const created = (await postResponse.json()) as { id: string };
+
+    state.classroomUsers.push(
+      {
+        id: 'auth0|user-first',
+        classroomId: created.id,
+        deletedAt: null,
+      },
+      {
+        id: 'auth0|user-second',
+        classroomId: created.id,
+        deletedAt: null,
+      },
+    );
+    state.deleteAuth0FailAfterSuccessCount = 1;
+
+    const deleteResponse = await app.request(`/api/classrooms/${created.id}`, { method: 'DELETE' }, env);
+    expect(deleteResponse.status).toBe(400);
+
+    const classroom = state.classrooms.find((row) => row.id === created.id);
+    expect(classroom?.deletedAt).toBeNull();
+
+    const first = state.classroomUsers.find((row) => row.id === 'auth0|user-first');
+    const second = state.classroomUsers.find((row) => row.id === 'auth0|user-second');
+    expect(first?.deletedAt).toBeInstanceOf(Date);
+    expect(second?.deletedAt).toBeNull();
   });
 
   it('rolls back classroom deletion when auth0 user delete fails', async () => {

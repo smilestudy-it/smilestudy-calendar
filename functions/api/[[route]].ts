@@ -302,6 +302,7 @@ app.delete('/classrooms/:id', auth, loadUser, requireAdmin, async(c) =>{
   }
 
   const updatedUserIds: string[] = [];
+  const successfullyDeletedAuth0Ids: string[] = [];
   try {
     for (const classroomUser of classroomUsers) {
       const userUpdateResult = await db
@@ -319,11 +320,15 @@ app.delete('/classrooms/:id', auth, loadUser, requireAdmin, async(c) =>{
       if (!auth0Deleted) {
         throw new Error('failed to delete auth0 user');
       }
+      successfullyDeletedAuth0Ids.push(userId);
     }
   } catch {
     await db.update(classrooms).set({ deletedAt: null }).where(eq(classrooms.id, id)).catch(() => undefined);
+    const successSet = new Set(successfullyDeletedAuth0Ids);
     for (const userId of updatedUserIds) {
-      await db.update(users).set({ deletedAt: null }).where(eq(users.id, userId)).catch(() => undefined);
+      if (!successSet.has(userId)) {
+        await db.update(users).set({ deletedAt: null }).where(eq(users.id, userId)).catch(() => undefined);
+      }
     }
     return c.json({ message: 'failed to delete classroom' }, 400);
   }
