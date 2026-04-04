@@ -48,10 +48,13 @@ type InviteFormValues = z.infer<typeof inviteFormSchema>;
 
 export default function TeacherManagementPanel({ currentUser, getAccessTokenSilently }: Props) {
   const isAdmin = currentUser.role === 'admin';
+  const canListAdmins = currentUser.role === 'admin' || currentUser.role === 'manager';
   const [classrooms, setClassrooms] = useState<Classroom[]>([]);
   const [selectedClassroomId, setSelectedClassroomId] = useState<string>(currentUser.classroomId ?? '');
   const [users, setUsers] = useState<UserRow[]>([]);
+  const [adminUsers, setAdminUsers] = useState<UserRow[]>([]);
   const [isLoadingUsers, setIsLoadingUsers] = useState(false);
+  const [isLoadingAdmins, setIsLoadingAdmins] = useState(false);
   const [isLoadingClassrooms, setIsLoadingClassrooms] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const {
@@ -145,6 +148,29 @@ export default function TeacherManagementPanel({ currentUser, getAccessTokenSile
     }
   }, [activeClassroomId, authedFetch]);
 
+  const loadAdmins = useCallback(async () => {
+    if (!canListAdmins) {
+      setAdminUsers([]);
+      return;
+    }
+
+    setIsLoadingAdmins(true);
+    setError(null);
+    try {
+      const response = await authedFetch('/api/users/admins');
+      if (!response.ok) {
+        setError('管理者一覧の取得に失敗しました。');
+        return;
+      }
+      const data = (await response.json()) as UserRow[];
+      setAdminUsers(data);
+    } catch {
+      setError('管理者一覧の取得に失敗しました。');
+    } finally {
+      setIsLoadingAdmins(false);
+    }
+  }, [canListAdmins, authedFetch]);
+
   useEffect(() => {
     void loadClassrooms();
   }, [loadClassrooms]);
@@ -152,6 +178,10 @@ export default function TeacherManagementPanel({ currentUser, getAccessTokenSile
   useEffect(() => {
     void loadUsers();
   }, [loadUsers]);
+
+  useEffect(() => {
+    void loadAdmins();
+  }, [loadAdmins]);
 
   const handleInvite: SubmitHandler<InviteFormValues> = async (values) => {
     if (requiresClassroom && !inviteTargetClassroomId) {
@@ -193,6 +223,9 @@ export default function TeacherManagementPanel({ currentUser, getAccessTokenSile
         color: defaultColor,
       });
       await loadUsers();
+      if (canListAdmins) {
+        await loadAdmins();
+      }
     } catch {
       setError('講師招待に失敗しました。');
     }
@@ -205,12 +238,19 @@ export default function TeacherManagementPanel({ currentUser, getAccessTokenSile
         method: 'DELETE',
       });
       if (!response.ok) {
-        setError('講師削除に失敗しました。');
+        if (response.status === 403) {
+          setError('このユーザーを削除する権限がないか、自分自身は削除できません。');
+        } else {
+          setError('ユーザー削除に失敗しました。');
+        }
         return;
       }
       await loadUsers();
+      if (canListAdmins) {
+        await loadAdmins();
+      }
     } catch {
-      setError('講師削除に失敗しました。');
+      setError('ユーザー削除に失敗しました。');
     }
   };
 
@@ -314,6 +354,40 @@ export default function TeacherManagementPanel({ currentUser, getAccessTokenSile
 
       {error && <p className="text-sm text-rose-300">{error}</p>}
 
+      {canListAdmins && (
+        <section className="space-y-3 rounded-lg border border-slate-800 bg-slate-900/60 p-3">
+          <h3 className="text-base font-semibold">管理者一覧</h3>
+          {isLoadingAdmins ? (
+            <p className="text-sm text-slate-400">管理者一覧を読み込み中...</p>
+          ) : (
+            <ul className="space-y-2">
+              {adminUsers.map((row) => (
+                <li
+                  key={row.id}
+                  className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-slate-800 bg-slate-950/60 px-3 py-2"
+                >
+                  <div className="space-y-0.5 text-sm">
+                    <p className="font-medium text-slate-100">{row.lastName} {row.firstName}</p>
+                    <p className="text-slate-300">{row.email}</p>
+                    <p className="text-xs text-slate-400">role: {row.role}</p>
+                  </div>
+                  {isAdmin && row.id !== currentUser.id && (
+                    <button
+                      type="button"
+                      className="rounded-lg bg-rose-500 px-3 py-1.5 text-sm font-semibold text-white transition hover:bg-rose-400"
+                      onClick={() => void handleDelete(row.id)}
+                    >
+                      削除
+                    </button>
+                  )}
+                </li>
+              ))}
+              {adminUsers.length === 0 && <li className="text-sm text-slate-400">管理者がいません。</li>}
+            </ul>
+          )}
+        </section>
+      )}
+
       <section className="space-y-3 rounded-lg border border-slate-800 bg-slate-900/60 p-3">
         <h3 className="text-base font-semibold">講師一覧・削除</h3>
         {isAdmin && (
@@ -351,13 +425,15 @@ export default function TeacherManagementPanel({ currentUser, getAccessTokenSile
                   <p className="text-slate-300">{row.email}</p>
                   <p className="text-xs text-slate-400">role: {row.role}</p>
                 </div>
-                <button
-                  type="button"
-                  className="rounded-lg bg-rose-500 px-3 py-1.5 text-sm font-semibold text-white transition hover:bg-rose-400"
-                  onClick={() => void handleDelete(row.id)}
-                >
-                  削除
-                </button>
+                {row.id !== currentUser.id && (
+                  <button
+                    type="button"
+                    className="rounded-lg bg-rose-500 px-3 py-1.5 text-sm font-semibold text-white transition hover:bg-rose-400"
+                    onClick={() => void handleDelete(row.id)}
+                  >
+                    削除
+                  </button>
+                )}
               </li>
             ))}
             {users.length === 0 && <li className="text-sm text-slate-400">講師がいません。</li>}

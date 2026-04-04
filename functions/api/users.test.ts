@@ -86,6 +86,41 @@ const extractRequestedValue = (predicate: unknown): string | null => {
   return null;
 };
 
+const collectStringsDeep = (value: unknown, seen: Set<object>, out: Set<string>, depth = 0): void => {
+  if (depth > 80) {
+    return;
+  }
+  if (value === null || value === undefined) {
+    return;
+  }
+  if (typeof value === 'string') {
+    out.add(value);
+    return;
+  }
+  if (typeof value !== 'object') {
+    return;
+  }
+  if (seen.has(value as object)) {
+    return;
+  }
+  seen.add(value as object);
+  if (Array.isArray(value)) {
+    for (const item of value) {
+      collectStringsDeep(item, seen, out, depth + 1);
+    }
+    return;
+  }
+  for (const v of Object.values(value)) {
+    collectStringsDeep(v, seen, out, depth + 1);
+  }
+};
+
+const predicateLooksLikeAdminRoleFilter = (predicate: unknown): boolean => {
+  const strings = new Set<string>();
+  collectStringsDeep(predicate, new Set(), strings);
+  return strings.has('admin') && strings.has('role');
+};
+
 const pickUser = (user: UserRow, selection: Record<string, unknown>) =>
   Object.fromEntries(
     Object.keys(selection).map((key) => {
@@ -153,10 +188,21 @@ vi.mock('../../db', () => {
         if (isUserListQuery) {
           return {
             where: async (predicate: unknown) => {
-              const classroomId = extractRequestedValue(predicate);
-              return state.users
-                .filter((row) => row.deletedAt === null && row.classroomId === classroomId)
-                .map((row) => pickUser(row, selection));
+              const requested = extractRequestedValue(predicate);
+              const hasKnownClassroom =
+                requested &&
+                state.classrooms.some((row) => row.id === requested && row.deletedAt === null);
+              if (hasKnownClassroom) {
+                return state.users
+                  .filter((row) => row.deletedAt === null && row.classroomId === requested)
+                  .map((row) => pickUser(row, selection));
+              }
+              if (predicateLooksLikeAdminRoleFilter(predicate)) {
+                return state.users
+                  .filter((row) => row.deletedAt === null && row.role === 'admin')
+                  .map((row) => pickUser(row, selection));
+              }
+              return [];
             },
           };
         }
@@ -312,6 +358,16 @@ describe('users api', () => {
         email: 'staff@example.com',
         role: 'staff',
         classroomId: 'room-1',
+        color: '#3b82f6',
+        deletedAt: null,
+      },
+      {
+        id: 'auth0|other-admin',
+        firstName: 'Other',
+        lastName: 'Admin',
+        email: 'other-admin@example.com',
+        role: 'admin',
+        classroomId: null,
         color: '#3b82f6',
         deletedAt: null,
       },
@@ -535,5 +591,49 @@ describe('users api', () => {
     }, env);
 
     expect(response.status).toBe(403);
+  });
+
+  it('lists admin users for admin', async () => {
+    state.jwtSub = 'auth0|admin-user';
+
+    const response = await app.request('/api/users/admins', { method: 'GET' }, env);
+
+    expect(response.status).toBe(200);
+    const payload = (await response.json()) as Array<{ id: string; role: string }>;
+    expect(payload.every((row) => row.role === 'admin')).toBe(true);
+    expect(payload.map((row) => row.id).sort()).toEqual(['auth0|admin-user', 'auth0|other-admin'].sort());
+  });
+
+  it('lists admin users for manager', async () => {
+    state.jwtSub = 'auth0|manager-user';
+
+    const response = await app.request('/api/users/admins', { method: 'GET' }, env);
+
+    expect(response.status).toBe(200);
+    const payload = (await response.json()) as Array<{ id: string; role: string }>;
+    expect(payload.every((row) => row.role === 'admin')).toBe(true);
+    expect(payload.map((row) => row.id).sort()).toEqual(['auth0|admin-user', 'auth0|other-admin'].sort());
+  });
+
+  it('returns 403 when deleting own account', async () => {
+    state.jwtSub = 'auth0|admin-user';
+
+    const response = await app.request('/api/users/auth0|admin-user', {
+      method: 'DELETE',
+    }, env);
+
+    expect(response.status).toBe(403);
+  });
+
+  it('allows admin to delete another admin', async () => {
+    state.jwtSub = 'auth0|admin-user';
+
+    const response = await app.request('/api/users/auth0|other-admin', {
+      method: 'DELETE',
+    }, env);
+
+    expect(response.status).toBe(200);
+    const deleted = state.users.find((row) => row.id === 'auth0|other-admin');
+    expect(deleted?.deletedAt).toBeInstanceOf(Date);
   });
 });

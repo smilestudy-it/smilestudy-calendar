@@ -430,6 +430,22 @@ app.post('/users', auth, loadUser, requireManagerOrAbove, async (c) =>{
   }, 201);
 });
 
+app.get('/users/admins', auth, loadUser, requireManagerOrAbove, async (c) => {
+  const db = getDb(c.env);
+  const rows = await db
+    .select({
+      id: users.id,
+      firstName: users.firstName,
+      lastName: users.lastName,
+      email: users.email,
+      role: users.role,
+      classroomId: users.classroomId,
+    })
+    .from(users)
+    .where(and(eq(users.role, 'admin'), isNull(users.deletedAt)));
+  return c.json(rows, 200);
+});
+
 app.get('/users/:classroomId', auth, loadUser, requireManagerOrAbove, requireClassroomScope((c) => c.req.param('classroomId') ?? null), async(c) =>{
   const classroomId = c.req.param('classroomId');
   if(!classroomId){
@@ -468,6 +484,10 @@ app.delete('/users/:id', auth, loadUser, requireManagerOrAbove, async(c) => {
 
   if(!target){
     return c.json({ message: 'user not found' }, 404);
+  }
+
+  if (actor.id === targetId) {
+    return c.json({ message: 'cannot delete yourself' }, 403);
   }
 
   if(actor.role === 'manager' && (target.role === 'admin' || (!actor.classroomId || !target.classroomId || actor.classroomId !== target.classroomId))){
@@ -514,6 +534,7 @@ app.get('/me', auth, async (c) => {
   const db = getDb(c.env);
   const [currentUser] = await db
     .select({
+      id: users.id,
       role: users.role,
       classroomId: users.classroomId,
     })
