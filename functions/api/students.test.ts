@@ -170,8 +170,7 @@ vi.mock('../../db', () => {
 
   const db = {
     ...dbCore,
-    transaction: async <T>(callback: (tx: typeof dbCore) => Promise<T>, _opts?: unknown): Promise<T> =>
-      callback(dbCore),
+    transaction: async <T>(callback: (tx: typeof dbCore) => Promise<T>): Promise<T> => callback(dbCore),
   };
 
   return { getDb: () => db };
