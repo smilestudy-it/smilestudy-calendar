@@ -213,21 +213,18 @@ export default function StudentManagementPanel({ currentUser, getAccessTokenSile
         } else if (response.status === 404) {
           setError('教室が見つかりません。');
         } else {
-          const body = (await response.json().catch(() => ({}))) as { message?: string; detail?: string };
+          const body = (await response.json().catch(() => ({}))) as { message?: string };
           const msg = body.message;
-          const detail = typeof body.detail === 'string' ? body.detail : '';
           if (msg === 'invalid request') {
             setError('入力内容を確認してください。');
           } else if (msg === 'failed to create student') {
             setError(
-              detail
-                ? `データベースへの保存に失敗しました: ${detail}`
-                : 'データベースへの保存に失敗しました。ローカル D1 のマイグレーションがすべて適用されているか確認してください。',
+              'データベースへの保存に失敗しました。ローカル D1 のマイグレーションがすべて適用されているか確認してください。',
             );
           } else if (msg) {
-            setError(detail ? `生徒の登録に失敗しました: ${msg}（${detail}）` : `生徒の登録に失敗しました: ${msg}`);
+            setError(`生徒の登録に失敗しました: ${msg}`);
           } else {
-            setError(detail ? `生徒の登録に失敗しました: ${detail}` : '生徒の登録に失敗しました。');
+            setError('生徒の登録に失敗しました。');
           }
         }
         return;

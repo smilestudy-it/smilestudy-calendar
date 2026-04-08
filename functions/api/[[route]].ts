@@ -106,6 +106,13 @@ function isD1ForeignKeyViolation(error: unknown): boolean {
   return text.includes('foreign key');
 }
 
+/** 診断用（Wrangler / ダッシュボードのログ）。クライアントには返さない。 */
+function logApiError(routeLabel: string, err: unknown): void {
+  const summary =
+    collectErrorTextParts(err).join(' ') || (err instanceof Error ? err.message : String(err));
+  console.error(`[api] ${routeLabel}: ${summary}`, err);
+}
+
 export const app = new Hono<{ Bindings: Bindings; Variables: AppVariables }>().basePath('/api');
 
 const getAuth0ManagementToken = async (env: Bindings): Promise<string> => {
@@ -827,11 +834,11 @@ app.post('/students', auth, loadUser, requireManagerOrAbove, async (c) => {
       { behavior: 'immediate' },
     );
   } catch (err) {
+    logApiError('POST /students', err);
     if (isD1ForeignKeyViolation(err)) {
       return c.json({ message: 'classroom not found' }, 404);
     }
-    const detail = collectErrorTextParts(err).join(' ') || (err instanceof Error ? err.message : String(err));
-    return c.json({ message: 'failed to create student', detail }, 500);
+    return c.json({ message: 'failed to create student' }, 500);
   }
 
   if (!txResult.ok) {
@@ -1000,11 +1007,11 @@ app.post('/subjects', auth, loadUser, requireManagerOrAbove, async (c) => {
       deletedAt: null,
     });
   } catch (err) {
+    logApiError('POST /subjects', err);
     if (isD1ForeignKeyViolation(err)) {
       return c.json({ message: 'classroom not found' }, 404);
     }
-    const detail = collectErrorTextParts(err).join(' ') || (err instanceof Error ? err.message : String(err));
-    return c.json({ message: 'failed to create subject', detail }, 500);
+    return c.json({ message: 'failed to create subject' }, 500);
   }
   return c.json({ id: newId, name: input.name, classroomId: input.classroomId }, 201);
 });
@@ -1037,11 +1044,11 @@ app.post('/lesson-types', auth, loadUser, requireManagerOrAbove, async (c) => {
       deletedAt: null,
     });
   } catch (err) {
+    logApiError('POST /lesson-types', err);
     if (isD1ForeignKeyViolation(err)) {
       return c.json({ message: 'classroom not found' }, 404);
     }
-    const detail = collectErrorTextParts(err).join(' ') || (err instanceof Error ? err.message : String(err));
-    return c.json({ message: 'failed to create lesson type', detail }, 500);
+    return c.json({ message: 'failed to create lesson type' }, 500);
   }
   return c.json({ id: newId, name: input.name, classroomId: input.classroomId }, 201);
 });
@@ -1075,11 +1082,11 @@ app.post('/time-slots', auth, loadUser, requireManagerOrAbove, async (c) => {
       deletedAt: null,
     });
   } catch (err) {
+    logApiError('POST /time-slots', err);
     if (isD1ForeignKeyViolation(err)) {
       return c.json({ message: 'classroom not found' }, 404);
     }
-    const detail = collectErrorTextParts(err).join(' ') || (err instanceof Error ? err.message : String(err));
-    return c.json({ message: 'failed to create time slot', detail }, 500);
+    return c.json({ message: 'failed to create time slot' }, 500);
   }
   return c.json(
     {

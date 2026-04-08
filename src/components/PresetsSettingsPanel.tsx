@@ -23,13 +23,9 @@ async function readPresetApiError(
   res: Response,
   options: { fallback: string; invalidRequestHint: string },
 ): Promise<string> {
-  const body = (await res.json().catch(() => ({}))) as { message?: string; detail?: string };
+  const body = (await res.json().catch(() => ({}))) as { message?: string };
   if (body.message === 'invalid request') {
     return options.invalidRequestHint;
-  }
-  const detail = typeof body.detail === 'string' ? body.detail : '';
-  if (detail) {
-    return `${options.fallback}: ${detail}`;
   }
   if (body.message) {
     return `${options.fallback}（${body.message}）`;
