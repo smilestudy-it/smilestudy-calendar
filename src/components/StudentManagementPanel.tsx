@@ -191,14 +191,18 @@ export default function StudentManagementPanel({ currentUser, getAccessTokenSile
       return;
     }
     setError(null);
+    const birthYear =
+      typeof values.birthYear === 'number' && Number.isFinite(values.birthYear)
+        ? Math.trunc(values.birthYear)
+        : currentYear - 10;
     try {
       const response = await authedFetch('/api/students', {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
         body: JSON.stringify({
-          name: values.name,
-          email: values.email,
-          birthYear: values.birthYear,
+          name: values.name.trim(),
+          email: values.email.trim(),
+          birthYear,
           classroomId,
         }),
       });
@@ -210,7 +214,18 @@ export default function StudentManagementPanel({ currentUser, getAccessTokenSile
           setError('教室が見つかりません。');
         } else {
           const body = (await response.json().catch(() => ({}))) as { message?: string };
-          setError(body.message === 'invalid request' ? '入力内容を確認してください。' : '生徒の登録に失敗しました。');
+          const msg = body.message;
+          if (msg === 'invalid request') {
+            setError('入力内容を確認してください。');
+          } else if (msg === 'failed to create student') {
+            setError(
+              'データベースへの保存に失敗しました。ローカル D1 のマイグレーションがすべて適用されているか確認してください。',
+            );
+          } else if (msg) {
+            setError(`生徒の登録に失敗しました: ${msg}`);
+          } else {
+            setError('生徒の登録に失敗しました。');
+          }
         }
         return;
       }

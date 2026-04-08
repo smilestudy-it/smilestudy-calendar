@@ -297,7 +297,7 @@ describe('students api', () => {
       expect(response.status).toBe(404);
     });
 
-    it('returns 400 when insert fails', async () => {
+    it('returns 500 when insert fails', async () => {
       state.insertStudentThrows = true;
       const response = await app.request(
         '/api/students',
@@ -308,7 +308,7 @@ describe('students api', () => {
         },
         env,
       );
-      expect(response.status).toBe(400);
+      expect(response.status).toBe(500);
     });
 
     it('returns 403 for staff', async () => {
