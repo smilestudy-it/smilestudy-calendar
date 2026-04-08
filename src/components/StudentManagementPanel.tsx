@@ -140,19 +140,21 @@ export default function StudentManagementPanel({ currentUser, getAccessTokenSile
     }
 
     setIsLoadingStudents(true);
-    if (requestId === latestLoadStudentsRequestId.current) {
-      setError(null);
-    }
     try {
       const response = await authedFetch(`/api/students/${activeClassroomId}`);
       if (!response.ok) {
         if (requestId === latestLoadStudentsRequestId.current) {
-          setError('生徒一覧の取得に失敗しました。');
+          setError(
+            response.status === 403
+              ? 'この教室の生徒一覧を表示する権限がありません。'
+              : '生徒一覧の取得に失敗しました。',
+          );
         }
         return;
       }
       const data = (await response.json()) as StudentRow[];
       if (requestId === latestLoadStudentsRequestId.current) {
+        setError(null);
         setStudents(data);
       }
     } catch {

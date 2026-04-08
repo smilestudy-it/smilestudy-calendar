@@ -39,37 +39,37 @@ export const users = sqliteTable(
 // 3. 生徒 (Students)
 // ----------------------------------------------------
 export const students = sqliteTable('students', {
-id: text('id').primaryKey(),
-name: text('name').notNull(),
-email: text('email').notNull(),
-birthYear: integer('birth_year').notNull(), // 生まれた年度
-classroomId: text('classroom_id').references(() => classrooms.id).notNull(),
-deletedAt: integer('deleted_at', { mode: 'timestamp' }),
+  id: text('id').primaryKey(),
+  name: text('name').notNull(),
+  email: text('email').notNull(),
+  birthYear: integer('birth_year').notNull(), // 生まれた年度
+  classroomId: text('classroom_id').references(() => classrooms.id).notNull(),
+  deletedAt: integer('deleted_at', { mode: 'timestamp' }),
 });
 
 // ----------------------------------------------------
 // 4. プリセット（科目 / 授業種別 / 時間枠）
 // ----------------------------------------------------
 export const subjects = sqliteTable('subjects', {
-id: text('id').primaryKey(), // UUID
-classroomId: text('classroom_id').references(() => classrooms.id).notNull(),
-name: text('name').notNull(), // 例: "英語", "数学"
-deletedAt: integer('deleted_at', { mode: 'timestamp' }),
+  id: text('id').primaryKey(), // UUID
+  classroomId: text('classroom_id').references(() => classrooms.id).notNull(),
+  name: text('name').notNull(), // 例: "英語", "数学"
+  deletedAt: integer('deleted_at', { mode: 'timestamp' }),
 });
 
 export const lessonTypes = sqliteTable('lesson_types', {
-id: text('id').primaryKey(),
-classroomId: text('classroom_id').references(() => classrooms.id).notNull(),
-name: text('name').notNull(), // 例: "通常", "振替", "講習"
-deletedAt: integer('deleted_at', { mode: 'timestamp' }),
+  id: text('id').primaryKey(),
+  classroomId: text('classroom_id').references(() => classrooms.id).notNull(),
+  name: text('name').notNull(), // 例: "通常", "振替", "講習"
+  deletedAt: integer('deleted_at', { mode: 'timestamp' }),
 });
 
 export const timeSlots = sqliteTable('time_slots', {
-id: text('id').primaryKey(),
-classroomId: text('classroom_id').references(() => classrooms.id).notNull(),
-startTime: text('start_time').notNull(),
-endTime: text('end_time').notNull(),
-deletedAt: integer('deleted_at', { mode: 'timestamp' }),
+  id: text('id').primaryKey(),
+  classroomId: text('classroom_id').references(() => classrooms.id).notNull(),
+  startTime: text('start_time').notNull(),
+  endTime: text('end_time').notNull(),
+  deletedAt: integer('deleted_at', { mode: 'timestamp' }),
 });
 
 

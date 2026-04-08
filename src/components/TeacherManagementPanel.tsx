@@ -139,19 +139,21 @@ export default function TeacherManagementPanel({ currentUser, getAccessTokenSile
     }
 
     setIsLoadingUsers(true);
-    if (requestId === latestLoadUsersRequestId.current) {
-      setError(null);
-    }
     try {
       const response = await authedFetch(`/api/users/${activeClassroomId}`);
       if (!response.ok) {
         if (requestId === latestLoadUsersRequestId.current) {
-          setError('講師一覧の取得に失敗しました。');
+          setError(
+            response.status === 403
+              ? 'この教室の講師一覧を表示する権限がありません。'
+              : '講師一覧の取得に失敗しました。',
+          );
         }
         return;
       }
       const data = (await response.json()) as UserRow[];
       if (requestId === latestLoadUsersRequestId.current) {
+        setError(null);
         setUsers(data);
       }
     } catch {
@@ -177,19 +179,21 @@ export default function TeacherManagementPanel({ currentUser, getAccessTokenSile
     }
 
     setIsLoadingAdmins(true);
-    if (requestId === latestLoadAdminsRequestId.current) {
-      setError(null);
-    }
     try {
       const response = await authedFetch('/api/users/admins');
       if (!response.ok) {
         if (requestId === latestLoadAdminsRequestId.current) {
-          setError('管理者一覧の取得に失敗しました。');
+          setError(
+            response.status === 403
+              ? '管理者一覧を表示する権限がありません。'
+              : '管理者一覧の取得に失敗しました。',
+          );
         }
         return;
       }
       const data = (await response.json()) as UserRow[];
       if (requestId === latestLoadAdminsRequestId.current) {
+        setError(null);
         setAdminUsers(data);
       }
     } catch {
