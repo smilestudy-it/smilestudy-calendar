@@ -115,18 +115,18 @@ export default function StudentManagementPanel({ currentUser, getAccessTokenSile
       }
       const data = (await response.json()) as Classroom[];
       setClassrooms(data);
-      if (!selectedClassroomId && data.length > 0) {
-        setSelectedClassroomId(data[0]?.id ?? '');
-      }
-      if (!getValues('classroomId') && data.length > 0) {
-        setValue('classroomId', data[0]?.id ?? '', { shouldValidate: true });
+      const formClassroomId = (getValues('classroomId') ?? '').trim();
+      if (data.length > 0 && !formClassroomId) {
+        const firstId = data[0]?.id ?? '';
+        setSelectedClassroomId(firstId);
+        setValue('classroomId', firstId, { shouldValidate: true });
       }
     } catch {
       setError('教室一覧の取得に失敗しました。');
     } finally {
       setIsLoadingClassrooms(false);
     }
-  }, [authedFetch, getValues, isAdmin, selectedClassroomId, setValue]);
+  }, [authedFetch, getValues, isAdmin, setValue]);
 
   const loadStudents = useCallback(async () => {
     latestLoadStudentsRequestId.current += 1;
