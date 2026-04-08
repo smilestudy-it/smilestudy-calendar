@@ -134,6 +134,7 @@ export default function StudentManagementPanel({ currentUser, getAccessTokenSile
 
     if (!activeClassroomId) {
       if (requestId === latestLoadStudentsRequestId.current) {
+        setIsLoadingStudents(false);
         setStudents([]);
       }
       return;
@@ -144,6 +145,7 @@ export default function StudentManagementPanel({ currentUser, getAccessTokenSile
       const response = await authedFetch(`/api/students/${activeClassroomId}`);
       if (!response.ok) {
         if (requestId === latestLoadStudentsRequestId.current) {
+          setStudents([]);
           setError(
             response.status === 403
               ? 'この教室の生徒一覧を表示する権限がありません。'
@@ -159,6 +161,7 @@ export default function StudentManagementPanel({ currentUser, getAccessTokenSile
       }
     } catch {
       if (requestId === latestLoadStudentsRequestId.current) {
+        setStudents([]);
         setError('生徒一覧の取得に失敗しました。');
       }
     } finally {
