@@ -991,21 +991,31 @@ app.post('/subjects', auth, loadUser, requireManagerOrAbove, async (c) => {
   }
   const db = getDb(c.env);
   const newId = crypto.randomUUID();
-  const [activeClassroom] = await db
-    .select({ id: classrooms.id })
-    .from(classrooms)
-    .where(and(eq(classrooms.id, input.classroomId), isNull(classrooms.deletedAt)))
-    .limit(1);
-  if (!activeClassroom) {
-    return c.json({ message: 'classroom not found' }, 404);
-  }
+
+  type CreateSubjectTxResult = { ok: true } | { ok: false; reason: 'classroom_not_found' };
+
+  let txResult: CreateSubjectTxResult;
   try {
-    await db.insert(subjects).values({
-      id: newId,
-      name: input.name,
-      classroomId: input.classroomId,
-      deletedAt: null,
-    });
+    txResult = await db.transaction(
+      async (tx) => {
+        const [activeClassroom] = await tx
+          .select({ id: classrooms.id })
+          .from(classrooms)
+          .where(and(eq(classrooms.id, input.classroomId), isNull(classrooms.deletedAt)))
+          .limit(1);
+        if (!activeClassroom) {
+          return { ok: false as const, reason: 'classroom_not_found' as const };
+        }
+        await tx.insert(subjects).values({
+          id: newId,
+          name: input.name,
+          classroomId: input.classroomId,
+          deletedAt: null,
+        });
+        return { ok: true as const };
+      },
+      { behavior: 'immediate' },
+    );
   } catch (err) {
     logApiError('POST /subjects', err);
     if (isD1ForeignKeyViolation(err)) {
@@ -1013,6 +1023,11 @@ app.post('/subjects', auth, loadUser, requireManagerOrAbove, async (c) => {
     }
     return c.json({ message: 'failed to create subject' }, 500);
   }
+
+  if (!txResult.ok) {
+    return c.json({ message: 'classroom not found' }, 404);
+  }
+
   return c.json({ id: newId, name: input.name, classroomId: input.classroomId }, 201);
 });
 
@@ -1028,21 +1043,31 @@ app.post('/lesson-types', auth, loadUser, requireManagerOrAbove, async (c) => {
   }
   const db = getDb(c.env);
   const newId = crypto.randomUUID();
-  const [activeClassroom] = await db
-    .select({ id: classrooms.id })
-    .from(classrooms)
-    .where(and(eq(classrooms.id, input.classroomId), isNull(classrooms.deletedAt)))
-    .limit(1);
-  if (!activeClassroom) {
-    return c.json({ message: 'classroom not found' }, 404);
-  }
+
+  type CreateLessonTypeTxResult = { ok: true } | { ok: false; reason: 'classroom_not_found' };
+
+  let txResult: CreateLessonTypeTxResult;
   try {
-    await db.insert(lessonTypes).values({
-      id: newId,
-      name: input.name,
-      classroomId: input.classroomId,
-      deletedAt: null,
-    });
+    txResult = await db.transaction(
+      async (tx) => {
+        const [activeClassroom] = await tx
+          .select({ id: classrooms.id })
+          .from(classrooms)
+          .where(and(eq(classrooms.id, input.classroomId), isNull(classrooms.deletedAt)))
+          .limit(1);
+        if (!activeClassroom) {
+          return { ok: false as const, reason: 'classroom_not_found' as const };
+        }
+        await tx.insert(lessonTypes).values({
+          id: newId,
+          name: input.name,
+          classroomId: input.classroomId,
+          deletedAt: null,
+        });
+        return { ok: true as const };
+      },
+      { behavior: 'immediate' },
+    );
   } catch (err) {
     logApiError('POST /lesson-types', err);
     if (isD1ForeignKeyViolation(err)) {
@@ -1050,6 +1075,11 @@ app.post('/lesson-types', auth, loadUser, requireManagerOrAbove, async (c) => {
     }
     return c.json({ message: 'failed to create lesson type' }, 500);
   }
+
+  if (!txResult.ok) {
+    return c.json({ message: 'classroom not found' }, 404);
+  }
+
   return c.json({ id: newId, name: input.name, classroomId: input.classroomId }, 201);
 });
 
@@ -1065,22 +1095,32 @@ app.post('/time-slots', auth, loadUser, requireManagerOrAbove, async (c) => {
   }
   const db = getDb(c.env);
   const newId = crypto.randomUUID();
-  const [activeClassroom] = await db
-    .select({ id: classrooms.id })
-    .from(classrooms)
-    .where(and(eq(classrooms.id, input.classroomId), isNull(classrooms.deletedAt)))
-    .limit(1);
-  if (!activeClassroom) {
-    return c.json({ message: 'classroom not found' }, 404);
-  }
+
+  type CreateTimeSlotTxResult = { ok: true } | { ok: false; reason: 'classroom_not_found' };
+
+  let txResult: CreateTimeSlotTxResult;
   try {
-    await db.insert(timeSlots).values({
-      id: newId,
-      classroomId: input.classroomId,
-      startTime: input.startTime,
-      endTime: input.endTime,
-      deletedAt: null,
-    });
+    txResult = await db.transaction(
+      async (tx) => {
+        const [activeClassroom] = await tx
+          .select({ id: classrooms.id })
+          .from(classrooms)
+          .where(and(eq(classrooms.id, input.classroomId), isNull(classrooms.deletedAt)))
+          .limit(1);
+        if (!activeClassroom) {
+          return { ok: false as const, reason: 'classroom_not_found' as const };
+        }
+        await tx.insert(timeSlots).values({
+          id: newId,
+          classroomId: input.classroomId,
+          startTime: input.startTime,
+          endTime: input.endTime,
+          deletedAt: null,
+        });
+        return { ok: true as const };
+      },
+      { behavior: 'immediate' },
+    );
   } catch (err) {
     logApiError('POST /time-slots', err);
     if (isD1ForeignKeyViolation(err)) {
@@ -1088,6 +1128,11 @@ app.post('/time-slots', auth, loadUser, requireManagerOrAbove, async (c) => {
     }
     return c.json({ message: 'failed to create time slot' }, 500);
   }
+
+  if (!txResult.ok) {
+    return c.json({ message: 'classroom not found' }, 404);
+  }
+
   return c.json(
     {
       id: newId,
