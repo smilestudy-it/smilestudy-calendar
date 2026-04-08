@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { classrooms, students, users } from '../../db/schema';
+import { classrooms, lessonTypes, students, subjects, timeSlots, users } from '../../db/schema';
 
 type ClassroomRow = {
   id: string;
@@ -19,10 +19,17 @@ type ClassroomStudentRow = {
   deletedAt: Date | null;
 };
 
+type PresetSubjectRow = { id: string; classroomId: string; deletedAt: Date | null };
+type PresetLessonTypeRow = { id: string; classroomId: string; deletedAt: Date | null };
+type PresetTimeSlotRow = { id: string; classroomId: string; deletedAt: Date | null };
+
 const state: {
   classrooms: ClassroomRow[];
   classroomUsers: ClassroomUserRow[];
   classroomStudents: ClassroomStudentRow[];
+  presetSubjects: PresetSubjectRow[];
+  presetLessonTypes: PresetLessonTypeRow[];
+  presetTimeSlots: PresetTimeSlotRow[];
   userRole: 'admin' | 'manager' | 'staff' | null;
   jwtSub: string | null;
   deleteAuth0Ok: boolean;
@@ -31,15 +38,24 @@ const state: {
   deleteAuth0FailAfterSuccessCount?: number;
   /** Simulates D1 unique violation on classroom insert (e.g. race after preflight). */
   insertSimulateClassroomUniqueViolation: boolean;
+  /** First soft-delete of a preset subject inside DELETE /classrooms tx throws (for rollback test). */
+  throwOnPresetSubjectSoftDelete: boolean;
+  /** Snapshot/restore D1 state on transaction failure (simulates SQL rollback in mock). */
+  snapshotDbStateOnTransactionFailure: boolean;
 } = {
   classrooms: [],
   classroomUsers: [],
   classroomStudents: [],
+  presetSubjects: [],
+  presetLessonTypes: [],
+  presetTimeSlots: [],
   userRole: 'admin',
   jwtSub: 'auth0|admin-user',
   deleteAuth0Ok: true,
   deletedAuth0UserIds: [],
   insertSimulateClassroomUniqueViolation: false,
+  throwOnPresetSubjectSoftDelete: false,
+  snapshotDbStateOnTransactionFailure: false,
 };
 
 vi.mock('hono/jwk', () => {
@@ -152,6 +168,57 @@ vi.mock('../../db', () => {
           };
         }
 
+        if (table === subjects) {
+          const keys = Object.keys(selection);
+          if (keys.length === 1 && keys.includes('id')) {
+            return {
+              where: async (predicate: unknown) => {
+                const classroomId = extractRequestedId(predicate);
+                return state.presetSubjects
+                  .filter((row) => row.classroomId === classroomId && row.deletedAt === null)
+                  .map((row) => ({ id: row.id }));
+              },
+            };
+          }
+          return {
+            where: async () => [],
+          };
+        }
+
+        if (table === lessonTypes) {
+          const keys = Object.keys(selection);
+          if (keys.length === 1 && keys.includes('id')) {
+            return {
+              where: async (predicate: unknown) => {
+                const classroomId = extractRequestedId(predicate);
+                return state.presetLessonTypes
+                  .filter((row) => row.classroomId === classroomId && row.deletedAt === null)
+                  .map((row) => ({ id: row.id }));
+              },
+            };
+          }
+          return {
+            where: async () => [],
+          };
+        }
+
+        if (table === timeSlots) {
+          const keys = Object.keys(selection);
+          if (keys.length === 1 && keys.includes('id')) {
+            return {
+              where: async (predicate: unknown) => {
+                const classroomId = extractRequestedId(predicate);
+                return state.presetTimeSlots
+                  .filter((row) => row.classroomId === classroomId && row.deletedAt === null)
+                  .map((row) => ({ id: row.id }));
+              },
+            };
+          }
+          return {
+            where: async () => [],
+          };
+        }
+
         if (table === classrooms) {
           const keys = Object.keys(selection);
           if (keys.length === 1 && keys.includes('id')) {
@@ -244,11 +311,82 @@ vi.mock('../../db', () => {
             return { meta: { changes: 1 } };
           }
 
+          if (table === subjects) {
+            const requestedId = extractRequestedId(predicate);
+            if (!requestedId) {
+              return { meta: { changes: 0 } };
+            }
+            const target = state.presetSubjects.find(
+              (row) => row.id === requestedId && (value.deletedAt === null || row.deletedAt === null),
+            );
+            if (!target) {
+              return { meta: { changes: 0 } };
+            }
+            if (value.deletedAt !== null && state.throwOnPresetSubjectSoftDelete) {
+              throw new Error('simulated preset subject soft-delete failure');
+            }
+            target.deletedAt = value.deletedAt;
+            return { meta: { changes: 1 } };
+          }
+
+          if (table === lessonTypes) {
+            const requestedId = extractRequestedId(predicate);
+            if (!requestedId) {
+              return { meta: { changes: 0 } };
+            }
+            const target = state.presetLessonTypes.find(
+              (row) => row.id === requestedId && (value.deletedAt === null || row.deletedAt === null),
+            );
+            if (!target) {
+              return { meta: { changes: 0 } };
+            }
+            target.deletedAt = value.deletedAt;
+            return { meta: { changes: 1 } };
+          }
+
+          if (table === timeSlots) {
+            const requestedId = extractRequestedId(predicate);
+            if (!requestedId) {
+              return { meta: { changes: 0 } };
+            }
+            const target = state.presetTimeSlots.find(
+              (row) => row.id === requestedId && (value.deletedAt === null || row.deletedAt === null),
+            );
+            if (!target) {
+              return { meta: { changes: 0 } };
+            }
+            target.deletedAt = value.deletedAt;
+            return { meta: { changes: 1 } };
+          }
+
           return { meta: { changes: 0 } };
         },
       }),
     }),
-    transaction: async <T>(fn: (tx: typeof db) => Promise<T>) => fn(db),
+    transaction: async <T>(fn: (tx: typeof db) => Promise<T>) => {
+      if (!state.snapshotDbStateOnTransactionFailure) {
+        return fn(db);
+      }
+      const snap = {
+        classrooms: structuredClone(state.classrooms),
+        classroomUsers: structuredClone(state.classroomUsers),
+        classroomStudents: structuredClone(state.classroomStudents),
+        presetSubjects: structuredClone(state.presetSubjects),
+        presetLessonTypes: structuredClone(state.presetLessonTypes),
+        presetTimeSlots: structuredClone(state.presetTimeSlots),
+      };
+      try {
+        return await fn(db);
+      } catch {
+        state.classrooms = snap.classrooms;
+        state.classroomUsers = snap.classroomUsers;
+        state.classroomStudents = snap.classroomStudents;
+        state.presetSubjects = snap.presetSubjects;
+        state.presetLessonTypes = snap.presetLessonTypes;
+        state.presetTimeSlots = snap.presetTimeSlots;
+        throw new Error('transaction aborted');
+      }
+    },
   };
 
   return {
@@ -307,6 +445,11 @@ describe('classrooms api flow', () => {
     state.deletedAuth0UserIds = [];
     state.deleteAuth0FailAfterSuccessCount = undefined;
     state.insertSimulateClassroomUniqueViolation = false;
+    state.presetSubjects = [];
+    state.presetLessonTypes = [];
+    state.presetTimeSlots = [];
+    state.throwOnPresetSubjectSoftDelete = false;
+    state.snapshotDbStateOnTransactionFailure = false;
     fetchMock.mockClear();
   });
 
@@ -513,6 +656,45 @@ describe('classrooms api flow', () => {
       method: 'DELETE',
     }, env);
     expect(secondDelete.status).toBe(404);
+  });
+
+  it('soft-deletes preset subjects, lesson types, and time slots when deleting classroom', async () => {
+    const postResponse = await app.request('/api/classrooms', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ name: 'Class With Presets' }),
+    }, env);
+    const created = (await postResponse.json()) as { id: string };
+
+    state.presetSubjects.push({ id: 'ps-1', classroomId: created.id, deletedAt: null });
+    state.presetLessonTypes.push({ id: 'plt-1', classroomId: created.id, deletedAt: null });
+    state.presetTimeSlots.push({ id: 'pts-1', classroomId: created.id, deletedAt: null });
+
+    const deleteResponse = await app.request(`/api/classrooms/${created.id}`, { method: 'DELETE' }, env);
+    expect(deleteResponse.status).toBe(200);
+    expect(state.classrooms.find((r) => r.id === created.id)?.deletedAt).toBeInstanceOf(Date);
+    expect(state.presetSubjects[0]?.deletedAt).toBeInstanceOf(Date);
+    expect(state.presetLessonTypes[0]?.deletedAt).toBeInstanceOf(Date);
+    expect(state.presetTimeSlots[0]?.deletedAt).toBeInstanceOf(Date);
+  });
+
+  it('returns 400 and restores D1 state when preset subject soft-delete fails inside delete transaction', async () => {
+    const postResponse = await app.request('/api/classrooms', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ name: 'Class Preset Tx Fail' }),
+    }, env);
+    const created = (await postResponse.json()) as { id: string };
+
+    state.presetSubjects.push({ id: 'ps-fail', classroomId: created.id, deletedAt: null });
+    state.snapshotDbStateOnTransactionFailure = true;
+    state.throwOnPresetSubjectSoftDelete = true;
+
+    const deleteResponse = await app.request(`/api/classrooms/${created.id}`, { method: 'DELETE' }, env);
+    expect(deleteResponse.status).toBe(400);
+
+    expect(state.classrooms.find((r) => r.id === created.id)?.deletedAt).toBeNull();
+    expect(state.presetSubjects[0]?.deletedAt).toBeNull();
   });
 
   it('returns 403 for manager and staff users', async () => {

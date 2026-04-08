@@ -51,24 +51,35 @@ const studentSchema = z
     }
   });
 
-/** `<input type="time">` の `HH:mm:ss` や 1 桁時刻を `HH:mm` に揃えてから検証する */
+/** H:MM / HH:MM / …:SS を HH:mm に揃える。範囲外・不正形はクランプせずそのまま返し、後段の regex で弾く */
+const HM_NORMALIZE_PATTERN = /^(\d{1,2}):(\d{2})(?::(\d{2}))?$/;
+
 function normalizeToHm24(raw: string): string {
   const trimmed = raw.trim();
-  const parts = trimmed.split(':');
-  if (parts.length < 2) {
+  const match = HM_NORMALIZE_PATTERN.exec(trimmed);
+  if (!match) {
     return trimmed;
   }
-  const h = Number.parseInt(parts[0] ?? '0', 10);
-  const m = Number.parseInt(parts[1] ?? '0', 10);
-  if (Number.isNaN(h) || Number.isNaN(m)) {
+  const h = Number(match[1]);
+  const minute = Number(match[2]);
+  const second = match[3] !== undefined ? Number(match[3]) : 0;
+  if (
+    Number.isNaN(h) ||
+    Number.isNaN(minute) ||
+    Number.isNaN(second) ||
+    h < 0 ||
+    h > 23 ||
+    minute < 0 ||
+    minute > 59 ||
+    second < 0 ||
+    second > 59
+  ) {
     return trimmed;
   }
-  const hh = Math.min(23, Math.max(0, h));
-  const mm = Math.min(59, Math.max(0, m));
-  return `${String(hh).padStart(2, '0')}:${String(mm).padStart(2, '0')}`;
+  return `${String(h).padStart(2, '0')}:${String(minute).padStart(2, '0')}`;
 }
 
-/** `HH:mm` 24h（秒付きや 1 桁時は正規化して受理） */
+/** `HH:mm` 24h（許容形だけ正規化し、範囲外は後段 regex で拒否） */
 const hmTimeSchema = z
   .string()
   .transform(normalizeToHm24)

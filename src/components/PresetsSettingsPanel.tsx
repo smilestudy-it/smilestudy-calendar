@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import type { CurrentUser } from '../types/currentUser';
 
 /** `<input type="time">` の値を API の `HH:mm` に揃える */
@@ -10,6 +10,13 @@ function toHm(v: string): string {
     return `${h}:${m}`;
   }
   return v.trim();
+}
+
+function presetMutationNetworkError(prefix: string, e: unknown): string {
+  if (e instanceof Error) {
+    return `${prefix}: ${e.message}`;
+  }
+  return 'ネットワークエラーが発生しました。';
 }
 
 async function readPresetApiError(
@@ -64,6 +71,12 @@ export default function PresetsSettingsPanel({ currentUser, getAccessTokenSilent
     return isAdmin ? selectedClassroomId : (currentUser.classroomId ?? '');
   }, [currentUser.classroomId, isAdmin, selectedClassroomId]);
 
+  const activeClassroomIdRef = useRef(activeClassroomId);
+  activeClassroomIdRef.current = activeClassroomId;
+
+  const loadPresetsGen = useRef(0);
+  const loadPresetsAbortRef = useRef<AbortController | null>(null);
+
   const authedFetch = useCallback(
     async (path: string, init?: RequestInit) => {
       const token = await getAccessTokenSilently();
@@ -100,20 +113,31 @@ export default function PresetsSettingsPanel({ currentUser, getAccessTokenSilent
   }, [authedFetch, isAdmin]);
 
   const loadPresets = useCallback(async () => {
-    if (!activeClassroomId) {
+    loadPresetsAbortRef.current?.abort();
+    const ac = new AbortController();
+    loadPresetsAbortRef.current = ac;
+    const gen = ++loadPresetsGen.current;
+
+    const classroomAtStart = activeClassroomIdRef.current;
+    if (!classroomAtStart) {
       setSubjects([]);
       setLessonTypes([]);
       setTimeSlots([]);
+      setIsLoadingPresets(false);
       return;
     }
+
     setIsLoadingPresets(true);
     setError(null);
     try {
       const [sRes, lRes, tRes] = await Promise.all([
-        authedFetch(`/api/classrooms/${activeClassroomId}/subjects`),
-        authedFetch(`/api/classrooms/${activeClassroomId}/lesson-types`),
-        authedFetch(`/api/classrooms/${activeClassroomId}/time-slots`),
+        authedFetch(`/api/classrooms/${classroomAtStart}/subjects`, { signal: ac.signal }),
+        authedFetch(`/api/classrooms/${classroomAtStart}/lesson-types`, { signal: ac.signal }),
+        authedFetch(`/api/classrooms/${classroomAtStart}/time-slots`, { signal: ac.signal }),
       ]);
+      if (gen !== loadPresetsGen.current || activeClassroomIdRef.current !== classroomAtStart) {
+        return;
+      }
       if (!sRes.ok || !lRes.ok || !tRes.ok) {
         setError('プリセット一覧の取得に失敗しました。');
         return;
@@ -123,12 +147,17 @@ export default function PresetsSettingsPanel({ currentUser, getAccessTokenSilent
       setTimeSlots((await tRes.json()) as TimeSlotRow[]);
       setDraftNames({});
       setDraftSlots({});
-    } catch {
-      setError('プリセット一覧の取得に失敗しました。');
+    } catch (e) {
+      if (gen !== loadPresetsGen.current || ac.signal.aborted) {
+        return;
+      }
+      setError(presetMutationNetworkError('プリセット一覧の取得に失敗しました', e));
     } finally {
-      setIsLoadingPresets(false);
+      if (gen === loadPresetsGen.current) {
+        setIsLoadingPresets(false);
+      }
     }
-  }, [activeClassroomId, authedFetch]);
+  }, [authedFetch]);
 
   useEffect(() => {
     void loadClassrooms();
@@ -145,22 +174,26 @@ export default function PresetsSettingsPanel({ currentUser, getAccessTokenSilent
       return;
     }
     setError(null);
-    const res = await authedFetch('/api/subjects', {
-      method: 'POST',
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ name, classroomId: activeClassroomId }),
-    });
-    if (!res.ok) {
-      setError(
-        await readPresetApiError(res, {
-          fallback: '科目の追加に失敗しました',
-          invalidRequestHint: '入力内容を確認してください。',
-        }),
-      );
-      return;
+    try {
+      const res = await authedFetch('/api/subjects', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ name, classroomId: activeClassroomId }),
+      });
+      if (!res.ok) {
+        setError(
+          await readPresetApiError(res, {
+            fallback: '科目の追加に失敗しました',
+            invalidRequestHint: '入力内容を確認してください。',
+          }),
+        );
+        return;
+      }
+      setNewSubjectName('');
+      await loadPresets();
+    } catch (e) {
+      setError(presetMutationNetworkError('科目の追加に失敗しました', e));
     }
-    setNewSubjectName('');
-    await loadPresets();
   };
 
   const handleAddLessonType = async (e: React.FormEvent) => {
@@ -170,22 +203,26 @@ export default function PresetsSettingsPanel({ currentUser, getAccessTokenSilent
       return;
     }
     setError(null);
-    const res = await authedFetch('/api/lesson-types', {
-      method: 'POST',
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ name, classroomId: activeClassroomId }),
-    });
-    if (!res.ok) {
-      setError(
-        await readPresetApiError(res, {
-          fallback: '授業種別の追加に失敗しました',
-          invalidRequestHint: '入力内容を確認してください。',
-        }),
-      );
-      return;
+    try {
+      const res = await authedFetch('/api/lesson-types', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ name, classroomId: activeClassroomId }),
+      });
+      if (!res.ok) {
+        setError(
+          await readPresetApiError(res, {
+            fallback: '授業種別の追加に失敗しました',
+            invalidRequestHint: '入力内容を確認してください。',
+          }),
+        );
+        return;
+      }
+      setNewLessonTypeName('');
+      await loadPresets();
+    } catch (e) {
+      setError(presetMutationNetworkError('授業種別の追加に失敗しました', e));
     }
-    setNewLessonTypeName('');
-    await loadPresets();
   };
 
   const handleAddTimeSlot = async (e: React.FormEvent) => {
@@ -194,25 +231,29 @@ export default function PresetsSettingsPanel({ currentUser, getAccessTokenSilent
       return;
     }
     setError(null);
-    const res = await authedFetch('/api/time-slots', {
-      method: 'POST',
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({
-        classroomId: activeClassroomId,
-        startTime: toHm(newSlotStart),
-        endTime: toHm(newSlotEnd),
-      }),
-    });
-    if (!res.ok) {
-      setError(
-        await readPresetApiError(res, {
-          fallback: '時間枠の追加に失敗しました',
-          invalidRequestHint: '時間枠の入力を確認してください。',
+    try {
+      const res = await authedFetch('/api/time-slots', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({
+          classroomId: activeClassroomId,
+          startTime: toHm(newSlotStart),
+          endTime: toHm(newSlotEnd),
         }),
-      );
-      return;
+      });
+      if (!res.ok) {
+        setError(
+          await readPresetApiError(res, {
+            fallback: '時間枠の追加に失敗しました',
+            invalidRequestHint: '時間枠の入力を確認してください。',
+          }),
+        );
+        return;
+      }
+      await loadPresets();
+    } catch (e) {
+      setError(presetMutationNetworkError('時間枠の追加に失敗しました', e));
     }
-    await loadPresets();
   };
 
   const patchSubject = async (id: string) => {
@@ -221,16 +262,25 @@ export default function PresetsSettingsPanel({ currentUser, getAccessTokenSilent
       return;
     }
     setError(null);
-    const res = await authedFetch(`/api/subjects/${id}`, {
-      method: 'PATCH',
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ name }),
-    });
-    if (!res.ok) {
-      setError('科目の更新に失敗しました。');
-      return;
+    try {
+      const res = await authedFetch(`/api/subjects/${id}`, {
+        method: 'PATCH',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ name }),
+      });
+      if (!res.ok) {
+        setError(
+          await readPresetApiError(res, {
+            fallback: '科目の更新に失敗しました',
+            invalidRequestHint: '入力内容を確認してください。',
+          }),
+        );
+        return;
+      }
+      await loadPresets();
+    } catch (e) {
+      setError(presetMutationNetworkError('科目の更新に失敗しました', e));
     }
-    await loadPresets();
   };
 
   const patchLessonType = async (id: string) => {
@@ -239,16 +289,25 @@ export default function PresetsSettingsPanel({ currentUser, getAccessTokenSilent
       return;
     }
     setError(null);
-    const res = await authedFetch(`/api/lesson-types/${id}`, {
-      method: 'PATCH',
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ name }),
-    });
-    if (!res.ok) {
-      setError('授業種別の更新に失敗しました。');
-      return;
+    try {
+      const res = await authedFetch(`/api/lesson-types/${id}`, {
+        method: 'PATCH',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ name }),
+      });
+      if (!res.ok) {
+        setError(
+          await readPresetApiError(res, {
+            fallback: '授業種別の更新に失敗しました',
+            invalidRequestHint: '入力内容を確認してください。',
+          }),
+        );
+        return;
+      }
+      await loadPresets();
+    } catch (e) {
+      setError(presetMutationNetworkError('授業種別の更新に失敗しました', e));
     }
-    await loadPresets();
   };
 
   const patchTimeSlot = async (id: string) => {
@@ -257,46 +316,82 @@ export default function PresetsSettingsPanel({ currentUser, getAccessTokenSilent
       return;
     }
     setError(null);
-    const res = await authedFetch(`/api/time-slots/${id}`, {
-      method: 'PATCH',
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ startTime: toHm(d.start), endTime: toHm(d.end) }),
-    });
-    if (!res.ok) {
-      setError('時間枠の更新に失敗しました。');
-      return;
+    try {
+      const res = await authedFetch(`/api/time-slots/${id}`, {
+        method: 'PATCH',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ startTime: toHm(d.start), endTime: toHm(d.end) }),
+      });
+      if (!res.ok) {
+        setError(
+          await readPresetApiError(res, {
+            fallback: '時間枠の更新に失敗しました',
+            invalidRequestHint: '時間枠の入力を確認してください。',
+          }),
+        );
+        return;
+      }
+      await loadPresets();
+    } catch (e) {
+      setError(presetMutationNetworkError('時間枠の更新に失敗しました', e));
     }
-    await loadPresets();
   };
 
   const disableSubject = async (id: string) => {
     setError(null);
-    const res = await authedFetch(`/api/subjects/${id}`, { method: 'DELETE' });
-    if (!res.ok) {
-      setError('科目の無効化に失敗しました。');
-      return;
+    try {
+      const res = await authedFetch(`/api/subjects/${id}`, { method: 'DELETE' });
+      if (!res.ok) {
+        setError(
+          await readPresetApiError(res, {
+            fallback: '科目の無効化に失敗しました',
+            invalidRequestHint: '入力内容を確認してください。',
+          }),
+        );
+        return;
+      }
+      await loadPresets();
+    } catch (e) {
+      setError(presetMutationNetworkError('科目の無効化に失敗しました', e));
     }
-    await loadPresets();
   };
 
   const disableLessonType = async (id: string) => {
     setError(null);
-    const res = await authedFetch(`/api/lesson-types/${id}`, { method: 'DELETE' });
-    if (!res.ok) {
-      setError('授業種別の無効化に失敗しました。');
-      return;
+    try {
+      const res = await authedFetch(`/api/lesson-types/${id}`, { method: 'DELETE' });
+      if (!res.ok) {
+        setError(
+          await readPresetApiError(res, {
+            fallback: '授業種別の無効化に失敗しました',
+            invalidRequestHint: '入力内容を確認してください。',
+          }),
+        );
+        return;
+      }
+      await loadPresets();
+    } catch (e) {
+      setError(presetMutationNetworkError('授業種別の無効化に失敗しました', e));
     }
-    await loadPresets();
   };
 
   const disableTimeSlot = async (id: string) => {
     setError(null);
-    const res = await authedFetch(`/api/time-slots/${id}`, { method: 'DELETE' });
-    if (!res.ok) {
-      setError('時間枠の無効化に失敗しました。');
-      return;
+    try {
+      const res = await authedFetch(`/api/time-slots/${id}`, { method: 'DELETE' });
+      if (!res.ok) {
+        setError(
+          await readPresetApiError(res, {
+            fallback: '時間枠の無効化に失敗しました',
+            invalidRequestHint: '時間枠の入力を確認してください。',
+          }),
+        );
+        return;
+      }
+      await loadPresets();
+    } catch (e) {
+      setError(presetMutationNetworkError('時間枠の無効化に失敗しました', e));
     }
-    await loadPresets();
   };
 
   if (!isAdmin && !currentUser.classroomId) {

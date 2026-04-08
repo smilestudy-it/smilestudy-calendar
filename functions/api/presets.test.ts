@@ -1,6 +1,8 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { classrooms, lessonTypes, subjects, timeSlots, users } from '../../db/schema';
 
+/** 教室削除時のプリセット連鎖ソフトデリートは `classrooms.test.ts` で検証（DELETE /classrooms 用モックは同ファイルに集約）。 */
+
 type ClassroomRow = { id: string; deletedAt: Date | null };
 type SubjectRow = { id: string; name: string; classroomId: string; deletedAt: Date | null };
 type LessonTypeRow = { id: string; name: string; classroomId: string; deletedAt: Date | null };
@@ -460,6 +462,23 @@ describe('presets api', () => {
             classroomId: 'room-1',
             startTime: '18:00',
             endTime: '17:00',
+          }),
+        },
+        env,
+      );
+      expect(res.status).toBe(400);
+    });
+
+    it('POST rejects out-of-range clock values (no clamping)', async () => {
+      const res = await app.request(
+        '/api/time-slots',
+        {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({
+            classroomId: 'room-1',
+            startTime: '25:00',
+            endTime: '26:00',
           }),
         },
         env,

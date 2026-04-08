@@ -16,7 +16,7 @@ export default function PresetsSettingsPage({
     return <p className="text-sm text-slate-300">ユーザー情報を読み込み中...</p>;
   }
 
-  if (!currentUser || currentUser.role === 'staff') {
+  if (!currentUser || (currentUser.role !== 'admin' && currentUser.role !== 'manager')) {
     return <p className="text-sm text-slate-300">教室長以上が授業プリセット設定を利用できます。</p>;
   }
 

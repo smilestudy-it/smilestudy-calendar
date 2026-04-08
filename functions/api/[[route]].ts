@@ -798,31 +798,44 @@ app.post('/students', auth, loadUser, requireManagerOrAbove, async (c) => {
   const db = getDb(c.env);
   const id = crypto.randomUUID();
 
-  const [activeClassroom] = await db
-    .select({ id: classrooms.id })
-    .from(classrooms)
-    .where(and(eq(classrooms.id, input.classroomId), isNull(classrooms.deletedAt)))
-    .limit(1);
+  type CreateStudentTxResult =
+    | { ok: true }
+    | { ok: false; reason: 'classroom_not_found' };
 
-  if (!activeClassroom) {
-    return c.json({ message: 'classroom not found' }, 404);
-  }
-
+  let txResult: CreateStudentTxResult;
   try {
-    await db.insert(students).values({
-      id,
-      name: input.name,
-      email: input.email,
-      birthYear: input.birthYear,
-      classroomId: input.classroomId,
-      deletedAt: null,
-    });
+    txResult = await db.transaction(
+      async (tx) => {
+        const [activeClassroom] = await tx
+          .select({ id: classrooms.id })
+          .from(classrooms)
+          .where(and(eq(classrooms.id, input.classroomId), isNull(classrooms.deletedAt)))
+          .limit(1);
+        if (!activeClassroom) {
+          return { ok: false as const, reason: 'classroom_not_found' as const };
+        }
+        await tx.insert(students).values({
+          id,
+          name: input.name,
+          email: input.email,
+          birthYear: input.birthYear,
+          classroomId: input.classroomId,
+          deletedAt: null,
+        });
+        return { ok: true as const };
+      },
+      { behavior: 'immediate' },
+    );
   } catch (err) {
     if (isD1ForeignKeyViolation(err)) {
       return c.json({ message: 'classroom not found' }, 404);
     }
     const detail = collectErrorTextParts(err).join(' ') || (err instanceof Error ? err.message : String(err));
     return c.json({ message: 'failed to create student', detail }, 500);
+  }
+
+  if (!txResult.ok) {
+    return c.json({ message: 'classroom not found' }, 404);
   }
 
   return c.json(
