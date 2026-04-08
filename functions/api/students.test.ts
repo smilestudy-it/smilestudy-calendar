@@ -64,7 +64,7 @@ vi.mock('../../db', () => {
     return null;
   };
 
-  const db = {
+  const dbCore = {
     select: (selection: Record<string, unknown>) => ({
       from: (table: unknown) => {
         if (table === classrooms) {
@@ -166,6 +166,12 @@ vi.mock('../../db', () => {
         },
       }),
     }),
+  };
+
+  const db = {
+    ...dbCore,
+    transaction: async <T>(callback: (tx: typeof dbCore) => Promise<T>, _opts?: unknown): Promise<T> =>
+      callback(dbCore),
   };
 
   return { getDb: () => db };

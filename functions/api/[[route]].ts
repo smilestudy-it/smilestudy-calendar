@@ -327,11 +327,13 @@ app.delete('/classrooms/:id', auth, loadUser, requireAdmin, async(c) =>{
     }
   }
 
-  let txResult: { notFound: true; updatedUserIds: string[] } | { notFound: false; updatedUserIds: string[] };
+  let txResult:
+    | { notFound: true; updatedUserIds: string[]; updatedStudentIds: string[] }
+    | { notFound: false; updatedUserIds: string[]; updatedStudentIds: string[] };
   try {
-    // Serialize classroom soft-delete + member soft-deletes. `immediate` takes a write lock early.
-    // User rows are selected only after the classroom row is marked deleted so concurrent creates
-    // that re-check `classrooms.deleted_at` cannot commit a new member into an "open" classroom.
+    // Serialize classroom soft-delete + user/student soft-deletes. `immediate` takes a write lock early.
+    // Members are selected only after the classroom row is marked deleted so concurrent creates
+    // that re-check `classrooms.deleted_at` cannot commit into an "open" classroom.
     txResult = await db.transaction(
       async (tx) => {
         const result = await tx
@@ -340,7 +342,11 @@ app.delete('/classrooms/:id', auth, loadUser, requireAdmin, async(c) =>{
           .where(and(eq(classrooms.id, id), isNull(classrooms.deletedAt)));
 
         if (result.meta.changes === 0) {
-          return { notFound: true as const, updatedUserIds: [] as string[] };
+          return {
+            notFound: true as const,
+            updatedUserIds: [] as string[],
+            updatedStudentIds: [] as string[],
+          };
         }
 
         const classroomUsers = await tx
@@ -360,7 +366,24 @@ app.delete('/classrooms/:id', auth, loadUser, requireAdmin, async(c) =>{
           }
         }
 
-        return { notFound: false as const, updatedUserIds };
+        const classroomStudents = await tx
+          .select({ id: students.id })
+          .from(students)
+          .where(and(eq(students.classroomId, id), isNull(students.deletedAt)));
+
+        const updatedStudentIds: string[] = [];
+        for (const row of classroomStudents) {
+          const studentUpdateResult = await tx
+            .update(students)
+            .set({ deletedAt })
+            .where(and(eq(students.id, row.id), isNull(students.deletedAt)));
+
+          if (studentUpdateResult.meta.changes > 0) {
+            updatedStudentIds.push(row.id);
+          }
+        }
+
+        return { notFound: false as const, updatedUserIds, updatedStudentIds };
       },
       { behavior: 'immediate' },
     );
@@ -372,7 +395,17 @@ app.delete('/classrooms/:id', auth, loadUser, requireAdmin, async(c) =>{
     return c.json({ message: 'classroom not found' }, 404);
   }
 
-  const { updatedUserIds } = txResult;
+  const { updatedUserIds, updatedStudentIds } = txResult;
+
+  const rollbackStudentSoftDeletes = async () => {
+    for (const studentId of updatedStudentIds) {
+      await db
+        .update(students)
+        .set({ deletedAt: null })
+        .where(eq(students.id, studentId))
+        .catch(() => undefined);
+    }
+  };
 
   if (updatedUserIds.length > 0 && !managementToken) {
     try {
@@ -382,6 +415,7 @@ app.delete('/classrooms/:id', auth, loadUser, requireAdmin, async(c) =>{
       for (const userId of updatedUserIds) {
         await db.update(users).set({ deletedAt: null }).where(eq(users.id, userId)).catch(() => undefined);
       }
+      await rollbackStudentSoftDeletes();
       return c.json({ message: 'failed to delete classroom' }, 400);
     }
   }
@@ -403,6 +437,7 @@ app.delete('/classrooms/:id', auth, loadUser, requireAdmin, async(c) =>{
         await db.update(users).set({ deletedAt: null }).where(eq(users.id, userId)).catch(() => undefined);
       }
     }
+    await rollbackStudentSoftDeletes();
     return c.json({ message: 'failed to delete classroom' }, 400);
   }
 
@@ -639,29 +674,45 @@ app.post('/students', auth, loadUser, requireManagerOrAbove, async (c) => {
   }
 
   const db = getDb(c.env);
-
-  const [existingClassroom] = await db
-    .select({ id: classrooms.id })
-    .from(classrooms)
-    .where(and(eq(classrooms.id, input.classroomId), isNull(classrooms.deletedAt)))
-    .limit(1);
-
-  if (!existingClassroom) {
-    return c.json({ message: 'classroom not found' }, 404);
-  }
-
   const id = crypto.randomUUID();
+
+  type CreateStudentTxResult =
+    | { ok: true }
+    | { ok: false; reason: 'classroom_not_found' };
+
+  let txResult: CreateStudentTxResult;
   try {
-    await db.insert(students).values({
-      id,
-      name: input.name,
-      email: input.email,
-      birthYear: input.birthYear,
-      classroomId: input.classroomId,
-      deletedAt: null,
-    });
+    txResult = await db.transaction(
+      async (tx) => {
+        const [activeClassroom] = await tx
+          .select({ id: classrooms.id })
+          .from(classrooms)
+          .where(and(eq(classrooms.id, input.classroomId), isNull(classrooms.deletedAt)))
+          .limit(1);
+
+        if (!activeClassroom) {
+          return { ok: false as const, reason: 'classroom_not_found' as const };
+        }
+
+        await tx.insert(students).values({
+          id,
+          name: input.name,
+          email: input.email,
+          birthYear: input.birthYear,
+          classroomId: input.classroomId,
+          deletedAt: null,
+        });
+
+        return { ok: true as const };
+      },
+      { behavior: 'immediate' },
+    );
   } catch {
     return c.json({ message: 'failed to create student' }, 400);
+  }
+
+  if (!txResult.ok) {
+    return c.json({ message: 'classroom not found' }, 404);
   }
 
   return c.json(

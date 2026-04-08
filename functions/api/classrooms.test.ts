@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { classrooms, users } from '../../db/schema';
+import { classrooms, students, users } from '../../db/schema';
 
 type ClassroomRow = {
   id: string;
@@ -13,9 +13,16 @@ type ClassroomUserRow = {
   deletedAt: Date | null;
 };
 
+type ClassroomStudentRow = {
+  id: string;
+  classroomId: string;
+  deletedAt: Date | null;
+};
+
 const state: {
   classrooms: ClassroomRow[];
   classroomUsers: ClassroomUserRow[];
+  classroomStudents: ClassroomStudentRow[];
   userRole: 'admin' | 'manager' | 'staff' | null;
   jwtSub: string | null;
   deleteAuth0Ok: boolean;
@@ -27,6 +34,7 @@ const state: {
 } = {
   classrooms: [],
   classroomUsers: [],
+  classroomStudents: [],
   userRole: 'admin',
   jwtSub: 'auth0|admin-user',
   deleteAuth0Ok: true,
@@ -127,6 +135,23 @@ vi.mock('../../db', () => {
           };
         }
 
+        if (table === students) {
+          const keys = Object.keys(selection);
+          if (keys.length === 1 && keys.includes('id')) {
+            return {
+              where: async (predicate: unknown) => {
+                const classroomId = extractRequestedId(predicate);
+                return state.classroomStudents
+                  .filter((row) => row.classroomId === classroomId && row.deletedAt === null)
+                  .map((row) => ({ id: row.id }));
+              },
+            };
+          }
+          return {
+            where: async () => [],
+          };
+        }
+
         if (table === classrooms) {
           const keys = Object.keys(selection);
           if (keys.length === 1 && keys.includes('id')) {
@@ -204,6 +229,21 @@ vi.mock('../../db', () => {
             return { meta: { changes: 1 } };
           }
 
+          if (table === students) {
+            const requestedId = extractRequestedId(predicate);
+            if (!requestedId) {
+              return { meta: { changes: 0 } };
+            }
+            const target = state.classroomStudents.find(
+              (row) => row.id === requestedId && (value.deletedAt === null || row.deletedAt === null),
+            );
+            if (!target) {
+              return { meta: { changes: 0 } };
+            }
+            target.deletedAt = value.deletedAt;
+            return { meta: { changes: 1 } };
+          }
+
           return { meta: { changes: 0 } };
         },
       }),
@@ -260,6 +300,7 @@ describe('classrooms api flow', () => {
   beforeEach(() => {
     state.classrooms = [];
     state.classroomUsers = [];
+    state.classroomStudents = [];
     state.userRole = 'admin';
     state.jwtSub = 'auth0|admin-user';
     state.deleteAuth0Ok = true;
@@ -295,7 +336,7 @@ describe('classrooms api flow', () => {
     expect(listAfterDelete).toHaveLength(0);
   });
 
-  it('deletes classroom users together with classroom', async () => {
+  it('deletes classroom users and students together with classroom', async () => {
     const postResponse = await app.request('/api/classrooms', {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
@@ -308,10 +349,16 @@ describe('classrooms api flow', () => {
       classroomId: created.id,
       deletedAt: null,
     });
+    state.classroomStudents.push({
+      id: 'student-in-class',
+      classroomId: created.id,
+      deletedAt: null,
+    });
 
     const deleteResponse = await app.request(`/api/classrooms/${created.id}`, { method: 'DELETE' }, env);
     expect(deleteResponse.status).toBe(200);
     expect(state.classroomUsers[0]?.deletedAt).toBeInstanceOf(Date);
+    expect(state.classroomStudents[0]?.deletedAt).toBeInstanceOf(Date);
     expect(state.deletedAuth0UserIds.some((id) => id.includes('auth0%7Cstaff-user'))).toBe(true);
   });
 
@@ -336,6 +383,11 @@ describe('classrooms api flow', () => {
       },
     );
     state.deleteAuth0FailAfterSuccessCount = 1;
+    state.classroomStudents.push({
+      id: 'student-rollback-partial',
+      classroomId: created.id,
+      deletedAt: null,
+    });
 
     const deleteResponse = await app.request(`/api/classrooms/${created.id}`, { method: 'DELETE' }, env);
     expect(deleteResponse.status).toBe(400);
@@ -347,6 +399,9 @@ describe('classrooms api flow', () => {
     const second = state.classroomUsers.find((row) => row.id === 'auth0|user-second');
     expect(first?.deletedAt).toBeInstanceOf(Date);
     expect(second?.deletedAt).toBeNull();
+
+    const rolledBackStudent = state.classroomStudents.find((row) => row.id === 'student-rollback-partial');
+    expect(rolledBackStudent?.deletedAt).toBeNull();
   });
 
   it('rolls back classroom deletion when auth0 user delete fails', async () => {
@@ -362,6 +417,11 @@ describe('classrooms api flow', () => {
       classroomId: created.id,
       deletedAt: null,
     });
+    state.classroomStudents.push({
+      id: 'student-auth0-fail',
+      classroomId: created.id,
+      deletedAt: null,
+    });
     state.deleteAuth0Ok = false;
 
     const deleteResponse = await app.request(`/api/classrooms/${created.id}`, { method: 'DELETE' }, env);
@@ -369,6 +429,7 @@ describe('classrooms api flow', () => {
     const classroom = state.classrooms.find((row) => row.id === created.id);
     expect(classroom?.deletedAt).toBeNull();
     expect(state.classroomUsers[0]?.deletedAt).toBeNull();
+    expect(state.classroomStudents.find((r) => r.id === 'student-auth0-fail')?.deletedAt).toBeNull();
   });
 
   it('returns 400 when name is missing or blank', async () => {
