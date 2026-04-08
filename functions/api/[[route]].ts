@@ -5,8 +5,12 @@ import type { Context, Next } from 'hono';
 import type { JwtVariables } from 'hono/jwt';
 import { and, eq, isNull } from 'drizzle-orm';
 import { getDb } from '../../db';
-import { users, classrooms } from '../../db/schema';
-import { validateCreateClassroomInput, validateCreateUserInput } from './validators';
+import { users, classrooms, students } from '../../db/schema';
+import {
+  validateCreateClassroomInput,
+  validateCreateStudentInput,
+  validateCreateUserInput,
+} from './validators';
 
 type Bindings = Env & {
   AUTH0_AUDIENCE: string;
@@ -234,21 +238,28 @@ const requireManagerOrAbove = async (c: Context<{Bindings: Bindings; Variables: 
   await next();
 };
 
+/** 対象 classroomId へのアクセス: 管理者は全教室、教室長・一般講師は自教室のみ（manager 専用ルートでは requireManagerOrAbove と併用） */
 const requireClassroomScope = (
-  resolveClassroomId: (c: Context<{Bindings: Bindings; Variables: AppVariables}>) => string | null
+  resolveClassroomId: (c: Context<{ Bindings: Bindings; Variables: AppVariables }>) => string | null,
 ) =>
-  async (c: Context<{Bindings: Bindings; Variables: AppVariables}>, next: Next) => {
+  async (c: Context<{ Bindings: Bindings; Variables: AppVariables }>, next: Next) => {
     const currentUser = c.var.currentUser;
-    
-    if(!currentUser){
+
+    if (!currentUser) {
       return c.json({ message: 'user not loaded' }, 500);
     }
 
     const targetClassroomId = resolveClassroomId(c);
-    if(!targetClassroomId){
+    if (!targetClassroomId) {
       return c.json({ message: 'classroom id is required' }, 400);
     }
-    if(currentUser.role !== 'admin' && (currentUser.role !== 'manager' || currentUser.classroomId !== targetClassroomId)){
+
+    if (currentUser.role === 'admin') {
+      await next();
+      return;
+    }
+
+    if (!currentUser.classroomId || currentUser.classroomId !== targetClassroomId) {
       return c.json({ message: 'forbidden' }, 403);
     }
 
@@ -610,8 +621,117 @@ app.delete('/users/:id', auth, loadUser, requireManagerOrAbove, async(c) => {
     await rollbackUserSoftDelete();
     return c.json({ message: 'failed to delete user' }, 400);
   }
+  
+  return c.json({ success: true }, 200);
+});
+
+
+app.post('/students', auth, loadUser, requireManagerOrAbove, async (c) => {
+  const actor = c.var.currentUser;
+  const body = await c.req.json<unknown>().catch(() => null);
+  const { input, error } = validateCreateStudentInput(body);
+  if (!input) {
+    return c.json({ message: error ?? 'invalid request' }, 400);
+  }
+
+  if (actor.role === 'manager' && actor.classroomId !== input.classroomId) {
+    return c.json({ message: 'forbidden' }, 403);
+  }
+
+  const db = getDb(c.env);
+
+  const [existingClassroom] = await db
+    .select({ id: classrooms.id })
+    .from(classrooms)
+    .where(and(eq(classrooms.id, input.classroomId), isNull(classrooms.deletedAt)))
+    .limit(1);
+
+  if (!existingClassroom) {
+    return c.json({ message: 'classroom not found' }, 404);
+  }
+
+  const id = crypto.randomUUID();
+  try {
+    await db.insert(students).values({
+      id,
+      name: input.name,
+      email: input.email,
+      birthYear: input.birthYear,
+      classroomId: input.classroomId,
+      deletedAt: null,
+    });
+  } catch {
+    return c.json({ message: 'failed to create student' }, 400);
+  }
+
+  return c.json(
+    {
+      id,
+      name: input.name,
+      email: input.email,
+      birthYear: input.birthYear,
+      classroomId: input.classroomId,
+    },
+    201,
+  );
+});
+
+app.delete('/students/:id', auth, loadUser, requireManagerOrAbove, async (c) => {
+  const actor = c.var.currentUser;
+  const targetId = c.req.param('id');
+  if (!targetId) {
+    return c.json({ message: 'id is required' }, 400);
+  }
+
+  const db = getDb(c.env);
+
+  const [target] = await db
+    .select({ id: students.id, classroomId: students.classroomId })
+    .from(students)
+    .where(and(eq(students.id, targetId), isNull(students.deletedAt)))
+    .limit(1);
+
+  if (!target) {
+    return c.json({ message: 'student not found' }, 404);
+  }
+
+  if (
+    actor.role === 'manager' &&
+    (!actor.classroomId || actor.classroomId !== target.classroomId)
+  ) {
+    return c.json({ message: 'forbidden' }, 403);
+  }
+
+  const deletedAt = new Date();
+  const result = await db
+    .update(students)
+    .set({ deletedAt })
+    .where(and(eq(students.id, targetId), isNull(students.deletedAt)));
+
+  if (result.meta.changes === 0) {
+    return c.json({ message: 'student not found' }, 404);
+  }
 
   return c.json({ success: true }, 200);
+});
+
+app.get('/students/:classroomId', auth, loadUser, requireClassroomScope((c) => c.req.param('classroomId') ?? null), async (c) => {
+  const classroomId = c.req.param('classroomId');
+  if (!classroomId) {
+    return c.json({ message: 'classroom id is required' }, 400);
+  }
+  const db = getDb(c.env);
+
+  const rows = await db
+    .select({
+      id: students.id,
+      name: students.name,
+      email: students.email,
+      birthYear: students.birthYear,
+    })
+    .from(students)
+    .where(and(eq(students.classroomId, classroomId), isNull(students.deletedAt)));
+  return c.json(rows, 200);
 });
 
 app.get('/me', auth, async (c) => {

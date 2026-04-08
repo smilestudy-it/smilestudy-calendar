@@ -31,7 +31,7 @@ const inviteFormSchema = z
     classroomId: z.string().trim().optional(),
     firstName: z.string().trim().min(1, '名を入力してください。').max(100, '名は100文字以内で入力してください。'),
     lastName: z.string().trim().min(1, '姓を入力してください。').max(100, '姓は100文字以内で入力してください。'),
-    email: z.string().trim().email('メールアドレスの形式が不正です。'),
+    email: z.string().trim().pipe(z.email('メールアドレスの形式が不正です。')),
     color: z.string().trim().regex(/^#(?:[0-9a-fA-F]{6})$/, 'カラーコードが不正です。'),
   })
   .superRefine((value, ctx) => {

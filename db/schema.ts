@@ -41,6 +41,7 @@ export const users = sqliteTable(
 export const students = sqliteTable('students', {
 id: text('id').primaryKey(),
 name: text('name').notNull(),
+email: text('email').notNull(),
 birthYear: integer('birth_year').notNull(), // 生まれた年度
 classroomId: text('classroom_id').references(() => classrooms.id).notNull(),
 deletedAt: integer('deleted_at', { mode: 'timestamp' }),
