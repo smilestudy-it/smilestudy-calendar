@@ -30,6 +30,19 @@ const userSchema = z
     }
   });
 
+const currentYear = new Date().getFullYear();
+
+const studentSchema = z.object({
+  name: z.string().trim().min(1, 'name is required').max(100, 'name must be 100 characters or less'),
+  email: z.string().trim().pipe(z.email('invalid email')),
+  birthYear: z.coerce
+    .number()
+    .int('birth year must be an integer')
+    .min(1900, 'birth year is out of range')
+    .max(currentYear, 'birth year is out of range'),
+  classroomId: z.string().trim().min(1, 'classroom id is required'),
+});
+
 type CreateClassroomInput = z.infer<typeof classroomSchema>;
 type CreateUserInput = {
   firstName: string;
@@ -39,6 +52,7 @@ type CreateUserInput = {
   email: string;
   role: 'admin' | 'manager' | 'staff';
 };
+type CreateStudentInput = z.infer<typeof studentSchema>;
 
 function firstIssueMessage(error: z.ZodError): string {
   return error.issues[0]?.message ?? 'invalid request';
@@ -72,4 +86,14 @@ export function validateCreateUserInput(
       role: result.data.role,
     },
   };
+}
+
+export function validateCreateStudentInput(
+  body: unknown,
+): { input?: CreateStudentInput; error?: string } {
+  const result = studentSchema.safeParse(body);
+  if (!result.success) {
+    return { error: firstIssueMessage(result.error) };
+  }
+  return { input: result.data };
 }

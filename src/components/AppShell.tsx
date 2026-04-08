@@ -73,6 +73,15 @@ export default function AppShell({
           >
             講師管理
           </NavLink>
+          <NavLink
+            to="/students"
+            className={({ isActive }) =>
+              `rounded-lg px-3 py-2 text-sm font-medium transition ${isActive ? 'bg-indigo-500/20 text-indigo-200' : 'bg-slate-800 text-slate-200 hover:bg-slate-700'}`
+            }
+            onClick={() => setIsMenuOpen(false)}
+          >
+            生徒管理
+          </NavLink>
         </nav>
 
         <div className="grid gap-2 rounded-xl border border-slate-800 bg-slate-950/60 p-4 text-sm md:grid-cols-2">

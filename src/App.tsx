@@ -8,6 +8,7 @@ import { useCurrentUser } from './hooks/useCurrentUser';
 const HomePage = lazy(() => import('./pages/HomePage'));
 const ClassroomPage = lazy(() => import('./pages/ClassroomPage'));
 const TeacherManagementPage = lazy(() => import('./pages/TeacherManagementPage'));
+const StudentManagementPage = lazy(() => import('./pages/StudentManagementPage'));
 
 function App() {
   const { isAuthenticated, isLoading, error, user, getAccessTokenSilently } = useAuth0();
@@ -83,6 +84,16 @@ function App() {
             path="/teachers"
             element={
               <TeacherManagementPage
+                currentUser={currentUser}
+                isLoadingCurrentUser={isLoadingCurrentUser}
+                getAccessTokenSilently={getAccessTokenSilently}
+              />
+            }
+          />
+          <Route
+            path="/students"
+            element={
+              <StudentManagementPage
                 currentUser={currentUser}
                 isLoadingCurrentUser={isLoadingCurrentUser}
                 getAccessTokenSilently={getAccessTokenSilently}

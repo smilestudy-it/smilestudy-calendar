@@ -5,8 +5,12 @@ import type { Context, Next } from 'hono';
 import type { JwtVariables } from 'hono/jwt';
 import { and, eq, isNull } from 'drizzle-orm';
 import { getDb } from '../../db';
-import { users, classrooms } from '../../db/schema';
-import { validateCreateClassroomInput, validateCreateUserInput } from './validators';
+import { users, classrooms, students } from '../../db/schema';
+import {
+  validateCreateClassroomInput,
+  validateCreateStudentInput,
+  validateCreateUserInput,
+} from './validators';
 
 type Bindings = Env & {
   AUTH0_AUDIENCE: string;
@@ -234,21 +238,28 @@ const requireManagerOrAbove = async (c: Context<{Bindings: Bindings; Variables: 
   await next();
 };
 
+/** 対象 classroomId へのアクセス: 管理者は全教室、教室長・一般講師は自教室のみ（manager 専用ルートでは requireManagerOrAbove と併用） */
 const requireClassroomScope = (
-  resolveClassroomId: (c: Context<{Bindings: Bindings; Variables: AppVariables}>) => string | null
+  resolveClassroomId: (c: Context<{ Bindings: Bindings; Variables: AppVariables }>) => string | null,
 ) =>
-  async (c: Context<{Bindings: Bindings; Variables: AppVariables}>, next: Next) => {
+  async (c: Context<{ Bindings: Bindings; Variables: AppVariables }>, next: Next) => {
     const currentUser = c.var.currentUser;
-    
-    if(!currentUser){
+
+    if (!currentUser) {
       return c.json({ message: 'user not loaded' }, 500);
     }
 
     const targetClassroomId = resolveClassroomId(c);
-    if(!targetClassroomId){
+    if (!targetClassroomId) {
       return c.json({ message: 'classroom id is required' }, 400);
     }
-    if(currentUser.role !== 'admin' && (currentUser.role !== 'manager' || currentUser.classroomId !== targetClassroomId)){
+
+    if (currentUser.role === 'admin') {
+      await next();
+      return;
+    }
+
+    if (!currentUser.classroomId || currentUser.classroomId !== targetClassroomId) {
       return c.json({ message: 'forbidden' }, 403);
     }
 
@@ -316,11 +327,13 @@ app.delete('/classrooms/:id', auth, loadUser, requireAdmin, async(c) =>{
     }
   }
 
-  let txResult: { notFound: true; updatedUserIds: string[] } | { notFound: false; updatedUserIds: string[] };
+  let txResult:
+    | { notFound: true; updatedUserIds: string[]; updatedStudentIds: string[] }
+    | { notFound: false; updatedUserIds: string[]; updatedStudentIds: string[] };
   try {
-    // Serialize classroom soft-delete + member soft-deletes. `immediate` takes a write lock early.
-    // User rows are selected only after the classroom row is marked deleted so concurrent creates
-    // that re-check `classrooms.deleted_at` cannot commit a new member into an "open" classroom.
+    // Serialize classroom soft-delete + user/student soft-deletes. `immediate` takes a write lock early.
+    // Members are selected only after the classroom row is marked deleted so concurrent creates
+    // that re-check `classrooms.deleted_at` cannot commit into an "open" classroom.
     txResult = await db.transaction(
       async (tx) => {
         const result = await tx
@@ -329,7 +342,11 @@ app.delete('/classrooms/:id', auth, loadUser, requireAdmin, async(c) =>{
           .where(and(eq(classrooms.id, id), isNull(classrooms.deletedAt)));
 
         if (result.meta.changes === 0) {
-          return { notFound: true as const, updatedUserIds: [] as string[] };
+          return {
+            notFound: true as const,
+            updatedUserIds: [] as string[],
+            updatedStudentIds: [] as string[],
+          };
         }
 
         const classroomUsers = await tx
@@ -349,7 +366,24 @@ app.delete('/classrooms/:id', auth, loadUser, requireAdmin, async(c) =>{
           }
         }
 
-        return { notFound: false as const, updatedUserIds };
+        const classroomStudents = await tx
+          .select({ id: students.id })
+          .from(students)
+          .where(and(eq(students.classroomId, id), isNull(students.deletedAt)));
+
+        const updatedStudentIds: string[] = [];
+        for (const row of classroomStudents) {
+          const studentUpdateResult = await tx
+            .update(students)
+            .set({ deletedAt })
+            .where(and(eq(students.id, row.id), isNull(students.deletedAt)));
+
+          if (studentUpdateResult.meta.changes > 0) {
+            updatedStudentIds.push(row.id);
+          }
+        }
+
+        return { notFound: false as const, updatedUserIds, updatedStudentIds };
       },
       { behavior: 'immediate' },
     );
@@ -361,7 +395,17 @@ app.delete('/classrooms/:id', auth, loadUser, requireAdmin, async(c) =>{
     return c.json({ message: 'classroom not found' }, 404);
   }
 
-  const { updatedUserIds } = txResult;
+  const { updatedUserIds, updatedStudentIds } = txResult;
+
+  const rollbackStudentSoftDeletes = async () => {
+    for (const studentId of updatedStudentIds) {
+      await db
+        .update(students)
+        .set({ deletedAt: null })
+        .where(eq(students.id, studentId))
+        .catch(() => undefined);
+    }
+  };
 
   if (updatedUserIds.length > 0 && !managementToken) {
     try {
@@ -371,6 +415,7 @@ app.delete('/classrooms/:id', auth, loadUser, requireAdmin, async(c) =>{
       for (const userId of updatedUserIds) {
         await db.update(users).set({ deletedAt: null }).where(eq(users.id, userId)).catch(() => undefined);
       }
+      await rollbackStudentSoftDeletes();
       return c.json({ message: 'failed to delete classroom' }, 400);
     }
   }
@@ -392,6 +437,7 @@ app.delete('/classrooms/:id', auth, loadUser, requireAdmin, async(c) =>{
         await db.update(users).set({ deletedAt: null }).where(eq(users.id, userId)).catch(() => undefined);
       }
     }
+    await rollbackStudentSoftDeletes();
     return c.json({ message: 'failed to delete classroom' }, 400);
   }
 
@@ -610,8 +656,133 @@ app.delete('/users/:id', auth, loadUser, requireManagerOrAbove, async(c) => {
     await rollbackUserSoftDelete();
     return c.json({ message: 'failed to delete user' }, 400);
   }
+  
+  return c.json({ success: true }, 200);
+});
+
+
+app.post('/students', auth, loadUser, requireManagerOrAbove, async (c) => {
+  const actor = c.var.currentUser;
+  const body = await c.req.json<unknown>().catch(() => null);
+  const { input, error } = validateCreateStudentInput(body);
+  if (!input) {
+    return c.json({ message: error ?? 'invalid request' }, 400);
+  }
+
+  if (actor.role === 'manager' && actor.classroomId !== input.classroomId) {
+    return c.json({ message: 'forbidden' }, 403);
+  }
+
+  const db = getDb(c.env);
+  const id = crypto.randomUUID();
+
+  type CreateStudentTxResult =
+    | { ok: true }
+    | { ok: false; reason: 'classroom_not_found' };
+
+  let txResult: CreateStudentTxResult;
+  try {
+    txResult = await db.transaction(
+      async (tx) => {
+        const [activeClassroom] = await tx
+          .select({ id: classrooms.id })
+          .from(classrooms)
+          .where(and(eq(classrooms.id, input.classroomId), isNull(classrooms.deletedAt)))
+          .limit(1);
+
+        if (!activeClassroom) {
+          return { ok: false as const, reason: 'classroom_not_found' as const };
+        }
+
+        await tx.insert(students).values({
+          id,
+          name: input.name,
+          email: input.email,
+          birthYear: input.birthYear,
+          classroomId: input.classroomId,
+          deletedAt: null,
+        });
+
+        return { ok: true as const };
+      },
+      { behavior: 'immediate' },
+    );
+  } catch {
+    return c.json({ message: 'failed to create student' }, 400);
+  }
+
+  if (!txResult.ok) {
+    return c.json({ message: 'classroom not found' }, 404);
+  }
+
+  return c.json(
+    {
+      id,
+      name: input.name,
+      email: input.email,
+      birthYear: input.birthYear,
+      classroomId: input.classroomId,
+    },
+    201,
+  );
+});
+
+app.delete('/students/:id', auth, loadUser, requireManagerOrAbove, async (c) => {
+  const actor = c.var.currentUser;
+  const targetId = c.req.param('id');
+  if (!targetId) {
+    return c.json({ message: 'id is required' }, 400);
+  }
+
+  const db = getDb(c.env);
+
+  const [target] = await db
+    .select({ id: students.id, classroomId: students.classroomId })
+    .from(students)
+    .where(and(eq(students.id, targetId), isNull(students.deletedAt)))
+    .limit(1);
+
+  if (!target) {
+    return c.json({ message: 'student not found' }, 404);
+  }
+
+  if (
+    actor.role === 'manager' &&
+    (!actor.classroomId || actor.classroomId !== target.classroomId)
+  ) {
+    return c.json({ message: 'forbidden' }, 403);
+  }
+
+  const deletedAt = new Date();
+  const result = await db
+    .update(students)
+    .set({ deletedAt })
+    .where(and(eq(students.id, targetId), isNull(students.deletedAt)));
+
+  if (result.meta.changes === 0) {
+    return c.json({ message: 'student not found' }, 404);
+  }
 
   return c.json({ success: true }, 200);
+});
+
+app.get('/students/:classroomId', auth, loadUser, requireClassroomScope((c) => c.req.param('classroomId') ?? null), async (c) => {
+  const classroomId = c.req.param('classroomId');
+  if (!classroomId) {
+    return c.json({ message: 'classroom id is required' }, 400);
+  }
+  const db = getDb(c.env);
+
+  const rows = await db
+    .select({
+      id: students.id,
+      name: students.name,
+      email: students.email,
+      birthYear: students.birthYear,
+    })
+    .from(students)
+    .where(and(eq(students.classroomId, classroomId), isNull(students.deletedAt)));
+  return c.json(rows, 200);
 });
 
 app.get('/me', auth, async (c) => {

@@ -33,14 +33,18 @@ export default function ClassroomAdminPanel({ getAccessTokenSilently }: Props) {
 
   const loadClassrooms = useCallback(async () => {
     setIsLoading(true);
-    setError(null);
     try {
       const response = await authedFetch('/api/classrooms');
       if (!response.ok) {
-        setError('教室一覧の取得に失敗しました。');
+        setError(
+          response.status === 403
+            ? '教室一覧を表示する権限がありません。'
+            : '教室一覧の取得に失敗しました。',
+        );
         return;
       }
       const data = (await response.json()) as Classroom[];
+      setError(null);
       setClassrooms(data);
     } catch {
       setError('教室一覧の取得に失敗しました。');

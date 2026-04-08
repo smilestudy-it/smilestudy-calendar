@@ -31,7 +31,7 @@ const inviteFormSchema = z
     classroomId: z.string().trim().optional(),
     firstName: z.string().trim().min(1, '名を入力してください。').max(100, '名は100文字以内で入力してください。'),
     lastName: z.string().trim().min(1, '姓を入力してください。').max(100, '姓は100文字以内で入力してください。'),
-    email: z.string().trim().email('メールアドレスの形式が不正です。'),
+    email: z.string().trim().pipe(z.email('メールアドレスの形式が不正です。')),
     color: z.string().trim().regex(/^#(?:[0-9a-fA-F]{6})$/, 'カラーコードが不正です。'),
   })
   .superRefine((value, ctx) => {
@@ -139,19 +139,21 @@ export default function TeacherManagementPanel({ currentUser, getAccessTokenSile
     }
 
     setIsLoadingUsers(true);
-    if (requestId === latestLoadUsersRequestId.current) {
-      setError(null);
-    }
     try {
       const response = await authedFetch(`/api/users/${activeClassroomId}`);
       if (!response.ok) {
         if (requestId === latestLoadUsersRequestId.current) {
-          setError('講師一覧の取得に失敗しました。');
+          setError(
+            response.status === 403
+              ? 'この教室の講師一覧を表示する権限がありません。'
+              : '講師一覧の取得に失敗しました。',
+          );
         }
         return;
       }
       const data = (await response.json()) as UserRow[];
       if (requestId === latestLoadUsersRequestId.current) {
+        setError(null);
         setUsers(data);
       }
     } catch {
@@ -177,19 +179,21 @@ export default function TeacherManagementPanel({ currentUser, getAccessTokenSile
     }
 
     setIsLoadingAdmins(true);
-    if (requestId === latestLoadAdminsRequestId.current) {
-      setError(null);
-    }
     try {
       const response = await authedFetch('/api/users/admins');
       if (!response.ok) {
         if (requestId === latestLoadAdminsRequestId.current) {
-          setError('管理者一覧の取得に失敗しました。');
+          setError(
+            response.status === 403
+              ? '管理者一覧を表示する権限がありません。'
+              : '管理者一覧の取得に失敗しました。',
+          );
         }
         return;
       }
       const data = (await response.json()) as UserRow[];
       if (requestId === latestLoadAdminsRequestId.current) {
+        setError(null);
         setAdminUsers(data);
       }
     } catch {
