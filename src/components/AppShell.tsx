@@ -82,6 +82,17 @@ export default function AppShell({
           >
             生徒管理
           </NavLink>
+          {(role === 'admin' || role === 'manager' || role === 'staff') && (
+            <NavLink
+              to="/calendar"
+              className={({ isActive }) =>
+                `rounded-lg px-3 py-2 text-sm font-medium transition ${isActive ? 'bg-indigo-500/20 text-indigo-200' : 'bg-slate-800 text-slate-200 hover:bg-slate-700'}`
+              }
+              onClick={() => setIsMenuOpen(false)}
+            >
+              カレンダー
+            </NavLink>
+          )}
           {(role === 'admin' || role === 'manager') && (
             <NavLink
               to="/settings/presets"

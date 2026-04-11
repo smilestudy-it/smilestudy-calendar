@@ -258,3 +258,113 @@ export function validatePatchTimeSlotInput(
   }
   return { input: result.data };
 }
+
+const lessonInstantSchema = z
+  .union([z.string(), z.number(), z.date()])
+  .transform((v) => (v instanceof Date ? v : new Date(v)))
+  .refine((d) => !Number.isNaN(d.getTime()), { message: 'invalid date' });
+
+const lessonStatusSchema = z.enum(['draft', 'published', 'completed']);
+
+const createLessonSchema = z
+  .object({
+    teacherId: z.string().trim().min(1, 'teacher id is required'),
+    studentId: z.string().trim().min(1, 'student id is required'),
+    classroomId: z.string().trim().min(1, 'classroom id is required'),
+    subjectId: z.string().trim().min(1).optional(),
+    lessonTypeId: z.string().trim().min(1).optional(),
+    startAt: lessonInstantSchema,
+    endAt: lessonInstantSchema,
+    status: lessonStatusSchema.optional(),
+  })
+  .superRefine((data, ctx) => {
+    if (data.startAt.getTime() >= data.endAt.getTime()) {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['endAt'],
+        message: 'end must be after start',
+      });
+    }
+  });
+
+const patchLessonSchema = z
+  .object({
+    teacherId: z.string().trim().min(1).optional(),
+    studentId: z.string().trim().min(1).optional(),
+    classroomId: z.string().trim().min(1).optional(),
+    subjectId: z.string().trim().min(1).nullable().optional(),
+    lessonTypeId: z.string().trim().min(1).nullable().optional(),
+    startAt: lessonInstantSchema.optional(),
+    endAt: lessonInstantSchema.optional(),
+    status: lessonStatusSchema.optional(),
+  })
+  .superRefine((data, ctx) => {
+    const hasField =
+      data.teacherId !== undefined ||
+      data.studentId !== undefined ||
+      data.classroomId !== undefined ||
+      data.subjectId !== undefined ||
+      data.lessonTypeId !== undefined ||
+      data.startAt !== undefined ||
+      data.endAt !== undefined ||
+      data.status !== undefined;
+    if (!hasField) {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['teacherId'],
+        message: 'at least one field is required',
+      });
+    }
+    if (data.startAt !== undefined && data.endAt !== undefined) {
+      if (data.startAt.getTime() >= data.endAt.getTime()) {
+        ctx.addIssue({
+          code: 'custom',
+          path: ['endAt'],
+          message: 'end must be after start',
+        });
+      }
+    }
+  });
+
+type CreateLessonInput = z.infer<typeof createLessonSchema>;
+type PatchLessonInput = z.infer<typeof patchLessonSchema>;
+
+export function validateCreateLessonInput(
+  body: unknown,
+): { input?: CreateLessonInput; error?: string } {
+  const result = createLessonSchema.safeParse(body);
+  if (!result.success) {
+    return { error: firstIssueMessage(result.error) };
+  }
+  return { input: result.data };
+}
+
+export function validatePatchLessonInput(
+  body: unknown,
+): { input?: PatchLessonInput; error?: string } {
+  const result = patchLessonSchema.safeParse(body);
+  if (!result.success) {
+    return { error: firstIssueMessage(result.error) };
+  }
+  return { input: result.data };
+}
+
+export function validateLessonRangeQuery(query: {
+  from?: string;
+  to?: string;
+}): { from?: Date; to?: Date; error?: string } {
+  const fromRaw = query.from;
+  const toRaw = query.to;
+  if (!fromRaw?.trim() || !toRaw?.trim()) {
+    return { error: 'from and to query parameters are required' };
+  }
+  const from = new Date(fromRaw);
+  const to = new Date(toRaw);
+  if (Number.isNaN(from.getTime()) || Number.isNaN(to.getTime())) {
+    return { error: 'invalid from or to date' };
+  }
+  if (from.getTime() >= to.getTime()) {
+    return { error: 'from must be before to' };
+  }
+  return { from, to };
+}

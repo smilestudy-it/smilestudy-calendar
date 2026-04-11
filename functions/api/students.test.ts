@@ -1,5 +1,9 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import type { SQL } from 'drizzle-orm';
+import { SQLiteSyncDialect } from 'drizzle-orm/sqlite-core';
 import { classrooms, students, users } from '../../db/schema';
+
+const sqliteDialect = new SQLiteSyncDialect();
 
 type StudentRow = {
   id: string;
@@ -65,6 +69,42 @@ vi.mock('../../db', () => {
   };
 
   const dbCore = {
+    run: async (query: unknown) => {
+      const gw = query as { getSQL?: () => SQL };
+      if (!gw || typeof gw.getSQL !== 'function') {
+        return { meta: { changes: 0 } };
+      }
+      const built = sqliteDialect.sqlToQuery(gw.getSQL());
+      const lower = built.sql.toLowerCase();
+      if (!lower.includes('insert') || !lower.includes('students')) {
+        return { meta: { changes: 0 } };
+      }
+      if (state.insertStudentThrows) {
+        throw new Error('insert failed');
+      }
+      const params = built.params;
+      if (params.length < 6) {
+        return { meta: { changes: 0 } };
+      }
+      const idVal = params[0] as string;
+      const nameVal = params[1] as string;
+      const emailVal = params[2] as string;
+      const birthVal = Number(params[3]);
+      const classroomId = params[4] as string;
+      const classroom = state.classrooms.find((r) => r.id === classroomId && r.deletedAt === null);
+      if (!classroom) {
+        return { meta: { changes: 0 } };
+      }
+      state.studentRows.push({
+        id: idVal,
+        name: nameVal,
+        email: emailVal,
+        birthYear: birthVal,
+        classroomId,
+        deletedAt: null,
+      });
+      return { meta: { changes: 1 } };
+    },
     select: (selection: Record<string, unknown>) => ({
       from: (table: unknown) => {
         if (table === classrooms) {

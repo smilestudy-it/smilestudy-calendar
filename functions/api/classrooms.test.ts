@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { classrooms, lessonTypes, students, subjects, timeSlots, users } from '../../db/schema';
+import { classrooms, lessonTypes, lessons, students, subjects, timeSlots, users } from '../../db/schema';
 
 type ClassroomRow = {
   id: string;
@@ -22,11 +22,13 @@ type ClassroomStudentRow = {
 type PresetSubjectRow = { id: string; classroomId: string; deletedAt: Date | null };
 type PresetLessonTypeRow = { id: string; classroomId: string; deletedAt: Date | null };
 type PresetTimeSlotRow = { id: string; classroomId: string; deletedAt: Date | null };
+type ClassroomLessonRow = { id: string; classroomId: string; deletedAt: Date | null };
 
 const state: {
   classrooms: ClassroomRow[];
   classroomUsers: ClassroomUserRow[];
   classroomStudents: ClassroomStudentRow[];
+  classroomLessons: ClassroomLessonRow[];
   presetSubjects: PresetSubjectRow[];
   presetLessonTypes: PresetLessonTypeRow[];
   presetTimeSlots: PresetTimeSlotRow[];
@@ -46,6 +48,7 @@ const state: {
   classrooms: [],
   classroomUsers: [],
   classroomStudents: [],
+  classroomLessons: [],
   presetSubjects: [],
   presetLessonTypes: [],
   presetTimeSlots: [],
@@ -219,6 +222,23 @@ vi.mock('../../db', () => {
           };
         }
 
+        if (table === lessons) {
+          const keys = Object.keys(selection);
+          if (keys.length === 1 && keys.includes('id')) {
+            return {
+              where: async (predicate: unknown) => {
+                const classroomId = extractRequestedId(predicate);
+                return state.classroomLessons
+                  .filter((row) => row.classroomId === classroomId && row.deletedAt === null)
+                  .map((row) => ({ id: row.id }));
+              },
+            };
+          }
+          return {
+            where: async () => [],
+          };
+        }
+
         if (table === classrooms) {
           const keys = Object.keys(selection);
           if (keys.length === 1 && keys.includes('id')) {
@@ -359,6 +379,21 @@ vi.mock('../../db', () => {
             return { meta: { changes: 1 } };
           }
 
+          if (table === lessons) {
+            const requestedId = extractRequestedId(predicate);
+            if (!requestedId) {
+              return { meta: { changes: 0 } };
+            }
+            const target = state.classroomLessons.find(
+              (row) => row.id === requestedId && (value.deletedAt === null || row.deletedAt === null),
+            );
+            if (!target) {
+              return { meta: { changes: 0 } };
+            }
+            target.deletedAt = value.deletedAt;
+            return { meta: { changes: 1 } };
+          }
+
           return { meta: { changes: 0 } };
         },
       }),
@@ -371,6 +406,7 @@ vi.mock('../../db', () => {
         classrooms: structuredClone(state.classrooms),
         classroomUsers: structuredClone(state.classroomUsers),
         classroomStudents: structuredClone(state.classroomStudents),
+        classroomLessons: structuredClone(state.classroomLessons),
         presetSubjects: structuredClone(state.presetSubjects),
         presetLessonTypes: structuredClone(state.presetLessonTypes),
         presetTimeSlots: structuredClone(state.presetTimeSlots),
@@ -381,6 +417,7 @@ vi.mock('../../db', () => {
         state.classrooms = snap.classrooms;
         state.classroomUsers = snap.classroomUsers;
         state.classroomStudents = snap.classroomStudents;
+        state.classroomLessons = snap.classroomLessons;
         state.presetSubjects = snap.presetSubjects;
         state.presetLessonTypes = snap.presetLessonTypes;
         state.presetTimeSlots = snap.presetTimeSlots;
@@ -439,6 +476,7 @@ describe('classrooms api flow', () => {
     state.classrooms = [];
     state.classroomUsers = [];
     state.classroomStudents = [];
+    state.classroomLessons = [];
     state.userRole = 'admin';
     state.jwtSub = 'auth0|admin-user';
     state.deleteAuth0Ok = true;
@@ -505,6 +543,25 @@ describe('classrooms api flow', () => {
     expect(state.deletedAuth0UserIds.some((id) => id.includes('auth0%7Cstaff-user'))).toBe(true);
   });
 
+  it('soft-deletes lessons when deleting classroom', async () => {
+    const postResponse = await app.request('/api/classrooms', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ name: 'Class With Lessons' }),
+    }, env);
+    const created = (await postResponse.json()) as { id: string };
+
+    state.classroomLessons.push({
+      id: 'lesson-in-class',
+      classroomId: created.id,
+      deletedAt: null,
+    });
+
+    const deleteResponse = await app.request(`/api/classrooms/${created.id}`, { method: 'DELETE' }, env);
+    expect(deleteResponse.status).toBe(200);
+    expect(state.classroomLessons[0]?.deletedAt).toBeInstanceOf(Date);
+  });
+
   it('partial rollback: keeps D1 soft-delete for users already removed from Auth0', async () => {
     const postResponse = await app.request('/api/classrooms', {
       method: 'POST',
@@ -531,6 +588,11 @@ describe('classrooms api flow', () => {
       classroomId: created.id,
       deletedAt: null,
     });
+    state.classroomLessons.push({
+      id: 'lesson-rollback-partial',
+      classroomId: created.id,
+      deletedAt: null,
+    });
 
     const deleteResponse = await app.request(`/api/classrooms/${created.id}`, { method: 'DELETE' }, env);
     expect(deleteResponse.status).toBe(400);
@@ -545,6 +607,9 @@ describe('classrooms api flow', () => {
 
     const rolledBackStudent = state.classroomStudents.find((row) => row.id === 'student-rollback-partial');
     expect(rolledBackStudent?.deletedAt).toBeNull();
+
+    const rolledBackLesson = state.classroomLessons.find((row) => row.id === 'lesson-rollback-partial');
+    expect(rolledBackLesson?.deletedAt).toBeNull();
   });
 
   it('rolls back classroom deletion when auth0 user delete fails', async () => {
@@ -678,7 +743,7 @@ describe('classrooms api flow', () => {
     expect(state.presetTimeSlots[0]?.deletedAt).toBeInstanceOf(Date);
   });
 
-  it('returns 400 and restores D1 state when preset subject soft-delete fails inside delete transaction', async () => {
+  it('returns 400 when preset subject soft-delete fails; compensating rollback restores classroom and members', async () => {
     const postResponse = await app.request('/api/classrooms', {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
@@ -687,7 +752,6 @@ describe('classrooms api flow', () => {
     const created = (await postResponse.json()) as { id: string };
 
     state.presetSubjects.push({ id: 'ps-fail', classroomId: created.id, deletedAt: null });
-    state.snapshotDbStateOnTransactionFailure = true;
     state.throwOnPresetSubjectSoftDelete = true;
 
     const deleteResponse = await app.request(`/api/classrooms/${created.id}`, { method: 'DELETE' }, env);
