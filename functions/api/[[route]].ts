@@ -3,7 +3,7 @@ import { jwk } from 'hono/jwk';
 import { handle } from 'hono/cloudflare-pages';
 import type { Context, Next } from 'hono';
 import type { JwtVariables } from 'hono/jwt';
-import { and, eq, gt, inArray, isNull, lt, ne } from 'drizzle-orm';
+import { and, eq, gt, inArray, isNull, lt, ne, sql } from 'drizzle-orm';
 import { getDb } from '../../db';
 import { users, classrooms, students, subjects, lessonTypes, timeSlots, lessons } from '../../db/schema';
 import {
@@ -416,172 +416,184 @@ app.delete('/classrooms/:id', auth, loadUser, requireAdmin, async(c) =>{
     }
   }
 
-  let txResult:
-    | {
-        notFound: true;
-        updatedUserIds: string[];
-        updatedStudentIds: string[];
-        updatedSubjectIds: string[];
-        updatedLessonTypeIds: string[];
-        updatedTimeSlotIds: string[];
-        updatedLessonIds: string[];
-      }
-    | {
-        notFound: false;
-        updatedUserIds: string[];
-        updatedStudentIds: string[];
-        updatedSubjectIds: string[];
-        updatedLessonTypeIds: string[];
-        updatedTimeSlotIds: string[];
-        updatedLessonIds: string[];
-      };
+  const updatedUserIds: string[] = [];
+  const updatedStudentIds: string[] = [];
+  const updatedSubjectIds: string[] = [];
+  const updatedLessonTypeIds: string[] = [];
+  const updatedTimeSlotIds: string[] = [];
+  const updatedLessonIds: string[] = [];
+  let classroomSoftDeleted = false;
+  let notFound = false;
+
+  const rollbackPartialClassroomDelete = async () => {
+    if (!classroomSoftDeleted) {
+      return;
+    }
+    for (const lessonId of updatedLessonIds) {
+      await db
+        .update(lessons)
+        .set({ deletedAt: null })
+        .where(eq(lessons.id, lessonId))
+        .catch(() => undefined);
+    }
+    for (const slotId of updatedTimeSlotIds) {
+      await db
+        .update(timeSlots)
+        .set({ deletedAt: null })
+        .where(eq(timeSlots.id, slotId))
+        .catch(() => undefined);
+    }
+    for (const ltId of updatedLessonTypeIds) {
+      await db
+        .update(lessonTypes)
+        .set({ deletedAt: null })
+        .where(eq(lessonTypes.id, ltId))
+        .catch(() => undefined);
+    }
+    for (const subId of updatedSubjectIds) {
+      await db
+        .update(subjects)
+        .set({ deletedAt: null })
+        .where(eq(subjects.id, subId))
+        .catch(() => undefined);
+    }
+    for (const studentId of updatedStudentIds) {
+      await db
+        .update(students)
+        .set({ deletedAt: null })
+        .where(eq(students.id, studentId))
+        .catch(() => undefined);
+    }
+    for (const userId of updatedUserIds) {
+      await db
+        .update(users)
+        .set({ deletedAt: null })
+        .where(eq(users.id, userId))
+        .catch(() => undefined);
+    }
+    await db
+      .update(classrooms)
+      .set({ deletedAt: null })
+      .where(eq(classrooms.id, id))
+      .catch(() => undefined);
+  };
+
   try {
     // Serialize classroom soft-delete + user/student/preset/lesson soft-deletes. D1 in this stack
     // cannot use Drizzle db.transaction (SQL BEGIN rejected); sequence is not all-or-nothing on failure.
     // Members are selected only after the classroom row is marked deleted so concurrent creates
     // that re-check `classrooms.deleted_at` cannot commit into an "open" classroom.
-    txResult = await (async () => {
-        const result = await db
-          .update(classrooms)
+    const result = await db
+      .update(classrooms)
+      .set({ deletedAt })
+      .where(and(eq(classrooms.id, id), isNull(classrooms.deletedAt)));
+
+    if (result.meta.changes === 0) {
+      notFound = true;
+    } else {
+      classroomSoftDeleted = true;
+
+      const classroomUsers = await db
+        .select({ id: users.id })
+        .from(users)
+        .where(and(eq(users.classroomId, id), isNull(users.deletedAt)));
+
+      for (const classroomUser of classroomUsers) {
+        const userUpdateResult = await db
+          .update(users)
           .set({ deletedAt })
-          .where(and(eq(classrooms.id, id), isNull(classrooms.deletedAt)));
+          .where(and(eq(users.id, classroomUser.id), isNull(users.deletedAt)));
 
-        if (result.meta.changes === 0) {
-          return {
-            notFound: true as const,
-            updatedUserIds: [] as string[],
-            updatedStudentIds: [] as string[],
-            updatedSubjectIds: [] as string[],
-            updatedLessonTypeIds: [] as string[],
-            updatedTimeSlotIds: [] as string[],
-            updatedLessonIds: [] as string[],
-          };
+        if (userUpdateResult.meta.changes > 0) {
+          updatedUserIds.push(classroomUser.id);
         }
+      }
 
-        const classroomUsers = await db
-          .select({ id: users.id })
-          .from(users)
-          .where(and(eq(users.classroomId, id), isNull(users.deletedAt)));
+      const classroomStudents = await db
+        .select({ id: students.id })
+        .from(students)
+        .where(and(eq(students.classroomId, id), isNull(students.deletedAt)));
 
-        const updatedUserIds: string[] = [];
-        for (const classroomUser of classroomUsers) {
-          const userUpdateResult = await db
-            .update(users)
-            .set({ deletedAt })
-            .where(and(eq(users.id, classroomUser.id), isNull(users.deletedAt)));
+      for (const row of classroomStudents) {
+        const studentUpdateResult = await db
+          .update(students)
+          .set({ deletedAt })
+          .where(and(eq(students.id, row.id), isNull(students.deletedAt)));
 
-          if (userUpdateResult.meta.changes > 0) {
-            updatedUserIds.push(classroomUser.id);
-          }
+        if (studentUpdateResult.meta.changes > 0) {
+          updatedStudentIds.push(row.id);
         }
+      }
 
-        const classroomStudents = await db
-          .select({ id: students.id })
-          .from(students)
-          .where(and(eq(students.classroomId, id), isNull(students.deletedAt)));
+      const classroomSubjects = await db
+        .select({ id: subjects.id })
+        .from(subjects)
+        .where(and(eq(subjects.classroomId, id), isNull(subjects.deletedAt)));
 
-        const updatedStudentIds: string[] = [];
-        for (const row of classroomStudents) {
-          const studentUpdateResult = await db
-            .update(students)
-            .set({ deletedAt })
-            .where(and(eq(students.id, row.id), isNull(students.deletedAt)));
-
-          if (studentUpdateResult.meta.changes > 0) {
-            updatedStudentIds.push(row.id);
-          }
+      for (const row of classroomSubjects) {
+        const r = await db
+          .update(subjects)
+          .set({ deletedAt })
+          .where(and(eq(subjects.id, row.id), isNull(subjects.deletedAt)));
+        if (r.meta.changes > 0) {
+          updatedSubjectIds.push(row.id);
         }
+      }
 
-        const classroomSubjects = await db
-          .select({ id: subjects.id })
-          .from(subjects)
-          .where(and(eq(subjects.classroomId, id), isNull(subjects.deletedAt)));
+      const classroomLessonTypes = await db
+        .select({ id: lessonTypes.id })
+        .from(lessonTypes)
+        .where(and(eq(lessonTypes.classroomId, id), isNull(lessonTypes.deletedAt)));
 
-        const updatedSubjectIds: string[] = [];
-        for (const row of classroomSubjects) {
-          const r = await db
-            .update(subjects)
-            .set({ deletedAt })
-            .where(and(eq(subjects.id, row.id), isNull(subjects.deletedAt)));
-          if (r.meta.changes > 0) {
-            updatedSubjectIds.push(row.id);
-          }
+      for (const row of classroomLessonTypes) {
+        const r = await db
+          .update(lessonTypes)
+          .set({ deletedAt })
+          .where(and(eq(lessonTypes.id, row.id), isNull(lessonTypes.deletedAt)));
+        if (r.meta.changes > 0) {
+          updatedLessonTypeIds.push(row.id);
         }
+      }
 
-        const classroomLessonTypes = await db
-          .select({ id: lessonTypes.id })
-          .from(lessonTypes)
-          .where(and(eq(lessonTypes.classroomId, id), isNull(lessonTypes.deletedAt)));
+      const classroomTimeSlots = await db
+        .select({ id: timeSlots.id })
+        .from(timeSlots)
+        .where(and(eq(timeSlots.classroomId, id), isNull(timeSlots.deletedAt)));
 
-        const updatedLessonTypeIds: string[] = [];
-        for (const row of classroomLessonTypes) {
-          const r = await db
-            .update(lessonTypes)
-            .set({ deletedAt })
-            .where(and(eq(lessonTypes.id, row.id), isNull(lessonTypes.deletedAt)));
-          if (r.meta.changes > 0) {
-            updatedLessonTypeIds.push(row.id);
-          }
+      for (const row of classroomTimeSlots) {
+        const r = await db
+          .update(timeSlots)
+          .set({ deletedAt })
+          .where(and(eq(timeSlots.id, row.id), isNull(timeSlots.deletedAt)));
+        if (r.meta.changes > 0) {
+          updatedTimeSlotIds.push(row.id);
         }
+      }
 
-        const classroomTimeSlots = await db
-          .select({ id: timeSlots.id })
-          .from(timeSlots)
-          .where(and(eq(timeSlots.classroomId, id), isNull(timeSlots.deletedAt)));
+      const classroomLessons = await db
+        .select({ id: lessons.id })
+        .from(lessons)
+        .where(and(eq(lessons.classroomId, id), isNull(lessons.deletedAt)));
 
-        const updatedTimeSlotIds: string[] = [];
-        for (const row of classroomTimeSlots) {
-          const r = await db
-            .update(timeSlots)
-            .set({ deletedAt })
-            .where(and(eq(timeSlots.id, row.id), isNull(timeSlots.deletedAt)));
-          if (r.meta.changes > 0) {
-            updatedTimeSlotIds.push(row.id);
-          }
+      for (const row of classroomLessons) {
+        const r = await db
+          .update(lessons)
+          .set({ deletedAt })
+          .where(and(eq(lessons.id, row.id), isNull(lessons.deletedAt)));
+        if (r.meta.changes > 0) {
+          updatedLessonIds.push(row.id);
         }
-
-        const classroomLessons = await db
-          .select({ id: lessons.id })
-          .from(lessons)
-          .where(and(eq(lessons.classroomId, id), isNull(lessons.deletedAt)));
-
-        const updatedLessonIds: string[] = [];
-        for (const row of classroomLessons) {
-          const r = await db
-            .update(lessons)
-            .set({ deletedAt })
-            .where(and(eq(lessons.id, row.id), isNull(lessons.deletedAt)));
-          if (r.meta.changes > 0) {
-            updatedLessonIds.push(row.id);
-          }
-        }
-
-        return {
-          notFound: false as const,
-          updatedUserIds,
-          updatedStudentIds,
-          updatedSubjectIds,
-          updatedLessonTypeIds,
-          updatedTimeSlotIds,
-          updatedLessonIds,
-        };
-    })();
-  } catch {
+      }
+    }
+  } catch (err) {
+    logApiError('DELETE /classrooms/:id', err);
+    await rollbackPartialClassroomDelete();
     return c.json({ message: 'failed to delete classroom' }, 400);
   }
 
-  if (txResult.notFound) {
+  if (notFound) {
     return c.json({ message: 'classroom not found' }, 404);
   }
-
-  const {
-    updatedUserIds,
-    updatedStudentIds,
-    updatedSubjectIds,
-    updatedLessonTypeIds,
-    updatedTimeSlotIds,
-    updatedLessonIds,
-  } = txResult;
 
   const rollbackClassroomChildSoftDeletes = async () => {
     for (const lessonId of updatedLessonIds) {
@@ -949,42 +961,24 @@ app.post('/students', auth, loadUser, requireManagerOrAbove, async (c) => {
   const db = getDb(c.env);
   const id = crypto.randomUUID();
 
-  type CreateStudentTxResult =
-    | { ok: true }
-    | { ok: false; reason: 'classroom_not_found' };
-
-  // Classroom existence check + insert are not wrapped in SQL transaction (D1 / Drizzle limitation in this project).
-  let txResult: CreateStudentTxResult;
   try {
-    txResult = await (async () => {
-        const [activeClassroom] = await db
-          .select({ id: classrooms.id })
-          .from(classrooms)
-          .where(and(eq(classrooms.id, input.classroomId), isNull(classrooms.deletedAt)))
-          .limit(1);
-        if (!activeClassroom) {
-          return { ok: false as const, reason: 'classroom_not_found' as const };
-        }
-        await db.insert(students).values({
-          id,
-          name: input.name,
-          email: input.email,
-          birthYear: input.birthYear,
-          classroomId: input.classroomId,
-          deletedAt: null,
-        });
-        return { ok: true as const };
-    })();
+    const insertRun = await db.run(sql`
+      INSERT INTO ${students} (${sql.identifier('id')}, ${sql.identifier('name')}, ${sql.identifier('email')}, ${sql.identifier('birth_year')}, ${sql.identifier('classroom_id')}, ${sql.identifier('deleted_at')})
+      SELECT ${id}, ${input.name}, ${input.email}, ${input.birthYear}, ${input.classroomId}, NULL
+      WHERE EXISTS (
+        SELECT 1 FROM ${classrooms}
+        WHERE ${and(eq(classrooms.id, input.classroomId), isNull(classrooms.deletedAt))}
+      )
+    `);
+    if (insertRun.meta.changes !== 1) {
+      return c.json({ message: 'classroom not found' }, 404);
+    }
   } catch (err) {
     logApiError('POST /students', err);
     if (isD1ForeignKeyViolation(err)) {
       return c.json({ message: 'classroom not found' }, 404);
     }
     return c.json({ message: 'failed to create student' }, 500);
-  }
-
-  if (!txResult.ok) {
-    return c.json({ message: 'classroom not found' }, 404);
   }
 
   return c.json(
@@ -1613,8 +1607,10 @@ app.post('/lessons', auth, loadUser, async (c) => {
   const id = crypto.randomUUID();
   const actorRole = actor.role;
 
-  // D1 (Pages Functions): SQL BEGIN/COMMIT via Drizzle transaction is rejected in some bindings;
-  // overlap check + insert are not serializable here—mitigate with unique constraints or Paid D1 if needed.
+  // Overlap: SQLite/D1 has no exclusion constraint for time ranges; a UNIQUE on
+  // (teacher_id, start_at, end_at) does not stop overlapping intervals. Teacher/student clash
+  // SELECTs are best-effort fast-fails; concurrent POSTs can still double-book unless enforced
+  // outside SQLite (e.g. queue, external lock, or a DB with range exclusion support).
   let txResult: CreateLessonTxResult;
   try {
     txResult = await (async () => {

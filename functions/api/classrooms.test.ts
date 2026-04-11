@@ -743,7 +743,7 @@ describe('classrooms api flow', () => {
     expect(state.presetTimeSlots[0]?.deletedAt).toBeInstanceOf(Date);
   });
 
-  it('returns 400 when preset subject soft-delete fails; earlier deletes stay applied without SQL transaction', async () => {
+  it('returns 400 when preset subject soft-delete fails; compensating rollback restores classroom and members', async () => {
     const postResponse = await app.request('/api/classrooms', {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
@@ -757,7 +757,7 @@ describe('classrooms api flow', () => {
     const deleteResponse = await app.request(`/api/classrooms/${created.id}`, { method: 'DELETE' }, env);
     expect(deleteResponse.status).toBe(400);
 
-    expect(state.classrooms.find((r) => r.id === created.id)?.deletedAt).toBeInstanceOf(Date);
+    expect(state.classrooms.find((r) => r.id === created.id)?.deletedAt).toBeNull();
     expect(state.presetSubjects[0]?.deletedAt).toBeNull();
   });
 
