@@ -436,7 +436,8 @@ app.delete('/classrooms/:id', auth, loadUser, requireAdmin, async(c) =>{
         updatedLessonIds: string[];
       };
   try {
-    // Serialize classroom soft-delete + user/student/preset/lesson soft-deletes (D1: SQL BEGIN/COMMIT is disallowed in some bindings — use sequential statements).
+    // Serialize classroom soft-delete + user/student/preset/lesson soft-deletes. D1 in this stack
+    // cannot use Drizzle db.transaction (SQL BEGIN rejected); sequence is not all-or-nothing on failure.
     // Members are selected only after the classroom row is marked deleted so concurrent creates
     // that re-check `classrooms.deleted_at` cannot commit into an "open" classroom.
     txResult = await (async () => {
@@ -790,36 +791,63 @@ app.get('/users/:classroomId', auth, loadUser, requireStaffOrAbove, requireClass
   if(!classroomId){
     return c.json({ message: 'classroom id is required' }, 400);
   }
+  const actor = c.var.currentUser;
   const db = getDb(c.env);
+  const includeEmail = actor.role === 'admin';
 
-  const rows = await db
-    .select({
-      id: users.id,
-      firstName: users.firstName,
-      lastName: users.lastName,
-      email: users.email,
-      role: users.role,
-      classroomId: users.classroomId,
-      color: users.color,
-    })
-    .from(users)
-    .where(and(eq(users.classroomId, classroomId), isNull(users.deletedAt)));
+  const rows = includeEmail
+    ? await db
+        .select({
+          id: users.id,
+          firstName: users.firstName,
+          lastName: users.lastName,
+          email: users.email,
+          role: users.role,
+          classroomId: users.classroomId,
+          color: users.color,
+        })
+        .from(users)
+        .where(and(eq(users.classroomId, classroomId), isNull(users.deletedAt)))
+    : await db
+        .select({
+          id: users.id,
+          firstName: users.firstName,
+          lastName: users.lastName,
+          role: users.role,
+          classroomId: users.classroomId,
+          color: users.color,
+        })
+        .from(users)
+        .where(and(eq(users.classroomId, classroomId), isNull(users.deletedAt)));
 
-  const includeAdmins =
-    c.req.query('includeAdmins') === '1' || c.req.query('includeAdmins') === 'true';
-  if (includeAdmins) {
-    const admins = await db
-      .select({
-        id: users.id,
-        firstName: users.firstName,
-        lastName: users.lastName,
-        email: users.email,
-        role: users.role,
-        classroomId: users.classroomId,
-        color: users.color,
-      })
-      .from(users)
-      .where(and(eq(users.role, 'admin'), isNull(users.deletedAt)));
+  const includeAdminsQuery =
+    (c.req.query('includeAdmins') === '1' || c.req.query('includeAdmins') === 'true') &&
+    (actor.role === 'admin' || actor.role === 'manager');
+  if (includeAdminsQuery) {
+    const admins = includeEmail
+      ? await db
+          .select({
+            id: users.id,
+            firstName: users.firstName,
+            lastName: users.lastName,
+            email: users.email,
+            role: users.role,
+            classroomId: users.classroomId,
+            color: users.color,
+          })
+          .from(users)
+          .where(and(eq(users.role, 'admin'), isNull(users.deletedAt)))
+      : await db
+          .select({
+            id: users.id,
+            firstName: users.firstName,
+            lastName: users.lastName,
+            role: users.role,
+            classroomId: users.classroomId,
+            color: users.color,
+          })
+          .from(users)
+          .where(and(eq(users.role, 'admin'), isNull(users.deletedAt)));
     const seen = new Set(rows.map((r) => r.id));
     for (const a of admins) {
       if (!seen.has(a.id)) {
@@ -925,6 +953,7 @@ app.post('/students', auth, loadUser, requireManagerOrAbove, async (c) => {
     | { ok: true }
     | { ok: false; reason: 'classroom_not_found' };
 
+  // Classroom existence check + insert are not wrapped in SQL transaction (D1 / Drizzle limitation in this project).
   let txResult: CreateStudentTxResult;
   try {
     txResult = await (async () => {
@@ -1107,6 +1136,7 @@ app.post('/subjects', auth, loadUser, requireManagerOrAbove, async (c) => {
 
   type CreateSubjectTxResult = { ok: true } | { ok: false; reason: 'classroom_not_found' };
 
+  // POST /lesson-types and POST /time-slots use the same non-transactional check-then-insert pattern (D1).
   let txResult: CreateSubjectTxResult;
   try {
     txResult = await (async () => {
@@ -1573,7 +1603,7 @@ app.post('/lessons', auth, loadUser, async (c) => {
     const [teacherUser] = await db
       .select({ classroomId: users.classroomId })
       .from(users)
-      .where(and(eq(users.id, input.teacherId), isNull(users.deletedAt)))
+      .where(eq(users.id, input.teacherId))
       .limit(1);
     if (!teacherUser || teacherUser.classroomId !== input.classroomId) {
       return c.json({ message: 'forbidden' }, 403);
@@ -1583,6 +1613,8 @@ app.post('/lessons', auth, loadUser, async (c) => {
   const id = crypto.randomUUID();
   const actorRole = actor.role;
 
+  // D1 (Pages Functions): SQL BEGIN/COMMIT via Drizzle transaction is rejected in some bindings;
+  // overlap check + insert are not serializable here—mitigate with unique constraints or Paid D1 if needed.
   let txResult: CreateLessonTxResult;
   try {
     txResult = await (async () => {
@@ -1598,11 +1630,13 @@ app.post('/lessons', auth, loadUser, async (c) => {
         const teacherScope =
           actorRole === 'admin'
             ? and(eq(users.id, input.teacherId), isNull(users.deletedAt))
-            : and(
-                eq(users.id, input.teacherId),
-                eq(users.classroomId, input.classroomId),
-                isNull(users.deletedAt),
-              );
+            : actorRole === 'manager'
+              ? and(eq(users.id, input.teacherId), eq(users.classroomId, input.classroomId))
+              : and(
+                  eq(users.id, input.teacherId),
+                  eq(users.classroomId, input.classroomId),
+                  isNull(users.deletedAt),
+                );
 
         const [teacher] = await db.select({ id: users.id }).from(users).where(teacherScope).limit(1);
         if (!teacher) {
@@ -1821,7 +1855,7 @@ app.patch('/lessons/:id', auth, loadUser, async (c) => {
     const [teacherUser] = await db
       .select({ classroomId: users.classroomId })
       .from(users)
-      .where(and(eq(users.id, mergedTeacherId), isNull(users.deletedAt)))
+      .where(eq(users.id, mergedTeacherId))
       .limit(1);
     if (!teacherUser || teacherUser.classroomId !== mergedClassroomId) {
       return c.json({ message: 'forbidden' }, 403);
@@ -1854,11 +1888,13 @@ app.patch('/lessons/:id', auth, loadUser, async (c) => {
         const mergedTeacherScope =
           actorRole === 'admin'
             ? and(eq(users.id, mergedTeacherId), isNull(users.deletedAt))
-            : and(
-                eq(users.id, mergedTeacherId),
-                eq(users.classroomId, mergedClassroomId),
-                isNull(users.deletedAt),
-              );
+            : actorRole === 'manager'
+              ? and(eq(users.id, mergedTeacherId), eq(users.classroomId, mergedClassroomId))
+              : and(
+                  eq(users.id, mergedTeacherId),
+                  eq(users.classroomId, mergedClassroomId),
+                  isNull(users.deletedAt),
+                );
 
         const [teacher] = await db.select({ id: users.id }).from(users).where(mergedTeacherScope).limit(1);
         if (!teacher) {
@@ -2045,7 +2081,7 @@ app.delete('/lessons/:id', auth, loadUser, async (c) => {
     const [teacherUser] = await db
       .select({ classroomId: users.classroomId })
       .from(users)
-      .where(and(eq(users.id, row.teacherId), isNull(users.deletedAt)))
+      .where(eq(users.id, row.teacherId))
       .limit(1);
     if (!teacherUser || teacherUser.classroomId !== row.classroomId) {
       return c.json({ message: 'forbidden' }, 403);

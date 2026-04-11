@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import dayjs from 'dayjs';
 import 'dayjs/locale/ja';
 import CreateLessonDialog from '@/components/CreateLessonDialog';
@@ -66,6 +66,7 @@ export default function CalendarPage({
   const [listError, setListError] = useState<string | null>(null);
   const [isLoadingWeek, setIsLoadingWeek] = useState(false);
   const [dialogOpen, setDialogOpen] = useState(false);
+  const weekRequestIdRef = useRef(0);
 
   const activeClassroomId = useMemo(() => {
     if (isAdmin) {
@@ -123,6 +124,7 @@ export default function CalendarPage({
       setLessons([]);
       return;
     }
+    const requestId = ++weekRequestIdRef.current;
     setIsLoadingWeek(true);
     setListError(null);
     try {
@@ -137,27 +139,44 @@ export default function CalendarPage({
         authedFetch(`/api/classrooms/${encodeURIComponent(activeClassroomId)}/subjects`),
         authedFetch(`/api/classrooms/${encodeURIComponent(activeClassroomId)}/lesson-types`),
       ]);
+      if (weekRequestIdRef.current !== requestId) {
+        return;
+      }
       if (!lRes.ok) {
         setListError('コマ一覧の取得に失敗しました。');
         return;
       }
-      if (uRes.ok) {
-        setTeachers((await uRes.json()) as TeacherRow[]);
+      const [lessonsJson, uJson, sJson, subJson, ltJson] = await Promise.all([
+        lRes.json() as Promise<LessonApi[]>,
+        uRes.ok ? (uRes.json() as Promise<TeacherRow[]>) : Promise.resolve(null),
+        sRes.ok ? (sRes.json() as Promise<StudentRow[]>) : Promise.resolve(null),
+        subRes.ok ? (subRes.json() as Promise<PresetRow[]>) : Promise.resolve(null),
+        ltRes.ok ? (ltRes.json() as Promise<PresetRow[]>) : Promise.resolve(null),
+      ]);
+      if (weekRequestIdRef.current !== requestId) {
+        return;
       }
-      if (sRes.ok) {
-        setStudents((await sRes.json()) as StudentRow[]);
+      if (uJson) {
+        setTeachers(uJson);
       }
-      if (subRes.ok) {
-        setSubjects((await subRes.json()) as PresetRow[]);
+      if (sJson) {
+        setStudents(sJson);
       }
-      if (ltRes.ok) {
-        setLessonTypes((await ltRes.json()) as PresetRow[]);
+      if (subJson) {
+        setSubjects(subJson);
       }
-      setLessons((await lRes.json()) as LessonApi[]);
+      if (ltJson) {
+        setLessonTypes(ltJson);
+      }
+      setLessons(lessonsJson);
     } catch {
-      setListError('ネットワークエラーが発生しました。');
+      if (weekRequestIdRef.current === requestId) {
+        setListError('ネットワークエラーが発生しました。');
+      }
     } finally {
-      setIsLoadingWeek(false);
+      if (weekRequestIdRef.current === requestId) {
+        setIsLoadingWeek(false);
+      }
     }
   }, [activeClassroomId, authedFetch, weekEndExclusive, weekStart]);
 

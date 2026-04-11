@@ -595,14 +595,35 @@ describe('users api', () => {
     }, env);
 
     expect(response.status).toBe(200);
-    const payload = (await response.json()) as Array<{ id: string; firstName: string; lastName: string }>;
+    const payload = (await response.json()) as Array<{
+      id: string;
+      firstName: string;
+      lastName: string;
+      color?: string;
+    }>;
     expect(payload.map((row) => row.id)).toContain('auth0|staff-user');
     expect(payload[0]?.firstName).toBeDefined();
     expect(payload[0]?.lastName).toBeDefined();
+    expect(payload.every((row) => typeof row.color === 'string' && row.color.length > 0)).toBe(true);
   });
 
-  it('appends admins when includeAdmins=1', async () => {
+  it('does not append admins for staff when includeAdmins=1', async () => {
     state.jwtSub = 'auth0|staff-user';
+
+    const response = await app.request('/api/users/room-1?includeAdmins=1', {
+      method: 'GET',
+    }, env);
+
+    expect(response.status).toBe(200);
+    const payload = (await response.json()) as Array<{ id: string; role: string }>;
+    const ids = payload.map((row) => row.id).sort();
+    expect(ids).toEqual(['auth0|manager-user', 'auth0|staff-user'].sort());
+    expect(ids).not.toContain('auth0|admin-user');
+    expect(payload.every((row) => !('email' in row))).toBe(true);
+  });
+
+  it('appends admins when includeAdmins=1 for manager', async () => {
+    state.jwtSub = 'auth0|manager-user';
 
     const response = await app.request('/api/users/room-1?includeAdmins=1', {
       method: 'GET',
@@ -615,6 +636,23 @@ describe('users api', () => {
     expect(ids).toContain('auth0|admin-user');
     expect(ids).toContain('auth0|other-admin');
     expect(payload.find((r) => r.id === 'auth0|admin-user')?.role).toBe('admin');
+    expect(payload.every((row) => !('email' in row))).toBe(true);
+  });
+
+  it('appends admins with emails when includeAdmins=1 for admin', async () => {
+    state.jwtSub = 'auth0|admin-user';
+
+    const response = await app.request('/api/users/room-1?includeAdmins=1', {
+      method: 'GET',
+    }, env);
+
+    expect(response.status).toBe(200);
+    const payload = (await response.json()) as Array<{ id: string; role: string; email?: string }>;
+    const ids = payload.map((row) => row.id);
+    expect(ids).toContain('auth0|staff-user');
+    expect(ids).toContain('auth0|admin-user');
+    expect(ids).toContain('auth0|other-admin');
+    expect(payload.find((r) => r.id === 'auth0|staff-user')?.email).toBe('staff@example.com');
   });
 
   it('returns 403 when manager requests another classroom users', async () => {

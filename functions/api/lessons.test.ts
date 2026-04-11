@@ -1,4 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { Column, SQL, StringChunk, is } from 'drizzle-orm';
 import { classrooms, lessons, students, users } from '../../db/schema';
 
 type LessonRow = {
@@ -29,6 +30,98 @@ function overlaps(aStart: Date, aEnd: Date, bStart: Date, bEnd: Date): boolean {
   return aStart < bEnd && bStart < aEnd;
 }
 
+function isLessonsColumn(value: unknown): value is Column {
+  return is(value, Column) && (value as Column).table === lessons;
+}
+
+function paramValue(chunk: unknown): unknown {
+  if (typeof chunk !== 'object' || chunk === null) {
+    return undefined;
+  }
+  if ((chunk as { constructor?: { name?: string } }).constructor?.name !== 'Param') {
+    return undefined;
+  }
+  return (chunk as { value: unknown }).value;
+}
+
+function calendarWhereAndParts(predicate: unknown): SQL[] {
+  if (!predicate || typeof predicate !== 'object') {
+    return [];
+  }
+  const root = predicate as SQL;
+  if (!is(root, SQL)) {
+    return [];
+  }
+  let qc = root.queryChunks;
+  if (
+    qc.length === 3 &&
+    is(qc[0], StringChunk) &&
+    qc[0].value.join('') === '(' &&
+    is(qc[2], StringChunk) &&
+    qc[2].value.join('') === ')' &&
+    is(qc[1], SQL)
+  ) {
+    qc = qc[1].queryChunks;
+  }
+  const parts: SQL[] = [];
+  for (const ch of qc) {
+    if (is(ch, SQL)) {
+      parts.push(ch);
+    }
+  }
+  return parts;
+}
+
+function evalCalendarAtomOnRow(row: LessonRow, atom: SQL): boolean {
+  const chunks = atom.queryChunks.filter(
+    (c) => !(is(c, StringChunk) && c.value.join('') === ''),
+  );
+  if (chunks.length < 2 || !isLessonsColumn(chunks[0])) {
+    return true;
+  }
+  const col = chunks[0] as Column;
+  if (!is(chunks[1], StringChunk)) {
+    return true;
+  }
+  const op = chunks[1].value.join('');
+  if (op === ' = ') {
+    const v = paramValue(chunks[2]);
+    if (col === lessons.classroomId && typeof v === 'string') {
+      return row.classroomId === v;
+    }
+    return true;
+  }
+  if (op === ' is null') {
+    if (col === lessons.deletedAt) {
+      return row.deletedAt === null;
+    }
+    return true;
+  }
+  if (op === ' < ') {
+    const v = paramValue(chunks[2]);
+    if (col === lessons.startAt && v instanceof Date) {
+      return row.startAt < v;
+    }
+    return true;
+  }
+  if (op === ' > ') {
+    const v = paramValue(chunks[2]);
+    if (col === lessons.endAt && v instanceof Date) {
+      return row.endAt > v;
+    }
+    return true;
+  }
+  return true;
+}
+
+function lessonRowMatchesCalendarPredicate(row: LessonRow, predicate: unknown): boolean {
+  const parts = calendarWhereAndParts(predicate);
+  if (parts.length === 0) {
+    return false;
+  }
+  return parts.every((p) => evalCalendarAtomOnRow(row, p));
+}
+
 const state: {
   userRole: 'admin' | 'manager' | 'staff' | null;
   jwtSub: string;
@@ -55,7 +148,6 @@ const state: {
     startAt: Date;
     endAt: Date;
   } | null;
-  lessonRangeFilter: { classroomId: string; from: Date; to: Date } | null;
 } = {
   userRole: 'admin',
   jwtSub: 'auth0|admin-user',
@@ -70,7 +162,6 @@ const state: {
   postFixture: null,
   patchTargetId: null,
   patchMerged: null,
-  lessonRangeFilter: null,
 };
 
 vi.mock('hono/jwk', () => {
@@ -282,19 +373,9 @@ vi.mock('../../db', () => {
             keys.includes('teacherId') && keys.includes('startAt') && !keys.includes('deletedAt');
           if (isCalendarList) {
             return {
-              where: async () => {
-                const f = state.lessonRangeFilter;
-                if (!f) {
-                  return [];
-                }
-                return state.lessonRows
-                  .filter(
-                    (r) =>
-                      r.classroomId === f.classroomId &&
-                      r.deletedAt === null &&
-                      r.startAt < f.to &&
-                      r.endAt > f.from,
-                  )
+              where: async (predicate: unknown) =>
+                state.lessonRows
+                  .filter((r) => lessonRowMatchesCalendarPredicate(r, predicate))
                   .map((r) => ({
                     id: r.id,
                     teacherId: r.teacherId,
@@ -305,8 +386,7 @@ vi.mock('../../db', () => {
                     startAt: r.startAt,
                     endAt: r.endAt,
                     status: r.status,
-                  }));
-              },
+                  })),
             };
           }
 
@@ -522,7 +602,6 @@ describe('lessons api', () => {
     state.expectPostLessonTx = false;
     state.expectPatchLessonTx = false;
     state.lessonTxLimitIndex = 0;
-    state.lessonRangeFilter = null;
     vi.stubGlobal('crypto', {
       randomUUID: () => 'lesson-uuid-001',
     } as Crypto);
@@ -538,11 +617,6 @@ describe('lessons api', () => {
   });
 
   it('GET /classrooms/:id/lessons returns rows in range', async () => {
-    state.lessonRangeFilter = {
-      classroomId: 'room-1',
-      from: new Date('2025-06-01T00:00:00.000Z'),
-      to: new Date('2025-07-01T00:00:00.000Z'),
-    };
     state.lessonRows.push({
       id: 'L1',
       teacherId: 'teacher-1',
@@ -569,11 +643,6 @@ describe('lessons api', () => {
   });
 
   it('GET /classrooms/:id/lessons marks soft-deleted teacher in display', async () => {
-    state.lessonRangeFilter = {
-      classroomId: 'room-1',
-      from: new Date('2025-06-01T00:00:00.000Z'),
-      to: new Date('2025-07-01T00:00:00.000Z'),
-    };
     state.users[0] = {
       ...state.users[0]!,
       deletedAt: new Date('2025-05-01T00:00:00.000Z'),

@@ -49,6 +49,8 @@ describe('lesson validators', () => {
   it('validatePatchLessonInput requires at least one field', () => {
     const r = validatePatchLessonInput({});
     expect(r.input).toBeUndefined();
+    expect(r.error).toBeDefined();
+    expect(String(r.error)).toMatch(/at least one field is required/i);
   });
 
   it('validatePatchLessonInput accepts partial updates', () => {
