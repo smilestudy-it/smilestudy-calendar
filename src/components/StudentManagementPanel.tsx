@@ -60,6 +60,9 @@ export default function StudentManagementPanel({ currentUser, getAccessTokenSile
   const [isLoadingStudents, setIsLoadingStudents] = useState(false);
   const [isLoadingClassrooms, setIsLoadingClassrooms] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [copiedShareStudentId, setCopiedShareStudentId] = useState<string | null>(null);
+  const [shareCopyError, setShareCopyError] = useState<string | null>(null);
+  const shareCopyFeedbackTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const latestLoadStudentsRequestId = useRef(0);
 
@@ -242,6 +245,32 @@ export default function StudentManagementPanel({ currentUser, getAccessTokenSile
     }
   };
 
+  const handleCopyShareLink = useCallback(async (id: string) => {
+    const url = `${window.location.origin}/share/calendar?student_id=${encodeURIComponent(id)}`;
+    try {
+      await navigator.clipboard.writeText(url);
+      setShareCopyError(null);
+      setCopiedShareStudentId(id);
+      if (shareCopyFeedbackTimerRef.current) {
+        clearTimeout(shareCopyFeedbackTimerRef.current);
+      }
+      shareCopyFeedbackTimerRef.current = setTimeout(() => {
+        setCopiedShareStudentId(null);
+        shareCopyFeedbackTimerRef.current = null;
+      }, 2000);
+    } catch {
+      setCopiedShareStudentId(null);
+      setShareCopyError('共有リンクをクリップボードにコピーできませんでした。');
+      if (shareCopyFeedbackTimerRef.current) {
+        clearTimeout(shareCopyFeedbackTimerRef.current);
+      }
+      shareCopyFeedbackTimerRef.current = setTimeout(() => {
+        setShareCopyError(null);
+        shareCopyFeedbackTimerRef.current = null;
+      }, 4000);
+    }
+  }, []);
+
   const handleDeleteStudent = async (id: string) => {
     setError(null);
     try {
@@ -416,6 +445,7 @@ export default function StudentManagementPanel({ currentUser, getAccessTokenSile
           </p>
         ) : (
           <ul className="space-y-2">
+            {shareCopyError && <p className="text-sm text-amber-200/90">{shareCopyError}</p>}
             {students.map((row) => (
               <li
                 key={row.id}
@@ -426,15 +456,24 @@ export default function StudentManagementPanel({ currentUser, getAccessTokenSile
                   <p className="truncate text-sm text-slate-400">{row.email}</p>
                   <p className="text-xs text-slate-500">出生年: {row.birthYear}</p>
                 </div>
-                {canManageStudents && (
+                <div className="flex shrink-0 flex-wrap items-center gap-2">
                   <button
                     type="button"
-                    className="shrink-0 rounded-lg border border-rose-500/40 bg-rose-950/50 px-3 py-2 text-sm font-medium text-rose-200 transition hover:bg-rose-900/60"
-                    onClick={() => void handleDeleteStudent(row.id)}
+                    className="rounded-lg border border-slate-600 bg-slate-900/80 px-3 py-2 text-sm font-medium text-slate-200 transition hover:bg-slate-800/80"
+                    onClick={() => void handleCopyShareLink(row.id)}
                   >
-                    削除
+                    {copiedShareStudentId === row.id ? 'コピーしました' : '共有リンクをコピー'}
                   </button>
-                )}
+                  {canManageStudents && (
+                    <button
+                      type="button"
+                      className="rounded-lg border border-rose-500/40 bg-rose-950/50 px-3 py-2 text-sm font-medium text-rose-200 transition hover:bg-rose-900/60"
+                      onClick={() => void handleDeleteStudent(row.id)}
+                    >
+                      削除
+                    </button>
+                  )}
+                </div>
               </li>
             ))}
           </ul>

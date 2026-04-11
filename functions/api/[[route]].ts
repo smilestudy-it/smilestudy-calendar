@@ -355,6 +355,131 @@ function hmToMinutes(hm: string): number {
   return h * 60 + m;
 }
 
+/** 未認証。`student_id` を知っている利用者向けの簡易共有ビュー用。 */
+app.get('/public/student-lessons', async (c) => {
+  const studentId = (c.req.query('student_id') ?? '').trim();
+  if (!studentId) {
+    return c.json({ message: 'student_id is required' }, 400);
+  }
+  const { from, to, error } = validateLessonRangeQuery({
+    from: c.req.query('from') ?? undefined,
+    to: c.req.query('to') ?? undefined,
+  });
+  if (!from || !to || error) {
+    return c.json({ message: error ?? 'invalid request' }, 400);
+  }
+
+  const db = getDb(c.env);
+
+  const [studentRow] = await db
+    .select({ id: students.id, classroomId: students.classroomId })
+    .from(students)
+    .where(and(eq(students.id, studentId), isNull(students.deletedAt)))
+    .limit(1);
+  if (!studentRow) {
+    return c.json({ message: 'not found' }, 404);
+  }
+
+  const [classroomRow] = await db
+    .select({ id: classrooms.id })
+    .from(classrooms)
+    .where(and(eq(classrooms.id, studentRow.classroomId), isNull(classrooms.deletedAt)))
+    .limit(1);
+  if (!classroomRow) {
+    return c.json({ message: 'not found' }, 404);
+  }
+
+  const lessonRows = await db
+    .select({
+      id: lessons.id,
+      teacherId: lessons.teacherId,
+      studentId: lessons.studentId,
+      classroomId: lessons.classroomId,
+      subjectId: lessons.subjectId,
+      lessonTypeId: lessons.lessonTypeId,
+      startAt: lessons.startAt,
+      endAt: lessons.endAt,
+      status: lessons.status,
+    })
+    .from(lessons)
+    .where(
+      and(
+        eq(lessons.studentId, studentId),
+        isNull(lessons.deletedAt),
+        inArray(lessons.status, ['published', 'completed']),
+        lt(lessons.startAt, to),
+        gt(lessons.endAt, from),
+      ),
+    );
+
+  const teacherIds = [...new Set(lessonRows.map((r) => r.teacherId))];
+  const activeTeachers =
+    teacherIds.length > 0
+      ? await db
+          .select({
+            id: users.id,
+            firstName: users.firstName,
+            lastName: users.lastName,
+            deletedAt: users.deletedAt,
+          })
+          .from(users)
+          .where(and(inArray(users.id, teacherIds), isNull(users.deletedAt)))
+      : [];
+  const teacherById = new Map(activeTeachers.map((t) => [t.id, t]));
+  const visibleLessons = lessonRows.filter((row) => teacherById.has(row.teacherId));
+
+  const subjectIds = [...new Set(visibleLessons.map((r) => r.subjectId).filter((x): x is string => x != null))];
+  const lessonTypeIds = [
+    ...new Set(visibleLessons.map((r) => r.lessonTypeId).filter((x): x is string => x != null)),
+  ];
+
+  const subjectById = new Map<string, string>();
+  if (subjectIds.length > 0) {
+    const subRows = await db
+      .select({ id: subjects.id, name: subjects.name })
+      .from(subjects)
+      .where(
+        and(
+          inArray(subjects.id, subjectIds),
+          eq(subjects.classroomId, studentRow.classroomId),
+          isNull(subjects.deletedAt),
+        ),
+      );
+    for (const s of subRows) {
+      subjectById.set(s.id, s.name);
+    }
+  }
+
+  const lessonTypeById = new Map<string, string>();
+  if (lessonTypeIds.length > 0) {
+    const ltRows = await db
+      .select({ id: lessonTypes.id, name: lessonTypes.name })
+      .from(lessonTypes)
+      .where(
+        and(
+          inArray(lessonTypes.id, lessonTypeIds),
+          eq(lessonTypes.classroomId, studentRow.classroomId),
+          isNull(lessonTypes.deletedAt),
+        ),
+      );
+    for (const lt of ltRows) {
+      lessonTypeById.set(lt.id, lt.name);
+    }
+  }
+
+  const rows = visibleLessons.map((row) => ({
+    id: row.id,
+    startAt: row.startAt.toISOString(),
+    endAt: row.endAt.toISOString(),
+    status: row.status,
+    teacherDisplay: lessonTeacherDisplay(teacherById.get(row.teacherId)),
+    subjectName: row.subjectId ? (subjectById.get(row.subjectId) ?? null) : null,
+    lessonTypeName: row.lessonTypeId ? (lessonTypeById.get(row.lessonTypeId) ?? null) : null,
+  }));
+
+  return c.json(rows, 200);
+});
+
 app.post('/classrooms', auth, loadUser, requireAdmin, async (c) => {
   const body = await c.req.json<unknown>().catch(() => null);
   const { input, error } = validateCreateClassroomInput(body);

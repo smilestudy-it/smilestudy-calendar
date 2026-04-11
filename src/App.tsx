@@ -1,6 +1,6 @@
 import { useAuth0 } from '@auth0/auth0-react';
 import { lazy, Suspense, useEffect } from 'react';
-import { Navigate, Route, Routes } from 'react-router-dom';
+import { Navigate, Route, Routes, useLocation } from 'react-router-dom';
 import LoginButton from './LoginButton';
 import AppShell from './components/AppShell';
 import { useCurrentUser } from './hooks/useCurrentUser';
@@ -11,8 +11,11 @@ const TeacherManagementPage = lazy(() => import('./pages/TeacherManagementPage')
 const StudentManagementPage = lazy(() => import('./pages/StudentManagementPage'));
 const PresetsSettingsPage = lazy(() => import('./pages/PresetsSettingsPage'));
 const CalendarPage = lazy(() => import('./pages/CalendarPage'));
+const SharedStudentCalendarPage = lazy(() => import('./pages/SharedStudentCalendarPage'));
 
 function App() {
+  const location = useLocation();
+  const isSharePath = location.pathname.startsWith('/share');
   const { isAuthenticated, isLoading, error, user, getAccessTokenSilently } = useAuth0();
   const { currentUser, isLoadingCurrentUser, currentUserError } = useCurrentUser({
     isAuthenticated,
@@ -24,6 +27,20 @@ function App() {
       console.error('Auth0 authentication error:', error);
     }
   }, [error]);
+
+  if (isSharePath) {
+    return (
+      <div className="min-h-screen bg-slate-950 px-4 py-10 text-slate-100">
+        <Suspense fallback={<p className="text-center text-sm text-slate-400">画面を読み込み中...</p>}>
+          <Routes>
+            <Route path="/share" element={<Navigate to="/share/calendar" replace />} />
+            <Route path="/share/calendar" element={<SharedStudentCalendarPage />} />
+            <Route path="/share/*" element={<Navigate to="/share/calendar" replace />} />
+          </Routes>
+        </Suspense>
+      </div>
+    );
+  }
 
   if (isLoading) {
     return (
