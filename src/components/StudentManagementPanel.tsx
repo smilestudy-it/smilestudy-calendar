@@ -444,39 +444,45 @@ export default function StudentManagementPanel({ currentUser, getAccessTokenSile
             この教室に登録された生徒はまだいません。
           </p>
         ) : (
-          <ul className="space-y-2">
-            {shareCopyError && <p className="text-sm text-amber-200/90">{shareCopyError}</p>}
-            {students.map((row) => (
-              <li
-                key={row.id}
-                className="flex flex-col gap-3 rounded-xl border border-slate-800 bg-slate-950/60 p-4 sm:flex-row sm:items-center sm:justify-between"
-              >
-                <div className="min-w-0 space-y-1">
-                  <p className="font-medium text-slate-100">{row.name}</p>
-                  <p className="truncate text-sm text-slate-400">{row.email}</p>
-                  <p className="text-xs text-slate-500">出生年: {row.birthYear}</p>
-                </div>
-                <div className="flex shrink-0 flex-wrap items-center gap-2">
-                  <button
-                    type="button"
-                    className="rounded-lg border border-slate-600 bg-slate-900/80 px-3 py-2 text-sm font-medium text-slate-200 transition hover:bg-slate-800/80"
-                    onClick={() => void handleCopyShareLink(row.id)}
-                  >
-                    {copiedShareStudentId === row.id ? 'コピーしました' : '共有リンクをコピー'}
-                  </button>
-                  {canManageStudents && (
+          <div className="space-y-2">
+            {shareCopyError ? (
+              <p className="text-sm text-amber-200/90" role="status">
+                {shareCopyError}
+              </p>
+            ) : null}
+            <ul className="space-y-2">
+              {students.map((row) => (
+                <li
+                  key={row.id}
+                  className="flex flex-col gap-3 rounded-xl border border-slate-800 bg-slate-950/60 p-4 sm:flex-row sm:items-center sm:justify-between"
+                >
+                  <div className="min-w-0 space-y-1">
+                    <p className="font-medium text-slate-100">{row.name}</p>
+                    <p className="truncate text-sm text-slate-400">{row.email}</p>
+                    <p className="text-xs text-slate-500">出生年: {row.birthYear}</p>
+                  </div>
+                  <div className="flex shrink-0 flex-wrap items-center gap-2">
                     <button
                       type="button"
-                      className="rounded-lg border border-rose-500/40 bg-rose-950/50 px-3 py-2 text-sm font-medium text-rose-200 transition hover:bg-rose-900/60"
-                      onClick={() => void handleDeleteStudent(row.id)}
+                      className="rounded-lg border border-slate-600 bg-slate-900/80 px-3 py-2 text-sm font-medium text-slate-200 transition hover:bg-slate-800/80"
+                      onClick={() => void handleCopyShareLink(row.id)}
                     >
-                      削除
+                      {copiedShareStudentId === row.id ? 'コピーしました' : '共有リンクをコピー'}
                     </button>
-                  )}
-                </div>
-              </li>
-            ))}
-          </ul>
+                    {canManageStudents && (
+                      <button
+                        type="button"
+                        className="rounded-lg border border-rose-500/40 bg-rose-950/50 px-3 py-2 text-sm font-medium text-rose-200 transition hover:bg-rose-900/60"
+                        onClick={() => void handleDeleteStudent(row.id)}
+                      >
+                        削除
+                      </button>
+                    )}
+                  </div>
+                </li>
+              ))}
+            </ul>
+          </div>
         )}
       </section>
     </section>

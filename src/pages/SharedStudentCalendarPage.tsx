@@ -179,9 +179,10 @@ export default function SharedStudentCalendarPage() {
           <Calendar
             mode="single"
             required
+            month={focusDate}
+            onMonthChange={(m) => m && setFocusDate(m)}
             selected={focusDate}
             onSelect={(d) => d && setFocusDate(d)}
-            defaultMonth={focusDate}
           />
         </div>
       </div>

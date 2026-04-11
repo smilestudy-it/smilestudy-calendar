@@ -13,9 +13,12 @@ const PresetsSettingsPage = lazy(() => import('./pages/PresetsSettingsPage'));
 const CalendarPage = lazy(() => import('./pages/CalendarPage'));
 const SharedStudentCalendarPage = lazy(() => import('./pages/SharedStudentCalendarPage'));
 
+/** `/share` または `/share/...` のみ。`/shared` などは除外 */
+const SHARE_APP_PATH = /^\/share(?:\/|$)/;
+
 function App() {
   const location = useLocation();
-  const isSharePath = location.pathname.startsWith('/share');
+  const isSharePath = SHARE_APP_PATH.test(location.pathname);
   const { isAuthenticated, isLoading, error, user, getAccessTokenSilently } = useAuth0();
   const { currentUser, isLoadingCurrentUser, currentUserError } = useCurrentUser({
     isAuthenticated,
@@ -33,9 +36,15 @@ function App() {
       <div className="min-h-screen bg-slate-950 px-4 py-10 text-slate-100">
         <Suspense fallback={<p className="text-center text-sm text-slate-400">画面を読み込み中...</p>}>
           <Routes>
-            <Route path="/share" element={<Navigate to="/share/calendar" replace />} />
+            <Route
+              path="/share"
+              element={<Navigate to={{ pathname: '/share/calendar', search: location.search }} replace />}
+            />
             <Route path="/share/calendar" element={<SharedStudentCalendarPage />} />
-            <Route path="/share/*" element={<Navigate to="/share/calendar" replace />} />
+            <Route
+              path="/share/*"
+              element={<Navigate to={{ pathname: '/share/calendar', search: location.search }} replace />}
+            />
           </Routes>
         </Suspense>
       </div>
