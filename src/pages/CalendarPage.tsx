@@ -1,0 +1,363 @@
+import { useCallback, useEffect, useMemo, useState } from 'react';
+import dayjs from 'dayjs';
+import 'dayjs/locale/ja';
+import CreateLessonDialog from '@/components/CreateLessonDialog';
+import { Button } from '@/components/ui/button';
+import { Calendar } from '@/components/ui/calendar';
+import { Label } from '@/components/ui/label';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
+import { startOfWeekSunday } from '@/lib/calendarTime';
+import type { CurrentUser } from '@/types/currentUser';
+
+dayjs.locale('ja');
+
+type Classroom = { id: string; name: string };
+
+type LessonApi = {
+  id: string;
+  teacherId: string;
+  studentId: string;
+  classroomId: string;
+  subjectId: string | null;
+  lessonTypeId: string | null;
+  startAt: string;
+  endAt: string;
+  status: string;
+  teacherDisplay: string;
+  studentDisplay: string;
+};
+
+type TeacherRow = {
+  id: string;
+  firstName: string;
+  lastName: string;
+  color: string | null;
+};
+
+type StudentRow = { id: string; name: string };
+type PresetRow = { id: string; name: string };
+
+type Props = {
+  currentUser: CurrentUser | null;
+  isLoadingCurrentUser: boolean;
+  getAccessTokenSilently: () => Promise<string>;
+};
+
+export default function CalendarPage({
+  currentUser,
+  isLoadingCurrentUser,
+  getAccessTokenSilently,
+}: Props) {
+  const isAdmin = currentUser?.role === 'admin';
+  const [classrooms, setClassrooms] = useState<Classroom[]>([]);
+  const [selectedClassroomId, setSelectedClassroomId] = useState('');
+  const [focusDate, setFocusDate] = useState(() => new Date());
+  const [lessons, setLessons] = useState<LessonApi[]>([]);
+  const [teachers, setTeachers] = useState<TeacherRow[]>([]);
+  const [students, setStudents] = useState<StudentRow[]>([]);
+  const [subjects, setSubjects] = useState<PresetRow[]>([]);
+  const [lessonTypes, setLessonTypes] = useState<PresetRow[]>([]);
+  const [listError, setListError] = useState<string | null>(null);
+  const [isLoadingWeek, setIsLoadingWeek] = useState(false);
+  const [dialogOpen, setDialogOpen] = useState(false);
+
+  const activeClassroomId = useMemo(() => {
+    if (isAdmin) {
+      return selectedClassroomId;
+    }
+    return currentUser?.classroomId ?? '';
+  }, [isAdmin, selectedClassroomId, currentUser?.classroomId]);
+
+  const weekStart = useMemo(() => startOfWeekSunday(focusDate), [focusDate]);
+  const weekEndExclusive = useMemo(() => weekStart.add(7, 'day'), [weekStart]);
+
+  const weekDays = useMemo(() => {
+    return Array.from({ length: 7 }, (_, i) => weekStart.add(i, 'day'));
+  }, [weekStart]);
+
+  const authedFetch = useCallback(
+    async (path: string, init?: RequestInit) => {
+      const token = await getAccessTokenSilently();
+      return fetch(path, {
+        ...init,
+        headers: {
+          Authorization: `Bearer ${token}`,
+          ...(init?.headers ?? {}),
+        },
+      });
+    },
+    [getAccessTokenSilently],
+  );
+
+  useEffect(() => {
+    if (!isAdmin) {
+      return;
+    }
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await authedFetch('/api/classrooms');
+        if (!res.ok || cancelled) {
+          return;
+        }
+        const data = (await res.json()) as Classroom[];
+        setClassrooms(data);
+        setSelectedClassroomId((prev) => (prev ? prev : (data[0]?.id ?? '')));
+      } catch {
+        /* ignore */
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [isAdmin, authedFetch]);
+
+  const reloadWeek = useCallback(async () => {
+    if (!activeClassroomId) {
+      setLessons([]);
+      return;
+    }
+    setIsLoadingWeek(true);
+    setListError(null);
+    try {
+      const from = weekStart.toISOString();
+      const to = weekEndExclusive.toISOString();
+      const qs = new URLSearchParams({ from, to });
+      const userQs = new URLSearchParams({ includeAdmins: '1' });
+      const [lRes, uRes, sRes, subRes, ltRes] = await Promise.all([
+        authedFetch(`/api/classrooms/${encodeURIComponent(activeClassroomId)}/lessons?${qs}`),
+        authedFetch(`/api/users/${encodeURIComponent(activeClassroomId)}?${userQs}`),
+        authedFetch(`/api/students/${encodeURIComponent(activeClassroomId)}`),
+        authedFetch(`/api/classrooms/${encodeURIComponent(activeClassroomId)}/subjects`),
+        authedFetch(`/api/classrooms/${encodeURIComponent(activeClassroomId)}/lesson-types`),
+      ]);
+      if (!lRes.ok) {
+        setListError('コマ一覧の取得に失敗しました。');
+        return;
+      }
+      if (uRes.ok) {
+        setTeachers((await uRes.json()) as TeacherRow[]);
+      }
+      if (sRes.ok) {
+        setStudents((await sRes.json()) as StudentRow[]);
+      }
+      if (subRes.ok) {
+        setSubjects((await subRes.json()) as PresetRow[]);
+      }
+      if (ltRes.ok) {
+        setLessonTypes((await ltRes.json()) as PresetRow[]);
+      }
+      setLessons((await lRes.json()) as LessonApi[]);
+    } catch {
+      setListError('ネットワークエラーが発生しました。');
+    } finally {
+      setIsLoadingWeek(false);
+    }
+  }, [activeClassroomId, authedFetch, weekEndExclusive, weekStart]);
+
+  useEffect(() => {
+    void reloadWeek();
+  }, [reloadWeek]);
+
+  const teacherById = useMemo(() => {
+    const m = new Map<string, TeacherRow>();
+    for (const t of teachers) {
+      m.set(t.id, t);
+    }
+    return m;
+  }, [teachers]);
+
+  const studentById = useMemo(() => {
+    const m = new Map<string, StudentRow>();
+    for (const s of students) {
+      m.set(s.id, s);
+    }
+    return m;
+  }, [students]);
+
+  const subjectById = useMemo(() => {
+    const m = new Map<string, string>();
+    for (const s of subjects) {
+      m.set(s.id, s.name);
+    }
+    return m;
+  }, [subjects]);
+
+  const lessonTypeById = useMemo(() => {
+    const m = new Map<string, string>();
+    for (const s of lessonTypes) {
+      m.set(s.id, s.name);
+    }
+    return m;
+  }, [lessonTypes]);
+
+  if (isLoadingCurrentUser) {
+    return <p className="text-sm text-slate-300">ユーザー情報を読み込み中...</p>;
+  }
+
+  if (!currentUser) {
+    return <p className="text-sm text-slate-300">ログインが必要です。</p>;
+  }
+
+  if (currentUser.role !== 'admin' && currentUser.role !== 'manager' && currentUser.role !== 'staff') {
+    return <p className="text-sm text-slate-300">この画面にアクセスできません。</p>;
+  }
+
+  return (
+    <section className="space-y-6">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <h2 className="text-lg font-semibold md:text-xl">カレンダー</h2>
+        <div className="flex flex-wrap items-center gap-2">
+          <Button type="button" variant="outline" size="sm" onClick={() => setDialogOpen(true)}>
+            コマを登録
+          </Button>
+        </div>
+      </div>
+
+      {isAdmin && (
+        <div className="grid max-w-md gap-2">
+          <Label htmlFor="cal-classroom">教室</Label>
+          <Select value={selectedClassroomId} onValueChange={setSelectedClassroomId}>
+            <SelectTrigger id="cal-classroom">
+              <SelectValue placeholder="教室を選択" />
+            </SelectTrigger>
+            <SelectContent>
+              {classrooms.map((c) => (
+                <SelectItem key={c.id} value={c.id}>
+                  {c.name}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+      )}
+
+      {!activeClassroomId && (
+        <p className="text-sm text-amber-200/90">教室を選択してください。</p>
+      )}
+
+      {listError && <p className="text-sm text-rose-300">{listError}</p>}
+
+      <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_auto]">
+        <div className="space-y-4">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <p className="text-sm text-slate-300">
+              {weekStart.format('M月D日')} 〜 {weekEndExclusive.subtract(1, 'day').format('M月D日')}
+            </p>
+            <div className="flex gap-2">
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => setFocusDate((d) => dayjs(d).subtract(7, 'day').toDate())}
+              >
+                前の週
+              </Button>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => setFocusDate(() => new Date())}
+              >
+                今週
+              </Button>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => setFocusDate((d) => dayjs(d).add(7, 'day').toDate())}
+              >
+                次の週
+              </Button>
+            </div>
+          </div>
+
+          {isLoadingWeek ? (
+            <p className="text-sm text-slate-400">週のコマを読み込み中...</p>
+          ) : (
+            <div className="grid grid-cols-1 gap-2 sm:grid-cols-7">
+              {weekDays.map((day) => {
+                const dayKey = day.format('YYYY-MM-DD');
+                const dayLessons = lessons
+                  .filter((l) => dayjs(l.startAt).isSame(day, 'day'))
+                  .sort((a, b) => dayjs(a.startAt).valueOf() - dayjs(b.startAt).valueOf());
+                return (
+                  <div
+                    key={dayKey}
+                    className="flex min-h-[220px] flex-col rounded-xl border border-slate-800 bg-slate-950/50 p-2"
+                  >
+                    <p className="mb-2 border-b border-slate-800 pb-1 text-center text-xs font-medium text-slate-400">
+                      {day.format('M/D')} {day.format('ddd')}
+                    </p>
+                    <ul className="flex flex-1 flex-col gap-1.5">
+                      {dayLessons.map((l) => {
+                        const te = teacherById.get(l.teacherId);
+                        const st = studentById.get(l.studentId);
+                        const border = te?.color && /^#([0-9a-fA-F]{6})$/.test(te.color) ? te.color : '#6366f1';
+                        const sub = l.subjectId ? subjectById.get(l.subjectId) : undefined;
+                        const lt = l.lessonTypeId ? lessonTypeById.get(l.lessonTypeId) : undefined;
+                        return (
+                          <li
+                            key={l.id}
+                            className="rounded-md border border-slate-800 bg-slate-900/80 px-2 py-1.5 text-left text-xs text-slate-200"
+                            style={{ borderLeftWidth: 4, borderLeftColor: border }}
+                          >
+                            <p className="font-medium text-slate-100">
+                              {dayjs(l.startAt).format('HH:mm')}–{dayjs(l.endAt).format('HH:mm')}
+                            </p>
+                            <p className="text-slate-300">
+                              {l.teacherDisplay ||
+                                `${te?.lastName ?? ''} ${te?.firstName ?? ''}`.trim() ||
+                                l.teacherId}
+                            </p>
+                            <p className="text-slate-300">
+                              {l.studentDisplay ?? st?.name ?? l.studentId}
+                            </p>
+                            {(sub || lt) && (
+                              <p className="text-slate-500">
+                                {[sub, lt].filter(Boolean).join(' · ')}
+                              </p>
+                            )}
+                          </li>
+                        );
+                      })}
+                    </ul>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+
+        <div className="rounded-xl border border-slate-800 bg-slate-950/40 p-2">
+          <Calendar
+            mode="single"
+            required
+            selected={focusDate}
+            onSelect={(d) => d && setFocusDate(d)}
+            defaultMonth={focusDate}
+          />
+        </div>
+      </div>
+
+      {activeClassroomId && (
+        <CreateLessonDialog
+          open={dialogOpen}
+          onOpenChange={setDialogOpen}
+          classroomId={activeClassroomId}
+          getAccessTokenSilently={getAccessTokenSilently}
+          initialDate={focusDate}
+          onCreated={() => void reloadWeek()}
+          actorUserId={currentUser.id}
+          actorRole={currentUser.role}
+        />
+      )}
+    </section>
+  );
+}

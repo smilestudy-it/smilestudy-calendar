@@ -10,6 +10,7 @@ const ClassroomPage = lazy(() => import('./pages/ClassroomPage'));
 const TeacherManagementPage = lazy(() => import('./pages/TeacherManagementPage'));
 const StudentManagementPage = lazy(() => import('./pages/StudentManagementPage'));
 const PresetsSettingsPage = lazy(() => import('./pages/PresetsSettingsPage'));
+const CalendarPage = lazy(() => import('./pages/CalendarPage'));
 
 function App() {
   const { isAuthenticated, isLoading, error, user, getAccessTokenSilently } = useAuth0();
@@ -105,6 +106,16 @@ function App() {
             path="/settings/presets"
             element={
               <PresetsSettingsPage
+                currentUser={currentUser}
+                isLoadingCurrentUser={isLoadingCurrentUser}
+                getAccessTokenSilently={getAccessTokenSilently}
+              />
+            }
+          />
+          <Route
+            path="/calendar"
+            element={
+              <CalendarPage
                 currentUser={currentUser}
                 isLoadingCurrentUser={isLoadingCurrentUser}
                 getAccessTokenSilently={getAccessTokenSilently}

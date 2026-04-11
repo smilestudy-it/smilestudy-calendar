@@ -130,6 +130,7 @@ const pickUser = (user: UserRow, selection: Record<string, unknown>) =>
       if (key === 'email') return [key, user.email];
       if (key === 'role') return [key, user.role];
       if (key === 'classroomId') return [key, user.classroomId];
+      if (key === 'color') return [key, user.color];
       return [key, undefined];
     }),
   );
@@ -598,6 +599,22 @@ describe('users api', () => {
     expect(payload.map((row) => row.id)).toContain('auth0|staff-user');
     expect(payload[0]?.firstName).toBeDefined();
     expect(payload[0]?.lastName).toBeDefined();
+  });
+
+  it('appends admins when includeAdmins=1', async () => {
+    state.jwtSub = 'auth0|staff-user';
+
+    const response = await app.request('/api/users/room-1?includeAdmins=1', {
+      method: 'GET',
+    }, env);
+
+    expect(response.status).toBe(200);
+    const payload = (await response.json()) as Array<{ id: string; role: string }>;
+    const ids = payload.map((row) => row.id);
+    expect(ids).toContain('auth0|staff-user');
+    expect(ids).toContain('auth0|admin-user');
+    expect(ids).toContain('auth0|other-admin');
+    expect(payload.find((r) => r.id === 'auth0|admin-user')?.role).toBe('admin');
   });
 
   it('returns 403 when manager requests another classroom users', async () => {

@@ -354,11 +354,11 @@ describe('presets api', () => {
       expect(res.status).toBe(403);
     });
 
-    it('returns 403 for staff', async () => {
+    it('allows staff for their classroom', async () => {
       state.userRole = 'staff';
       state.jwtSub = 'auth0|staff-user';
       const res = await app.request('/api/classrooms/room-1/subjects', { method: 'GET' }, env);
-      expect(res.status).toBe(403);
+      expect(res.status).toBe(200);
     });
   });
 

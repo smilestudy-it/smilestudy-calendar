@@ -3,16 +3,19 @@ import { jwk } from 'hono/jwk';
 import { handle } from 'hono/cloudflare-pages';
 import type { Context, Next } from 'hono';
 import type { JwtVariables } from 'hono/jwt';
-import { and, eq, isNull } from 'drizzle-orm';
+import { and, eq, gt, inArray, isNull, lt, ne } from 'drizzle-orm';
 import { getDb } from '../../db';
-import { users, classrooms, students, subjects, lessonTypes, timeSlots } from '../../db/schema';
+import { users, classrooms, students, subjects, lessonTypes, timeSlots, lessons } from '../../db/schema';
 import {
   validateCreateClassroomInput,
+  validateCreateLessonInput,
   validateCreateLessonTypeInput,
   validateCreateStudentInput,
   validateCreateSubjectInput,
   validateCreateTimeSlotInput,
   validateCreateUserInput,
+  validateLessonRangeQuery,
+  validatePatchLessonInput,
   validatePatchLessonTypeInput,
   validatePatchSubjectInput,
   validatePatchTimeSlotInput,
@@ -256,6 +259,18 @@ const requireManagerOrAbove = async (c: Context<{Bindings: Bindings; Variables: 
   await next();
 };
 
+/** 講師・教室長・管理者（loadUser 済みユーザーはいずれかのロール） */
+const requireStaffOrAbove = async (c: Context<{ Bindings: Bindings; Variables: AppVariables }>, next: Next) => {
+  const currentUser = c.var.currentUser;
+  if (!currentUser) {
+    return c.json({ message: 'user not loaded' }, 500);
+  }
+  if (currentUser.role !== 'admin' && currentUser.role !== 'manager' && currentUser.role !== 'staff') {
+    return c.json({ message: 'forbidden' }, 403);
+  }
+  await next();
+};
+
 type ApiContext = Context<{ Bindings: Bindings; Variables: AppVariables }>;
 
 /**
@@ -278,6 +293,50 @@ function denyUnlessClassroomScope(c: ApiContext, targetClassroomId: string | nul
     return c.json({ message: 'forbidden' }, 403);
   }
   return null;
+}
+
+/**
+ * コマの講師まわりの権限（POST/PATCH/DELETE で共通の考え方）
+ * - admin: 制限なし（講師の存在はトランザクション内で検証）
+ * - manager: 講師は必ず当該コマの classroomId に所属するユーザー
+ * - staff: 講師は常に自分（actor.id）のみ
+ */
+function denyUnlessStaffLessonTeacherIsSelf(
+  c: ApiContext,
+  actor: AppUser,
+  teacherId: string,
+): Response | null {
+  if (actor.role === 'staff' && teacherId !== actor.id) {
+    return c.json({ message: 'forbidden' }, 403);
+  }
+  return null;
+}
+
+function lessonTeacherDisplay(
+  row:
+    | { firstName: string | null; lastName: string | null; deletedAt: Date | null }
+    | null
+    | undefined,
+): string {
+  if (!row) {
+    return '（不明）';
+  }
+  const name = `${row.lastName ?? ''} ${row.firstName ?? ''}`.trim();
+  if (row.deletedAt != null) {
+    return name ? `${name}（削除済み）` : '（削除済み）';
+  }
+  return name || '（不明）';
+}
+
+function lessonStudentDisplay(row: { name: string | null; deletedAt: Date | null } | null | undefined): string {
+  if (!row) {
+    return '（不明）';
+  }
+  const name = (row.name ?? '').trim();
+  if (row.deletedAt != null) {
+    return name ? `${name}（削除済み）` : '（削除済み）';
+  }
+  return name || '（不明）';
 }
 
 /** 対象 classroomId へのアクセス: 管理者は全教室、教室長は自教室のみ（requireManagerOrAbove と併用） */
@@ -365,6 +424,7 @@ app.delete('/classrooms/:id', auth, loadUser, requireAdmin, async(c) =>{
         updatedSubjectIds: string[];
         updatedLessonTypeIds: string[];
         updatedTimeSlotIds: string[];
+        updatedLessonIds: string[];
       }
     | {
         notFound: false;
@@ -373,14 +433,14 @@ app.delete('/classrooms/:id', auth, loadUser, requireAdmin, async(c) =>{
         updatedSubjectIds: string[];
         updatedLessonTypeIds: string[];
         updatedTimeSlotIds: string[];
+        updatedLessonIds: string[];
       };
   try {
-    // Serialize classroom soft-delete + user/student/preset soft-deletes. `immediate` takes a write lock early.
+    // Serialize classroom soft-delete + user/student/preset/lesson soft-deletes (D1: SQL BEGIN/COMMIT is disallowed in some bindings — use sequential statements).
     // Members are selected only after the classroom row is marked deleted so concurrent creates
     // that re-check `classrooms.deleted_at` cannot commit into an "open" classroom.
-    txResult = await db.transaction(
-      async (tx) => {
-        const result = await tx
+    txResult = await (async () => {
+        const result = await db
           .update(classrooms)
           .set({ deletedAt })
           .where(and(eq(classrooms.id, id), isNull(classrooms.deletedAt)));
@@ -393,17 +453,18 @@ app.delete('/classrooms/:id', auth, loadUser, requireAdmin, async(c) =>{
             updatedSubjectIds: [] as string[],
             updatedLessonTypeIds: [] as string[],
             updatedTimeSlotIds: [] as string[],
+            updatedLessonIds: [] as string[],
           };
         }
 
-        const classroomUsers = await tx
+        const classroomUsers = await db
           .select({ id: users.id })
           .from(users)
           .where(and(eq(users.classroomId, id), isNull(users.deletedAt)));
 
         const updatedUserIds: string[] = [];
         for (const classroomUser of classroomUsers) {
-          const userUpdateResult = await tx
+          const userUpdateResult = await db
             .update(users)
             .set({ deletedAt })
             .where(and(eq(users.id, classroomUser.id), isNull(users.deletedAt)));
@@ -413,14 +474,14 @@ app.delete('/classrooms/:id', auth, loadUser, requireAdmin, async(c) =>{
           }
         }
 
-        const classroomStudents = await tx
+        const classroomStudents = await db
           .select({ id: students.id })
           .from(students)
           .where(and(eq(students.classroomId, id), isNull(students.deletedAt)));
 
         const updatedStudentIds: string[] = [];
         for (const row of classroomStudents) {
-          const studentUpdateResult = await tx
+          const studentUpdateResult = await db
             .update(students)
             .set({ deletedAt })
             .where(and(eq(students.id, row.id), isNull(students.deletedAt)));
@@ -430,14 +491,14 @@ app.delete('/classrooms/:id', auth, loadUser, requireAdmin, async(c) =>{
           }
         }
 
-        const classroomSubjects = await tx
+        const classroomSubjects = await db
           .select({ id: subjects.id })
           .from(subjects)
           .where(and(eq(subjects.classroomId, id), isNull(subjects.deletedAt)));
 
         const updatedSubjectIds: string[] = [];
         for (const row of classroomSubjects) {
-          const r = await tx
+          const r = await db
             .update(subjects)
             .set({ deletedAt })
             .where(and(eq(subjects.id, row.id), isNull(subjects.deletedAt)));
@@ -446,14 +507,14 @@ app.delete('/classrooms/:id', auth, loadUser, requireAdmin, async(c) =>{
           }
         }
 
-        const classroomLessonTypes = await tx
+        const classroomLessonTypes = await db
           .select({ id: lessonTypes.id })
           .from(lessonTypes)
           .where(and(eq(lessonTypes.classroomId, id), isNull(lessonTypes.deletedAt)));
 
         const updatedLessonTypeIds: string[] = [];
         for (const row of classroomLessonTypes) {
-          const r = await tx
+          const r = await db
             .update(lessonTypes)
             .set({ deletedAt })
             .where(and(eq(lessonTypes.id, row.id), isNull(lessonTypes.deletedAt)));
@@ -462,19 +523,35 @@ app.delete('/classrooms/:id', auth, loadUser, requireAdmin, async(c) =>{
           }
         }
 
-        const classroomTimeSlots = await tx
+        const classroomTimeSlots = await db
           .select({ id: timeSlots.id })
           .from(timeSlots)
           .where(and(eq(timeSlots.classroomId, id), isNull(timeSlots.deletedAt)));
 
         const updatedTimeSlotIds: string[] = [];
         for (const row of classroomTimeSlots) {
-          const r = await tx
+          const r = await db
             .update(timeSlots)
             .set({ deletedAt })
             .where(and(eq(timeSlots.id, row.id), isNull(timeSlots.deletedAt)));
           if (r.meta.changes > 0) {
             updatedTimeSlotIds.push(row.id);
+          }
+        }
+
+        const classroomLessons = await db
+          .select({ id: lessons.id })
+          .from(lessons)
+          .where(and(eq(lessons.classroomId, id), isNull(lessons.deletedAt)));
+
+        const updatedLessonIds: string[] = [];
+        for (const row of classroomLessons) {
+          const r = await db
+            .update(lessons)
+            .set({ deletedAt })
+            .where(and(eq(lessons.id, row.id), isNull(lessons.deletedAt)));
+          if (r.meta.changes > 0) {
+            updatedLessonIds.push(row.id);
           }
         }
 
@@ -485,10 +562,9 @@ app.delete('/classrooms/:id', auth, loadUser, requireAdmin, async(c) =>{
           updatedSubjectIds,
           updatedLessonTypeIds,
           updatedTimeSlotIds,
+          updatedLessonIds,
         };
-      },
-      { behavior: 'immediate' },
-    );
+    })();
   } catch {
     return c.json({ message: 'failed to delete classroom' }, 400);
   }
@@ -503,9 +579,17 @@ app.delete('/classrooms/:id', auth, loadUser, requireAdmin, async(c) =>{
     updatedSubjectIds,
     updatedLessonTypeIds,
     updatedTimeSlotIds,
+    updatedLessonIds,
   } = txResult;
 
   const rollbackClassroomChildSoftDeletes = async () => {
+    for (const lessonId of updatedLessonIds) {
+      await db
+        .update(lessons)
+        .set({ deletedAt: null })
+        .where(eq(lessons.id, lessonId))
+        .catch(() => undefined);
+    }
     for (const studentId of updatedStudentIds) {
       await db
         .update(students)
@@ -701,7 +785,7 @@ app.get('/users/admins', auth, loadUser, requireManagerOrAbove, async (c) => {
   return c.json(rows, 200);
 });
 
-app.get('/users/:classroomId', auth, loadUser, requireManagerOrAbove, requireClassroomScope((c) => c.req.param('classroomId') ?? null), async(c) =>{
+app.get('/users/:classroomId', auth, loadUser, requireStaffOrAbove, requireClassroomScope((c) => c.req.param('classroomId') ?? null), async(c) =>{
   const classroomId = c.req.param('classroomId');
   if(!classroomId){
     return c.json({ message: 'classroom id is required' }, 400);
@@ -716,9 +800,41 @@ app.get('/users/:classroomId', auth, loadUser, requireManagerOrAbove, requireCla
       email: users.email,
       role: users.role,
       classroomId: users.classroomId,
+      color: users.color,
     })
     .from(users)
     .where(and(eq(users.classroomId, classroomId), isNull(users.deletedAt)));
+
+  const includeAdmins =
+    c.req.query('includeAdmins') === '1' || c.req.query('includeAdmins') === 'true';
+  if (includeAdmins) {
+    const admins = await db
+      .select({
+        id: users.id,
+        firstName: users.firstName,
+        lastName: users.lastName,
+        email: users.email,
+        role: users.role,
+        classroomId: users.classroomId,
+        color: users.color,
+      })
+      .from(users)
+      .where(and(eq(users.role, 'admin'), isNull(users.deletedAt)));
+    const seen = new Set(rows.map((r) => r.id));
+    for (const a of admins) {
+      if (!seen.has(a.id)) {
+        rows.push(a);
+        seen.add(a.id);
+      }
+    }
+  }
+
+  rows.sort((a, b) => {
+    const an = `${a.lastName ?? ''} ${a.firstName ?? ''}`.trim();
+    const bn = `${b.lastName ?? ''} ${b.firstName ?? ''}`.trim();
+    return an.localeCompare(bn, 'ja');
+  });
+
   return c.json(rows, 200);
 });
 
@@ -811,9 +927,8 @@ app.post('/students', auth, loadUser, requireManagerOrAbove, async (c) => {
 
   let txResult: CreateStudentTxResult;
   try {
-    txResult = await db.transaction(
-      async (tx) => {
-        const [activeClassroom] = await tx
+    txResult = await (async () => {
+        const [activeClassroom] = await db
           .select({ id: classrooms.id })
           .from(classrooms)
           .where(and(eq(classrooms.id, input.classroomId), isNull(classrooms.deletedAt)))
@@ -821,7 +936,7 @@ app.post('/students', auth, loadUser, requireManagerOrAbove, async (c) => {
         if (!activeClassroom) {
           return { ok: false as const, reason: 'classroom_not_found' as const };
         }
-        await tx.insert(students).values({
+        await db.insert(students).values({
           id,
           name: input.name,
           email: input.email,
@@ -830,9 +945,7 @@ app.post('/students', auth, loadUser, requireManagerOrAbove, async (c) => {
           deletedAt: null,
         });
         return { ok: true as const };
-      },
-      { behavior: 'immediate' },
-    );
+    })();
   } catch (err) {
     logApiError('POST /students', err);
     if (isD1ForeignKeyViolation(err)) {
@@ -919,7 +1032,7 @@ app.get(
   '/classrooms/:classroomId/subjects',
   auth,
   loadUser,
-  requireManagerOrAbove,
+  requireStaffOrAbove,
   requireClassroomScope((c) => c.req.param('classroomId') ?? null),
   async (c) => {
     const classroomId = c.req.param('classroomId');
@@ -939,7 +1052,7 @@ app.get(
   '/classrooms/:classroomId/lesson-types',
   auth,
   loadUser,
-  requireManagerOrAbove,
+  requireStaffOrAbove,
   requireClassroomScope((c) => c.req.param('classroomId') ?? null),
   async (c) => {
     const classroomId = c.req.param('classroomId');
@@ -959,7 +1072,7 @@ app.get(
   '/classrooms/:classroomId/time-slots',
   auth,
   loadUser,
-  requireManagerOrAbove,
+  requireStaffOrAbove,
   requireClassroomScope((c) => c.req.param('classroomId') ?? null),
   async (c) => {
     const classroomId = c.req.param('classroomId');
@@ -996,9 +1109,8 @@ app.post('/subjects', auth, loadUser, requireManagerOrAbove, async (c) => {
 
   let txResult: CreateSubjectTxResult;
   try {
-    txResult = await db.transaction(
-      async (tx) => {
-        const [activeClassroom] = await tx
+    txResult = await (async () => {
+        const [activeClassroom] = await db
           .select({ id: classrooms.id })
           .from(classrooms)
           .where(and(eq(classrooms.id, input.classroomId), isNull(classrooms.deletedAt)))
@@ -1006,16 +1118,14 @@ app.post('/subjects', auth, loadUser, requireManagerOrAbove, async (c) => {
         if (!activeClassroom) {
           return { ok: false as const, reason: 'classroom_not_found' as const };
         }
-        await tx.insert(subjects).values({
+        await db.insert(subjects).values({
           id: newId,
           name: input.name,
           classroomId: input.classroomId,
           deletedAt: null,
         });
         return { ok: true as const };
-      },
-      { behavior: 'immediate' },
-    );
+    })();
   } catch (err) {
     logApiError('POST /subjects', err);
     if (isD1ForeignKeyViolation(err)) {
@@ -1048,9 +1158,8 @@ app.post('/lesson-types', auth, loadUser, requireManagerOrAbove, async (c) => {
 
   let txResult: CreateLessonTypeTxResult;
   try {
-    txResult = await db.transaction(
-      async (tx) => {
-        const [activeClassroom] = await tx
+    txResult = await (async () => {
+        const [activeClassroom] = await db
           .select({ id: classrooms.id })
           .from(classrooms)
           .where(and(eq(classrooms.id, input.classroomId), isNull(classrooms.deletedAt)))
@@ -1058,16 +1167,14 @@ app.post('/lesson-types', auth, loadUser, requireManagerOrAbove, async (c) => {
         if (!activeClassroom) {
           return { ok: false as const, reason: 'classroom_not_found' as const };
         }
-        await tx.insert(lessonTypes).values({
+        await db.insert(lessonTypes).values({
           id: newId,
           name: input.name,
           classroomId: input.classroomId,
           deletedAt: null,
         });
         return { ok: true as const };
-      },
-      { behavior: 'immediate' },
-    );
+    })();
   } catch (err) {
     logApiError('POST /lesson-types', err);
     if (isD1ForeignKeyViolation(err)) {
@@ -1100,9 +1207,8 @@ app.post('/time-slots', auth, loadUser, requireManagerOrAbove, async (c) => {
 
   let txResult: CreateTimeSlotTxResult;
   try {
-    txResult = await db.transaction(
-      async (tx) => {
-        const [activeClassroom] = await tx
+    txResult = await (async () => {
+        const [activeClassroom] = await db
           .select({ id: classrooms.id })
           .from(classrooms)
           .where(and(eq(classrooms.id, input.classroomId), isNull(classrooms.deletedAt)))
@@ -1110,7 +1216,7 @@ app.post('/time-slots', auth, loadUser, requireManagerOrAbove, async (c) => {
         if (!activeClassroom) {
           return { ok: false as const, reason: 'classroom_not_found' as const };
         }
-        await tx.insert(timeSlots).values({
+        await db.insert(timeSlots).values({
           id: newId,
           classroomId: input.classroomId,
           startTime: input.startTime,
@@ -1118,9 +1224,7 @@ app.post('/time-slots', auth, loadUser, requireManagerOrAbove, async (c) => {
           deletedAt: null,
         });
         return { ok: true as const };
-      },
-      { behavior: 'immediate' },
-    );
+    })();
   } catch (err) {
     logApiError('POST /time-slots', err);
     if (isD1ForeignKeyViolation(err)) {
@@ -1345,6 +1449,619 @@ app.delete('/time-slots/:id', auth, loadUser, requireManagerOrAbove, async (c) =
   if (result.meta.changes === 0) {
     return c.json({ message: 'time slot not found' }, 404);
   }
+  return c.json({ success: true }, 200);
+});
+
+app.get(
+  '/classrooms/:classroomId/lessons',
+  auth,
+  loadUser,
+  requireClassroomScope((c) => c.req.param('classroomId') ?? null),
+  async (c) => {
+    const classroomId = c.req.param('classroomId');
+    if (!classroomId) {
+      return c.json({ message: 'classroom id is required' }, 400);
+    }
+    const { from, to, error } = validateLessonRangeQuery({
+      from: c.req.query('from') ?? undefined,
+      to: c.req.query('to') ?? undefined,
+    });
+    if (!from || !to || error) {
+      return c.json({ message: error ?? 'invalid request' }, 400);
+    }
+    const db = getDb(c.env);
+    const lessonRows = await db
+      .select({
+        id: lessons.id,
+        teacherId: lessons.teacherId,
+        studentId: lessons.studentId,
+        classroomId: lessons.classroomId,
+        subjectId: lessons.subjectId,
+        lessonTypeId: lessons.lessonTypeId,
+        startAt: lessons.startAt,
+        endAt: lessons.endAt,
+        status: lessons.status,
+      })
+      .from(lessons)
+      .where(
+        and(
+          eq(lessons.classroomId, classroomId),
+          isNull(lessons.deletedAt),
+          lt(lessons.startAt, to),
+          gt(lessons.endAt, from),
+        ),
+      );
+
+    const teacherIds = [...new Set(lessonRows.map((r) => r.teacherId))];
+    const studentIds = [...new Set(lessonRows.map((r) => r.studentId))];
+
+    const teacherMeta =
+      teacherIds.length > 0
+        ? await db
+            .select({
+              id: users.id,
+              firstName: users.firstName,
+              lastName: users.lastName,
+              deletedAt: users.deletedAt,
+            })
+            .from(users)
+            .where(inArray(users.id, teacherIds))
+        : [];
+
+    const studentMeta =
+      studentIds.length > 0
+        ? await db
+            .select({
+              id: students.id,
+              name: students.name,
+              deletedAt: students.deletedAt,
+            })
+            .from(students)
+            .where(inArray(students.id, studentIds))
+        : [];
+
+    const teacherById = new Map(teacherMeta.map((t) => [t.id, t]));
+    const studentById = new Map(studentMeta.map((s) => [s.id, s]));
+
+    const rows = lessonRows.map((row) => ({
+      ...row,
+      startAt: row.startAt.toISOString(),
+      endAt: row.endAt.toISOString(),
+      teacherDisplay: lessonTeacherDisplay(teacherById.get(row.teacherId)),
+      studentDisplay: lessonStudentDisplay(studentById.get(row.studentId)),
+    }));
+
+    return c.json(rows, 200);
+  },
+);
+
+type CreateLessonTxResult =
+  | { ok: true }
+  | {
+      ok: false;
+      reason:
+        | 'classroom_not_found'
+        | 'teacher_invalid'
+        | 'student_invalid'
+        | 'subject_invalid'
+        | 'lesson_type_invalid'
+        | 'teacher_double_booking'
+        | 'student_double_booking';
+    };
+
+app.post('/lessons', auth, loadUser, async (c) => {
+  const actor = c.var.currentUser;
+  const body = await c.req.json<unknown>().catch(() => null);
+  const { input, error } = validateCreateLessonInput(body);
+  if (!input) {
+    return c.json({ message: error ?? 'invalid request' }, 400);
+  }
+
+  const scopeDenied = denyUnlessClassroomScope(c, input.classroomId);
+  if (scopeDenied) {
+    return scopeDenied;
+  }
+
+  const staffTeacherDenied = denyUnlessStaffLessonTeacherIsSelf(c, actor, input.teacherId);
+  if (staffTeacherDenied) {
+    return staffTeacherDenied;
+  }
+
+  const db = getDb(c.env);
+
+  if (actor.role === 'manager') {
+    const [teacherUser] = await db
+      .select({ classroomId: users.classroomId })
+      .from(users)
+      .where(and(eq(users.id, input.teacherId), isNull(users.deletedAt)))
+      .limit(1);
+    if (!teacherUser || teacherUser.classroomId !== input.classroomId) {
+      return c.json({ message: 'forbidden' }, 403);
+    }
+  }
+
+  const id = crypto.randomUUID();
+  const actorRole = actor.role;
+
+  let txResult: CreateLessonTxResult;
+  try {
+    txResult = await (async () => {
+        const [activeClassroom] = await db
+          .select({ id: classrooms.id })
+          .from(classrooms)
+          .where(and(eq(classrooms.id, input.classroomId), isNull(classrooms.deletedAt)))
+          .limit(1);
+        if (!activeClassroom) {
+          return { ok: false as const, reason: 'classroom_not_found' as const };
+        }
+
+        const teacherScope =
+          actorRole === 'admin'
+            ? and(eq(users.id, input.teacherId), isNull(users.deletedAt))
+            : and(
+                eq(users.id, input.teacherId),
+                eq(users.classroomId, input.classroomId),
+                isNull(users.deletedAt),
+              );
+
+        const [teacher] = await db.select({ id: users.id }).from(users).where(teacherScope).limit(1);
+        if (!teacher) {
+          return { ok: false as const, reason: 'teacher_invalid' as const };
+        }
+
+        const [student] = await db
+          .select({ id: students.id })
+          .from(students)
+          .where(
+            and(
+              eq(students.id, input.studentId),
+              eq(students.classroomId, input.classroomId),
+              isNull(students.deletedAt),
+            ),
+          )
+          .limit(1);
+        if (!student) {
+          return { ok: false as const, reason: 'student_invalid' as const };
+        }
+
+        if (input.subjectId) {
+          const [sub] = await db
+            .select({ id: subjects.id })
+            .from(subjects)
+            .where(
+              and(
+                eq(subjects.id, input.subjectId),
+                eq(subjects.classroomId, input.classroomId),
+                isNull(subjects.deletedAt),
+              ),
+            )
+            .limit(1);
+          if (!sub) {
+            return { ok: false as const, reason: 'subject_invalid' as const };
+          }
+        }
+
+        if (input.lessonTypeId) {
+          const [ltRow] = await db
+            .select({ id: lessonTypes.id })
+            .from(lessonTypes)
+            .where(
+              and(
+                eq(lessonTypes.id, input.lessonTypeId),
+                eq(lessonTypes.classroomId, input.classroomId),
+                isNull(lessonTypes.deletedAt),
+              ),
+            )
+            .limit(1);
+          if (!ltRow) {
+            return { ok: false as const, reason: 'lesson_type_invalid' as const };
+          }
+        }
+
+        const [teacherClash] = await db
+          .select({ id: lessons.id })
+          .from(lessons)
+          .where(
+            and(
+              eq(lessons.teacherId, input.teacherId),
+              isNull(lessons.deletedAt),
+              lt(lessons.startAt, input.endAt),
+              gt(lessons.endAt, input.startAt),
+            ),
+          )
+          .limit(1);
+        if (teacherClash) {
+          return { ok: false as const, reason: 'teacher_double_booking' as const };
+        }
+
+        const [studentClash] = await db
+          .select({ id: lessons.id })
+          .from(lessons)
+          .where(
+            and(
+              eq(lessons.studentId, input.studentId),
+              isNull(lessons.deletedAt),
+              lt(lessons.startAt, input.endAt),
+              gt(lessons.endAt, input.startAt),
+            ),
+          )
+          .limit(1);
+        if (studentClash) {
+          return { ok: false as const, reason: 'student_double_booking' as const };
+        }
+
+        await db.insert(lessons).values({
+          id,
+          teacherId: input.teacherId,
+          studentId: input.studentId,
+          classroomId: input.classroomId,
+          subjectId: input.subjectId ?? null,
+          lessonTypeId: input.lessonTypeId ?? null,
+          startAt: input.startAt,
+          endAt: input.endAt,
+          status: input.status ?? 'draft',
+          deletedAt: null,
+        });
+        return { ok: true as const };
+    })();
+  } catch (err) {
+    logApiError('POST /lessons', err);
+    if (isD1ForeignKeyViolation(err)) {
+      return c.json({ message: 'invalid reference' }, 400);
+    }
+    return c.json({ message: 'failed to create lesson' }, 500);
+  }
+
+  if (!txResult.ok) {
+    switch (txResult.reason) {
+      case 'classroom_not_found':
+        return c.json({ message: 'classroom not found' }, 404);
+      case 'teacher_invalid':
+        return c.json({ message: 'teacher not found or not in classroom' }, 400);
+      case 'student_invalid':
+        return c.json({ message: 'student not found or not in classroom' }, 400);
+      case 'subject_invalid':
+        return c.json({ message: 'subject not found' }, 400);
+      case 'lesson_type_invalid':
+        return c.json({ message: 'lesson type not found' }, 400);
+      case 'teacher_double_booking':
+        return c.json({ message: 'teacher schedule conflict' }, 409);
+      case 'student_double_booking':
+        return c.json({ message: 'student schedule conflict' }, 409);
+      default:
+        return c.json({ message: 'failed to create lesson' }, 500);
+    }
+  }
+
+  return c.json(
+    {
+      id,
+      teacherId: input.teacherId,
+      studentId: input.studentId,
+      classroomId: input.classroomId,
+      subjectId: input.subjectId ?? null,
+      lessonTypeId: input.lessonTypeId ?? null,
+      startAt: input.startAt,
+      endAt: input.endAt,
+      status: input.status ?? 'draft',
+    },
+    201,
+  );
+});
+
+type PatchLessonTxResult =
+  | { ok: true }
+  | {
+      ok: false;
+      reason:
+        | 'lesson_not_found'
+        | 'classroom_not_found'
+        | 'teacher_invalid'
+        | 'student_invalid'
+        | 'subject_invalid'
+        | 'lesson_type_invalid'
+        | 'teacher_double_booking'
+        | 'student_double_booking';
+    };
+
+app.patch('/lessons/:id', auth, loadUser, async (c) => {
+  const actor = c.var.currentUser;
+  const targetId = c.req.param('id');
+  if (!targetId) {
+    return c.json({ message: 'id is required' }, 400);
+  }
+
+  const body = await c.req.json<unknown>().catch(() => null);
+  const { input, error } = validatePatchLessonInput(body);
+  if (!input) {
+    return c.json({ message: error ?? 'invalid request' }, 400);
+  }
+
+  const db = getDb(c.env);
+  const [existing] = await db
+    .select()
+    .from(lessons)
+    .where(and(eq(lessons.id, targetId), isNull(lessons.deletedAt)))
+    .limit(1);
+
+  if (!existing) {
+    return c.json({ message: 'lesson not found' }, 404);
+  }
+
+  const scopeDenied = denyUnlessClassroomScope(c, existing.classroomId);
+  if (scopeDenied) {
+    return scopeDenied;
+  }
+
+  const mergedClassroomId = input.classroomId ?? existing.classroomId;
+  const mergedTeacherId = input.teacherId ?? existing.teacherId;
+  const mergedStudentId = input.studentId ?? existing.studentId;
+  const mergedSubjectId = input.subjectId !== undefined ? input.subjectId : existing.subjectId;
+  const mergedLessonTypeId =
+    input.lessonTypeId !== undefined ? input.lessonTypeId : existing.lessonTypeId;
+  const mergedStartAt = input.startAt ?? existing.startAt;
+  const mergedEndAt = input.endAt ?? existing.endAt;
+  const mergedStatus = input.status ?? existing.status;
+
+  if (mergedStartAt.getTime() >= mergedEndAt.getTime()) {
+    return c.json({ message: 'end must be after start' }, 400);
+  }
+
+  const patchScopeDenied = denyUnlessClassroomScope(c, mergedClassroomId);
+  if (patchScopeDenied) {
+    return patchScopeDenied;
+  }
+
+  const patchStaffTeacherDenied = denyUnlessStaffLessonTeacherIsSelf(c, actor, mergedTeacherId);
+  if (patchStaffTeacherDenied) {
+    return patchStaffTeacherDenied;
+  }
+
+  if (actor.role === 'manager') {
+    const [teacherUser] = await db
+      .select({ classroomId: users.classroomId })
+      .from(users)
+      .where(and(eq(users.id, mergedTeacherId), isNull(users.deletedAt)))
+      .limit(1);
+    if (!teacherUser || teacherUser.classroomId !== mergedClassroomId) {
+      return c.json({ message: 'forbidden' }, 403);
+    }
+  }
+
+  const actorRole = actor.role;
+
+  let txResult: PatchLessonTxResult;
+  try {
+    txResult = await (async () => {
+        const [stillThere] = await db
+          .select({ id: lessons.id })
+          .from(lessons)
+          .where(and(eq(lessons.id, targetId), isNull(lessons.deletedAt)))
+          .limit(1);
+        if (!stillThere) {
+          return { ok: false as const, reason: 'lesson_not_found' as const };
+        }
+
+        const [activeClassroom] = await db
+          .select({ id: classrooms.id })
+          .from(classrooms)
+          .where(and(eq(classrooms.id, mergedClassroomId), isNull(classrooms.deletedAt)))
+          .limit(1);
+        if (!activeClassroom) {
+          return { ok: false as const, reason: 'classroom_not_found' as const };
+        }
+
+        const mergedTeacherScope =
+          actorRole === 'admin'
+            ? and(eq(users.id, mergedTeacherId), isNull(users.deletedAt))
+            : and(
+                eq(users.id, mergedTeacherId),
+                eq(users.classroomId, mergedClassroomId),
+                isNull(users.deletedAt),
+              );
+
+        const [teacher] = await db.select({ id: users.id }).from(users).where(mergedTeacherScope).limit(1);
+        if (!teacher) {
+          return { ok: false as const, reason: 'teacher_invalid' as const };
+        }
+
+        const [student] = await db
+          .select({ id: students.id })
+          .from(students)
+          .where(
+            and(
+              eq(students.id, mergedStudentId),
+              eq(students.classroomId, mergedClassroomId),
+              isNull(students.deletedAt),
+            ),
+          )
+          .limit(1);
+        if (!student) {
+          return { ok: false as const, reason: 'student_invalid' as const };
+        }
+
+        if (mergedSubjectId) {
+          const [sub] = await db
+            .select({ id: subjects.id })
+            .from(subjects)
+            .where(
+              and(
+                eq(subjects.id, mergedSubjectId),
+                eq(subjects.classroomId, mergedClassroomId),
+                isNull(subjects.deletedAt),
+              ),
+            )
+            .limit(1);
+          if (!sub) {
+            return { ok: false as const, reason: 'subject_invalid' as const };
+          }
+        }
+
+        if (mergedLessonTypeId) {
+          const [ltRow] = await db
+            .select({ id: lessonTypes.id })
+            .from(lessonTypes)
+            .where(
+              and(
+                eq(lessonTypes.id, mergedLessonTypeId),
+                eq(lessonTypes.classroomId, mergedClassroomId),
+                isNull(lessonTypes.deletedAt),
+              ),
+            )
+            .limit(1);
+          if (!ltRow) {
+            return { ok: false as const, reason: 'lesson_type_invalid' as const };
+          }
+        }
+
+        const [teacherClash] = await db
+          .select({ id: lessons.id })
+          .from(lessons)
+          .where(
+            and(
+              eq(lessons.teacherId, mergedTeacherId),
+              isNull(lessons.deletedAt),
+              ne(lessons.id, targetId),
+              lt(lessons.startAt, mergedEndAt),
+              gt(lessons.endAt, mergedStartAt),
+            ),
+          )
+          .limit(1);
+        if (teacherClash) {
+          return { ok: false as const, reason: 'teacher_double_booking' as const };
+        }
+
+        const [studentClash] = await db
+          .select({ id: lessons.id })
+          .from(lessons)
+          .where(
+            and(
+              eq(lessons.studentId, mergedStudentId),
+              isNull(lessons.deletedAt),
+              ne(lessons.id, targetId),
+              lt(lessons.startAt, mergedEndAt),
+              gt(lessons.endAt, mergedStartAt),
+            ),
+          )
+          .limit(1);
+        if (studentClash) {
+          return { ok: false as const, reason: 'student_double_booking' as const };
+        }
+
+        const result = await db
+          .update(lessons)
+          .set({
+            teacherId: mergedTeacherId,
+            studentId: mergedStudentId,
+            classroomId: mergedClassroomId,
+            subjectId: mergedSubjectId,
+            lessonTypeId: mergedLessonTypeId,
+            startAt: mergedStartAt,
+            endAt: mergedEndAt,
+            status: mergedStatus,
+          })
+          .where(and(eq(lessons.id, targetId), isNull(lessons.deletedAt)));
+
+        if (result.meta.changes === 0) {
+          return { ok: false as const, reason: 'lesson_not_found' as const };
+        }
+        return { ok: true as const };
+    })();
+  } catch (err) {
+    logApiError('PATCH /lessons/:id', err);
+    if (isD1ForeignKeyViolation(err)) {
+      return c.json({ message: 'invalid reference' }, 400);
+    }
+    return c.json({ message: 'failed to update lesson' }, 500);
+  }
+
+  if (!txResult.ok) {
+    switch (txResult.reason) {
+      case 'lesson_not_found':
+        return c.json({ message: 'lesson not found' }, 404);
+      case 'classroom_not_found':
+        return c.json({ message: 'classroom not found' }, 404);
+      case 'teacher_invalid':
+        return c.json({ message: 'teacher not found or not in classroom' }, 400);
+      case 'student_invalid':
+        return c.json({ message: 'student not found or not in classroom' }, 400);
+      case 'subject_invalid':
+        return c.json({ message: 'subject not found' }, 400);
+      case 'lesson_type_invalid':
+        return c.json({ message: 'lesson type not found' }, 400);
+      case 'teacher_double_booking':
+        return c.json({ message: 'teacher schedule conflict' }, 409);
+      case 'student_double_booking':
+        return c.json({ message: 'student schedule conflict' }, 409);
+      default:
+        return c.json({ message: 'failed to update lesson' }, 500);
+    }
+  }
+
+  return c.json(
+    {
+      id: targetId,
+      teacherId: mergedTeacherId,
+      studentId: mergedStudentId,
+      classroomId: mergedClassroomId,
+      subjectId: mergedSubjectId,
+      lessonTypeId: mergedLessonTypeId,
+      startAt: mergedStartAt,
+      endAt: mergedEndAt,
+      status: mergedStatus,
+    },
+    200,
+  );
+});
+
+app.delete('/lessons/:id', auth, loadUser, async (c) => {
+  const actor = c.var.currentUser;
+  const targetId = c.req.param('id');
+  if (!targetId) {
+    return c.json({ message: 'id is required' }, 400);
+  }
+
+  const db = getDb(c.env);
+  const [row] = await db
+    .select({ id: lessons.id, classroomId: lessons.classroomId, teacherId: lessons.teacherId })
+    .from(lessons)
+    .where(and(eq(lessons.id, targetId), isNull(lessons.deletedAt)))
+    .limit(1);
+
+  if (!row) {
+    return c.json({ message: 'lesson not found' }, 404);
+  }
+
+  const scopeDenied = denyUnlessClassroomScope(c, row.classroomId);
+  if (scopeDenied) {
+    return scopeDenied;
+  }
+
+  if (actor.role === 'staff' && row.teacherId !== actor.id) {
+    return c.json({ message: 'forbidden' }, 403);
+  }
+
+  if (actor.role === 'manager') {
+    const [teacherUser] = await db
+      .select({ classroomId: users.classroomId })
+      .from(users)
+      .where(and(eq(users.id, row.teacherId), isNull(users.deletedAt)))
+      .limit(1);
+    if (!teacherUser || teacherUser.classroomId !== row.classroomId) {
+      return c.json({ message: 'forbidden' }, 403);
+    }
+  }
+
+  const deletedAt = new Date();
+  const result = await db
+    .update(lessons)
+    .set({ deletedAt })
+    .where(and(eq(lessons.id, targetId), isNull(lessons.deletedAt)));
+
+  if (result.meta.changes === 0) {
+    return c.json({ message: 'lesson not found' }, 404);
+  }
+
   return c.json({ success: true }, 200);
 });
 
