@@ -1630,13 +1630,11 @@ app.post('/lessons', auth, loadUser, async (c) => {
         const teacherScope =
           actorRole === 'admin'
             ? and(eq(users.id, input.teacherId), isNull(users.deletedAt))
-            : actorRole === 'manager'
-              ? and(eq(users.id, input.teacherId), eq(users.classroomId, input.classroomId))
-              : and(
-                  eq(users.id, input.teacherId),
-                  eq(users.classroomId, input.classroomId),
-                  isNull(users.deletedAt),
-                );
+            : and(
+                eq(users.id, input.teacherId),
+                eq(users.classroomId, input.classroomId),
+                isNull(users.deletedAt),
+              );
 
         const [teacher] = await db.select({ id: users.id }).from(users).where(teacherScope).limit(1);
         if (!teacher) {
@@ -1888,13 +1886,11 @@ app.patch('/lessons/:id', auth, loadUser, async (c) => {
         const mergedTeacherScope =
           actorRole === 'admin'
             ? and(eq(users.id, mergedTeacherId), isNull(users.deletedAt))
-            : actorRole === 'manager'
-              ? and(eq(users.id, mergedTeacherId), eq(users.classroomId, mergedClassroomId))
-              : and(
-                  eq(users.id, mergedTeacherId),
-                  eq(users.classroomId, mergedClassroomId),
-                  isNull(users.deletedAt),
-                );
+            : and(
+                eq(users.id, mergedTeacherId),
+                eq(users.classroomId, mergedClassroomId),
+                isNull(users.deletedAt),
+              );
 
         const [teacher] = await db.select({ id: users.id }).from(users).where(mergedTeacherScope).limit(1);
         if (!teacher) {
