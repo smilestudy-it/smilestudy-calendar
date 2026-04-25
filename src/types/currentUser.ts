@@ -1,5 +1,8 @@
+import type { AppRole } from './role';
+
 export type CurrentUser = {
   id: string;
-  role: 'admin' | 'manager' | 'staff' | null;
+  /** API の users.role。未登録や欠損のとき null */
+  role: AppRole | null;
   classroomId: string | null;
 };

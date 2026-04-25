@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { ja } from 'date-fns/locale';
 import { format } from 'date-fns';
 import { Button } from '@/components/ui/button';
@@ -13,7 +13,10 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
+import { useAuthedFetch } from '@/hooks/useAuthedFetch';
 import { combineLocalDateAndHm } from '@/lib/calendarTime';
+import { ROLE_LABEL_JA } from '@/constants/roles';
+import type { AppRole } from '@/types/role';
 
 type TeacherRow = {
   id: string;
@@ -36,7 +39,8 @@ type Props = {
   onCreated: () => void;
   /** staff のとき API 上は自分のみ登録可（一覧は全員表示し、選択は自分のみ有効） */
   actorUserId: string;
-  actorRole: 'admin' | 'manager' | 'staff' | null;
+  /** コマ登録の権限（staff は自分にのみ講師を固定） */
+  actorRole: AppRole | null;
 };
 
 async function readApiError(res: Response, fallback: string): Promise<string> {
@@ -71,19 +75,7 @@ export default function CreateLessonDialog({
   const [lessonTypeId, setLessonTypeId] = useState<string>('');
   const [timeSlotId, setTimeSlotId] = useState<string>('');
 
-  const authedFetch = useCallback(
-    async (path: string, init?: RequestInit) => {
-      const token = await getAccessTokenSilently();
-      return fetch(path, {
-        ...init,
-        headers: {
-          Authorization: `Bearer ${token}`,
-          ...(init?.headers ?? {}),
-        },
-      });
-    },
-    [getAccessTokenSilently],
-  );
+  const authedFetch = useAuthedFetch(getAccessTokenSilently);
 
   useEffect(() => {
     if (open) {
@@ -264,7 +256,9 @@ export default function CreateLessonDialog({
                 <SelectContent>
                   {teachers.map((t) => {
                     const roleLabel =
-                      t.role === 'admin' ? '管理者' : t.role === 'manager' ? '教室長' : null;
+                      t.role === 'admin' || t.role === 'manager'
+                        ? ROLE_LABEL_JA[t.role as 'admin' | 'manager']
+                        : null;
                     const staffLocked = actorRole === 'staff' && t.id !== actorUserId;
                     return (
                       <SelectItem key={t.id} value={t.id} disabled={staffLocked}>

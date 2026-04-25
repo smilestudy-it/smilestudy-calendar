@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { NavLink } from 'react-router-dom';
 import type { ReactNode } from 'react';
+import { canAccessCalendar, canAccessPresetsSettings } from '@/constants/roles';
 import LogoutButton from '../LogoutButton';
 
 type Props = {
@@ -82,7 +83,7 @@ export default function AppShell({
           >
             生徒管理
           </NavLink>
-          {(role === 'admin' || role === 'manager' || role === 'staff') && (
+          {canAccessCalendar(role) && (
             <NavLink
               to="/calendar"
               className={({ isActive }) =>
@@ -93,7 +94,7 @@ export default function AppShell({
               カレンダー
             </NavLink>
           )}
-          {(role === 'admin' || role === 'manager') && (
+          {canAccessPresetsSettings(role) && (
             <NavLink
               to="/settings/presets"
               className={({ isActive }) =>

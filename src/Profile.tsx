@@ -1,15 +1,10 @@
 import { useAuth0 } from "@auth0/auth0-react";
 import { useEffect, useState } from "react";
-
-type AppUser = {
-  id: string;
-  role: 'admin' | 'manager' | 'staff' | null;
-  classroomId: string | null;
-};
+import type { CurrentUser } from "./types/currentUser";
 
 const Profile = () => {
   const { user, isAuthenticated, isLoading, getAccessTokenSilently } = useAuth0();
-  const [appUser, setAppUser] = useState<AppUser | null>(null);
+  const [appUser, setAppUser] = useState<CurrentUser | null>(null);
 
   useEffect(() => {
     if (!isAuthenticated) {
@@ -30,7 +25,7 @@ const Profile = () => {
           return;
         }
 
-        const data = (await response.json()) as AppUser;
+        const data = (await response.json()) as CurrentUser;
         if (!cancelled) {
           setAppUser(data);
         }
