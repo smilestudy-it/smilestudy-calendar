@@ -53,6 +53,7 @@ export default function AppShell({
   const [classrooms, setClassrooms] = useState<Classroom[]>([]);
   const [selectedClassroomId, setSelectedClassroomId] = useState('');
   const [isLoadingClassrooms, setIsLoadingClassrooms] = useState(false);
+  const [classroomsError, setClassroomsError] = useState<string | null>(null);
   const authedFetch = useAuthedFetch(getAccessTokenSilently);
   const isAdmin = currentUser?.role === 'admin';
 
@@ -84,6 +85,10 @@ export default function AppShell({
         }
         setClassrooms(data);
         setSelectedClassroomId((prev) => (prev ? prev : data[0]?.id ?? ''));
+      } catch (error) {
+        if (!cancelled) {
+          setClassroomsError('教室一覧の取得に失敗しました。');
+        }
       } finally {
         if (!cancelled) {
           setIsLoadingClassrooms(false);
@@ -209,6 +214,9 @@ export default function AppShell({
                       ))}
                     </SelectContent>
                   </Select>
+                  {classroomsError && (
+                    <p className="mt-2 text-sm text-rose-600">{classroomsError}</p>
+                  )}
                 </div>
               )}
 

@@ -284,8 +284,8 @@ export default function StudentManagementPanel({ currentUser, getAccessTokenSile
   return (
     <section className="space-y-8">
       <header className="space-y-2 border-b border-slate-200 pb-6">
-        <p className="text-xs font-semibold uppercase tracking-wider text-emerald-400/90">Students</p>
-        <h2 className="text-xl font-bold tracking-tight text-slate-50 md:text-2xl">生徒管理</h2>
+        <p className="text-xs font-semibold uppercase tracking-wider text-emerald-600">Students</p>
+        <h2 className="text-xl font-bold tracking-tight text-slate-900 md:text-2xl">生徒管理</h2>
         <p className="max-w-2xl text-sm leading-relaxed text-slate-500">
           {canManageStudents
             ? '教室ごとに生徒を登録・一覧・削除できます。出生年はカレンダー年度の参照用として保存されます。'
@@ -294,7 +294,7 @@ export default function StudentManagementPanel({ currentUser, getAccessTokenSile
       </header>
 
       {canManageStudents && (
-      <section className="space-y-4 rounded-xl border border-slate-200/80 bg-gradient-to-br from-slate-900/90 to-slate-950/90 p-4 shadow-lg ring-1 ring-emerald-500/10 md:p-5">
+      <section className="space-y-4 rounded-xl border border-slate-200/80 bg-gradient-to-br from-slate-50 to-slate-100 p-4 shadow-lg ring-1 ring-emerald-500/10 md:p-5">
         <h3 className="text-base font-semibold text-slate-900">生徒を登録</h3>
         <form onSubmit={handleSubmit(handleCreateStudent)} className="grid grid-cols-1 gap-3 md:grid-cols-2 md:gap-4">
           {isAdmin && (
@@ -438,7 +438,7 @@ export default function StudentManagementPanel({ currentUser, getAccessTokenSile
         ) : (
           <div className="space-y-2">
             {shareCopyError ? (
-              <p className="text-sm text-amber-200/90" role="status">
+              <p className="text-sm text-amber-700" role="status">
                 {shareCopyError}
               </p>
             ) : null}

@@ -74,12 +74,13 @@ export default function CalendarPage({
 
   const reloadWeek = useCallback(async () => {
     const requestId = ++weekRequestIdRef.current;
-    setIsLoadingWeek(true);
     setListError(null);
     if(!activeClassroom){
       setLessons([]);
+      setIsLoadingWeek(false);
       return;
     }
+    setIsLoadingWeek(true);
     try {
       const from = weekStart.toISOString();
       const to = weekEndExclusive.toISOString();
@@ -188,7 +189,7 @@ export default function CalendarPage({
       </div>
 
       {!activeClassroom && (
-        <p className="text-sm text-amber-200/90">教室を選択してください。</p>
+        <p className="text-sm text-amber-700">教室を選択してください。</p>
       )}
 
       {listError && <p className="text-sm text-rose-600">{listError}</p>}

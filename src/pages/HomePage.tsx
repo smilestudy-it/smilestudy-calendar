@@ -46,7 +46,7 @@ export default function HomePage({ currentUser }: Props) {
       {activeClassroom ? (
         <p className="text-sm text-slate-500">現在の教室: {activeClassroom.name}</p>
       ) : (
-        <p className="text-sm text-amber-200/90">教室が設定されていません。</p>
+        <p className="text-sm text-amber-700">教室が設定されていません。</p>
       )}
     </section>
   );

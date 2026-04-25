@@ -69,7 +69,7 @@ function App() {
       <div className="flex min-h-screen items-center justify-center bg-slate-50 px-4 py-10 text-slate-900">
         <div className="w-full max-w-lg rounded-2xl border border-rose-200/60 bg-rose-100/40 p-8 shadow-2xl">
           <h1 className="text-2xl font-bold text-rose-700">Auth Error</h1>
-          <p className="mt-3 text-sm text-rose-100/90">認証に失敗しました。もう一度お試しください。</p>
+          <p className="mt-3 text-sm text-rose-700">認証に失敗しました。もう一度お試しください。</p>
         </div>
       </div>
     );

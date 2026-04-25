@@ -372,8 +372,8 @@ export default function PresetsSettingsPanel({ currentUser, getAccessTokenSilent
   return (
     <section className="space-y-8">
       <header className="space-y-2 border-b border-slate-200 pb-6">
-        <p className="text-xs font-semibold uppercase tracking-wider text-cyan-400/90">Presets</p>
-        <h2 className="text-xl font-bold tracking-tight text-slate-50 md:text-2xl">授業プリセット</h2>
+        <p className="text-xs font-semibold uppercase tracking-wider text-cyan-600">Presets</p>
+        <h2 className="text-xl font-bold tracking-tight text-slate-900 md:text-2xl">授業プリセット</h2>
         <p className="max-w-2xl text-sm leading-relaxed text-slate-500">
           科目・授業種別・時間枠の選択肢を教室ごとに管理します。無効化した項目は一覧に表示されず、新規コマで選べなくなります。
         </p>
