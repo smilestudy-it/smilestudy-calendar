@@ -2,9 +2,7 @@
  * （責務）管理画面の共通シェル。ナビ・ユーザ情報枠と子 route の描画。
  */
 import { useState } from 'react';
-import { NavLink } from 'react-router-dom';
 import type { ReactNode } from 'react';
-import { canAccessCalendar, canAccessPresetsSettings } from '@/constants/roles';
 import LogoutButton from '../LogoutButton';
 
 type Props = {
@@ -18,10 +16,6 @@ type Props = {
 };
 
 export default function AppShell({
-  userName,
-  userEmail,
-  role,
-  classroomId,
   isLoadingCurrentUser,
   currentUserError,
   children,
@@ -47,74 +41,6 @@ export default function AppShell({
             </button>
             <LogoutButton />
           </div>
-        </div>
-
-        <nav className={`${isMenuOpen ? 'flex' : 'hidden'} flex-col gap-2 md:flex md:flex-row`}>
-          <NavLink
-            to="/"
-            className={({ isActive }) =>
-              `rounded-lg px-3 py-2 text-sm font-medium transition ${isActive ? 'bg-indigo-500/20 text-indigo-200' : 'bg-slate-800 text-slate-200 hover:bg-slate-700'}`
-            }
-            onClick={() => setIsMenuOpen(false)}
-          >
-            ホーム
-          </NavLink>
-          <NavLink
-            to="/classroom"
-            className={({ isActive }) =>
-              `rounded-lg px-3 py-2 text-sm font-medium transition ${isActive ? 'bg-indigo-500/20 text-indigo-200' : 'bg-slate-800 text-slate-200 hover:bg-slate-700'}`
-            }
-            onClick={() => setIsMenuOpen(false)}
-          >
-            教室管理
-          </NavLink>
-          <NavLink
-            to="/teachers"
-            className={({ isActive }) =>
-              `rounded-lg px-3 py-2 text-sm font-medium transition ${isActive ? 'bg-indigo-500/20 text-indigo-200' : 'bg-slate-800 text-slate-200 hover:bg-slate-700'}`
-            }
-            onClick={() => setIsMenuOpen(false)}
-          >
-            講師管理
-          </NavLink>
-          <NavLink
-            to="/students"
-            className={({ isActive }) =>
-              `rounded-lg px-3 py-2 text-sm font-medium transition ${isActive ? 'bg-indigo-500/20 text-indigo-200' : 'bg-slate-800 text-slate-200 hover:bg-slate-700'}`
-            }
-            onClick={() => setIsMenuOpen(false)}
-          >
-            生徒管理
-          </NavLink>
-          {canAccessCalendar(role) && (
-            <NavLink
-              to="/calendar"
-              className={({ isActive }) =>
-                `rounded-lg px-3 py-2 text-sm font-medium transition ${isActive ? 'bg-indigo-500/20 text-indigo-200' : 'bg-slate-800 text-slate-200 hover:bg-slate-700'}`
-              }
-              onClick={() => setIsMenuOpen(false)}
-            >
-              カレンダー
-            </NavLink>
-          )}
-          {canAccessPresetsSettings(role) && (
-            <NavLink
-              to="/settings/presets"
-              className={({ isActive }) =>
-                `rounded-lg px-3 py-2 text-sm font-medium transition ${isActive ? 'bg-indigo-500/20 text-indigo-200' : 'bg-slate-800 text-slate-200 hover:bg-slate-700'}`
-              }
-              onClick={() => setIsMenuOpen(false)}
-            >
-              授業プリセット
-            </NavLink>
-          )}
-        </nav>
-
-        <div className="grid gap-2 rounded-xl border border-slate-800 bg-slate-950/60 p-4 text-sm md:grid-cols-2">
-          <p><span className="font-semibold text-slate-300">name:</span> {userName ?? '-'}</p>
-          <p><span className="font-semibold text-slate-300">email:</span> {userEmail ?? '-'}</p>
-          <p><span className="font-semibold text-slate-300">role:</span> {role}</p>
-          <p><span className="font-semibold text-slate-300">classroom_id:</span> {classroomId}</p>
         </div>
 
         {isLoadingCurrentUser && <p className="text-sm text-slate-400">ユーザー情報を読み込み中...</p>}

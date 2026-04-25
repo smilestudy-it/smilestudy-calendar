@@ -124,7 +124,7 @@ export default function PresetsSettingsPanel({ currentUser, getAccessTokenSilent
         setIsLoadingPresets(false);
       }
     }
-  }, [loadClassroomPresets, activeClassroomId]);
+  }, [loadClassroomPresets]);
 
   useEffect(() => {
     void loadClassrooms();

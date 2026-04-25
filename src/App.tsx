@@ -80,7 +80,7 @@ function App() {
       <div className="flex min-h-screen items-center justify-center bg-slate-950 px-4 py-10 text-slate-100">
         <div className="w-full max-w-lg rounded-2xl border border-slate-800 bg-slate-900 p-8 shadow-2xl">
           <h1 className="text-3xl font-bold tracking-tight">Smile Study Calendar</h1>
-          <p className="mt-3 text-sm text-slate-300">ログインして教室管理画面にアクセスしてください。</p>
+          <p className="mt-3 text-sm text-slate-300">ログインしてください。</p>
           <LoginButton />
         </div>
       </div>
