@@ -87,6 +87,7 @@ export default function AppShell({
         setSelectedClassroomId((prev) => (prev ? prev : data[0]?.id ?? ''));
       } catch (error) {
         if (!cancelled) {
+          console.error(error);
           setClassroomsError('教室一覧の取得に失敗しました。');
         }
       } finally {
