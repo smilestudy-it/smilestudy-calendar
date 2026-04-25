@@ -4,7 +4,7 @@
 import { useAuth0 } from '@auth0/auth0-react';
 import { lazy, Suspense, useEffect } from 'react';
 import { Navigate, Route, Routes, useLocation } from 'react-router-dom';
-import LoginButton from './LoginButton';
+import LoginButton from './components/ui/LoginButton';
 import AppShell from './components/AppShell';
 import { useCurrentUser } from './hooks/useCurrentUser';
 

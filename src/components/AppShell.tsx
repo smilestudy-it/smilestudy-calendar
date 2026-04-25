@@ -3,7 +3,7 @@
  */
 import { useState } from 'react';
 import type { ReactNode } from 'react';
-import LogoutButton from '../LogoutButton';
+import LogoutButton from './ui/LogoutButton';
 
 type Props = {
   userName?: string;
