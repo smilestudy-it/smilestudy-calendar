@@ -49,13 +49,11 @@ type PresetRow = { id: string; name: string };
 
 type Props = {
   currentUser: CurrentUser | null;
-  isLoadingCurrentUser: boolean;
   getAccessTokenSilently: () => Promise<string>;
 };
 
 export default function CalendarPage({
   currentUser,
-  isLoadingCurrentUser,
   getAccessTokenSilently,
 }: Props) {
   const isAdmin = currentUser?.role === 'admin';
@@ -208,15 +206,7 @@ export default function CalendarPage({
     return m;
   }, [lessonTypes]);
 
-  if (isLoadingCurrentUser) {
-    return <p className="text-sm text-slate-300">ユーザー情報を読み込み中...</p>;
-  }
-
   if (!currentUser) {
-    return <p className="text-sm text-slate-300">ログインが必要です。</p>;
-  }
-
-  if (currentUser.role !== 'admin' && currentUser.role !== 'manager' && currentUser.role !== 'staff') {
     return <p className="text-sm text-slate-300">この画面にアクセスできません。</p>;
   }
 

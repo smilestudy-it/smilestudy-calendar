@@ -106,7 +106,6 @@ function App() {
             element={
               <ClassroomPage
                 currentUser={currentUser}
-                isLoadingCurrentUser={isLoadingCurrentUser}
                 getAccessTokenSilently={getAccessTokenSilently}
               />
             }
@@ -116,7 +115,6 @@ function App() {
             element={
               <TeacherManagementPage
                 currentUser={currentUser}
-                isLoadingCurrentUser={isLoadingCurrentUser}
                 getAccessTokenSilently={getAccessTokenSilently}
               />
             }
@@ -126,7 +124,6 @@ function App() {
             element={
               <StudentManagementPage
                 currentUser={currentUser}
-                isLoadingCurrentUser={isLoadingCurrentUser}
                 getAccessTokenSilently={getAccessTokenSilently}
               />
             }
@@ -136,7 +133,6 @@ function App() {
             element={
               <PresetsSettingsPage
                 currentUser={currentUser}
-                isLoadingCurrentUser={isLoadingCurrentUser}
                 getAccessTokenSilently={getAccessTokenSilently}
               />
             }
@@ -146,7 +142,6 @@ function App() {
             element={
               <CalendarPage
                 currentUser={currentUser}
-                isLoadingCurrentUser={isLoadingCurrentUser}
                 getAccessTokenSilently={getAccessTokenSilently}
               />
             }

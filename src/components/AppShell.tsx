@@ -43,10 +43,11 @@ export default function AppShell({
           </div>
         </div>
 
-        {isLoadingCurrentUser && <p className="text-sm text-slate-400">ユーザー情報を読み込み中...</p>}
-        {currentUserError && <p className="text-sm text-rose-300">{currentUserError}</p>}
-
-        {children}
+        {isLoadingCurrentUser ? (<p className="text-sm text-slate-400">ユーザー情報を読み込み中...</p>)
+          : (currentUserError ? <p className="text-sm text-rose-300">{currentUserError}</p>
+            : children
+          )
+        }
       </div>
     </div>
   );
