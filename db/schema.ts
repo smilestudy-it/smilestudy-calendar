@@ -1,3 +1,6 @@
+/**
+ * （責務）Drizzle SQLite スキーマ定義。教室・ユーザ・生徒・コマ等のテーブル。
+ */
 import { sql } from 'drizzle-orm';
 import { sqliteTable, text, integer, uniqueIndex } from 'drizzle-orm/sqlite-core';
 

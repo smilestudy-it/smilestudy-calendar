@@ -1,3 +1,6 @@
+/**
+ * （責務）生徒 CRUD・一覧系 API の Vitest。
+ */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { SQL } from 'drizzle-orm';
 import { SQLiteSyncDialect } from 'drizzle-orm/sqlite-core';

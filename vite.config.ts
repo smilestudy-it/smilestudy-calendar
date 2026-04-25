@@ -1,3 +1,6 @@
+/**
+ * （責務）Vite ビルド設定。React（SWC）・Tailwind エイリアス等。
+ */
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { defineConfig } from 'vite'

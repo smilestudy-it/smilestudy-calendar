@@ -1,3 +1,6 @@
+/**
+ * （責務）講師管理ページの枠。TeacherManagementPanel を包む。
+ */
 import TeacherManagementPanel from '../components/TeacherManagementPanel';
 import type { CurrentUser } from '../types/currentUser';
 

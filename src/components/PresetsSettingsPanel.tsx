@@ -1,48 +1,34 @@
-import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
+/**
+ * （責務）授業プリセット管理のコンテナ。科目/種別/枠の各ブロックを束ねる。
+ */
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useAuthedFetch } from '@/hooks/useAuthedFetch';
+import { useClassroomPresetsData } from '@/hooks/useClassroomPresetsData';
+import LessonTypesBlock from '@/components/presets/LessonTypesBlock';
+import {
+  presetMutationNetworkError,
+  readPresetApiError,
+  toHm,
+} from '@/components/presets/presetFormUtils';
+import SubjectsBlock from '@/components/presets/SubjectsBlock';
+import TimeSlotsBlock from '@/components/presets/TimeSlotsBlock';
+import type { ClassroomListItem, LessonTypeListItem, SubjectListItem, TimeSlotListItem } from '@/types/api';
 import type { CurrentUser } from '../types/currentUser';
 
-/** `<input type="time">` の値を API の `HH:mm` に揃える */
-function toHm(v: string): string {
-  const parts = v.trim().split(':');
-  if (parts.length >= 2) {
-    const h = parts[0]?.padStart(2, '0') ?? '00';
-    const m = (parts[1] ?? '00').slice(0, 2).padStart(2, '0');
-    return `${h}:${m}`;
-  }
-  return v.trim();
-}
-
-function presetMutationNetworkError(prefix: string, e: unknown): string {
-  if (e instanceof Error) {
-    return `${prefix}: ${e.message}`;
-  }
-  return 'ネットワークエラーが発生しました。';
-}
-
-async function readPresetApiError(
-  res: Response,
-  options: { fallback: string; invalidRequestHint: string },
-): Promise<string> {
-  const body = (await res.json().catch(() => ({}))) as { message?: string };
-  if (body.message === 'invalid request') {
-    return options.invalidRequestHint;
-  }
-  if (body.message) {
-    return `${options.fallback}（${body.message}）`;
-  }
-  return options.fallback;
-}
-
-type Classroom = { id: string; name: string };
-type SubjectRow = { id: string; name: string };
-type LessonTypeRow = { id: string; name: string };
-type TimeSlotRow = { id: string; startTime: string; endTime: string };
+type SubjectRow = SubjectListItem;
+type LessonTypeRow = LessonTypeListItem;
+type TimeSlotRow = TimeSlotListItem;
+type Classroom = ClassroomListItem;
 
 type Props = {
   currentUser: CurrentUser;
   getAccessTokenSilently: () => Promise<string>;
 };
 
+/**
+ * 管理者: 全教室のプリセット。教室長: 自教室のみ。
+ * 科目・授業種別・時間枠の CRUD は `presets/*` 子コンポーネントに委譲。
+ */
 export default function PresetsSettingsPanel({ currentUser, getAccessTokenSilently }: Props) {
   const isAdmin = currentUser.role === 'admin';
 
@@ -73,19 +59,8 @@ export default function PresetsSettingsPanel({ currentUser, getAccessTokenSilent
   const loadPresetsGen = useRef(0);
   const loadPresetsAbortRef = useRef<AbortController | null>(null);
 
-  const authedFetch = useCallback(
-    async (path: string, init?: RequestInit) => {
-      const token = await getAccessTokenSilently();
-      return fetch(path, {
-        ...init,
-        headers: {
-          Authorization: `Bearer ${token}`,
-          ...(init?.headers ?? {}),
-        },
-      });
-    },
-    [getAccessTokenSilently],
-  );
+  const authedFetch = useAuthedFetch(getAccessTokenSilently);
+  const loadClassroomPresets = useClassroomPresetsData(authedFetch);
 
   const loadClassrooms = useCallback(async () => {
     if (!isAdmin) {
@@ -126,21 +101,17 @@ export default function PresetsSettingsPanel({ currentUser, getAccessTokenSilent
     setIsLoadingPresets(true);
     setError(null);
     try {
-      const [sRes, lRes, tRes] = await Promise.all([
-        authedFetch(`/api/classrooms/${classroomAtStart}/subjects`, { signal: ac.signal }),
-        authedFetch(`/api/classrooms/${classroomAtStart}/lesson-types`, { signal: ac.signal }),
-        authedFetch(`/api/classrooms/${classroomAtStart}/time-slots`, { signal: ac.signal }),
-      ]);
+      const result = await loadClassroomPresets(classroomAtStart, ac.signal);
       if (gen !== loadPresetsGen.current || activeClassroomIdRef.current !== classroomAtStart) {
         return;
       }
-      if (!sRes.ok || !lRes.ok || !tRes.ok) {
+      if (!result.ok) {
         setError('プリセット一覧の取得に失敗しました。');
         return;
       }
-      setSubjects((await sRes.json()) as SubjectRow[]);
-      setLessonTypes((await lRes.json()) as LessonTypeRow[]);
-      setTimeSlots((await tRes.json()) as TimeSlotRow[]);
+      setSubjects(result.subjects);
+      setLessonTypes(result.lessonTypes);
+      setTimeSlots(result.timeSlots);
       setDraftNames({});
       setDraftSlots({});
     } catch (e) {
@@ -153,7 +124,7 @@ export default function PresetsSettingsPanel({ currentUser, getAccessTokenSilent
         setIsLoadingPresets(false);
       }
     }
-  }, [authedFetch]);
+  }, [loadClassroomPresets, activeClassroomId]);
 
   useEffect(() => {
     void loadClassrooms();
@@ -442,232 +413,40 @@ export default function PresetsSettingsPanel({ currentUser, getAccessTokenSilent
         <p className="text-sm text-slate-400">読み込み中…</p>
       ) : (
         <div className="space-y-10">
-          <PresetSection title="科目">
-            <form onSubmit={handleAddSubject} className="flex flex-wrap items-end gap-2">
-              <div className="min-w-[12rem] flex-1">
-                <label htmlFor="new-subject" className="mb-1 block text-xs text-slate-400">
-                  追加
-                </label>
-                <input
-                  id="new-subject"
-                  value={newSubjectName}
-                  onChange={(e) => setNewSubjectName(e.target.value)}
-                  placeholder="例: 英語"
-                  maxLength={100}
-                  className="w-full rounded-lg border border-slate-700 bg-slate-800/80 px-3 py-2 text-slate-100 placeholder:text-slate-500 focus:border-cyan-500/60 focus:outline-none focus:ring-2 focus:ring-cyan-500/25"
-                />
-              </div>
-              <button
-                type="submit"
-                className="rounded-lg bg-cyan-600 px-4 py-2 text-sm font-semibold text-white hover:bg-cyan-500"
-              >
-                追加
-              </button>
-            </form>
-            <ul className="mt-4 space-y-2">
-              {subjects.map((row) => (
-                <li
-                  key={row.id}
-                  className="flex flex-col gap-2 rounded-xl border border-slate-800 bg-slate-950/60 p-3 sm:flex-row sm:items-center"
-                >
-                  <input
-                    aria-label={`科目 ${row.name}`}
-                    value={draftNames[row.id] ?? row.name}
-                    onChange={(e) => setDraftNames((prev) => ({ ...prev, [row.id]: e.target.value }))}
-                    maxLength={100}
-                    className="min-w-0 flex-1 rounded-lg border border-slate-700 bg-slate-800/80 px-3 py-2 text-slate-100"
-                  />
-                  <div className="flex shrink-0 flex-wrap gap-2">
-                    <button
-                      type="button"
-                      className="rounded-lg border border-slate-600 px-3 py-1.5 text-sm text-slate-200 hover:bg-slate-800"
-                      onClick={() => void patchSubject(row.id)}
-                    >
-                      更新
-                    </button>
-                    <button
-                      type="button"
-                      className="rounded-lg border border-rose-500/40 bg-rose-950/50 px-3 py-1.5 text-sm text-rose-200 hover:bg-rose-900/60"
-                      onClick={() => void disableSubject(row.id)}
-                    >
-                      無効化
-                    </button>
-                  </div>
-                </li>
-              ))}
-              {subjects.length === 0 && (
-                <li className="text-sm text-slate-500">科目がまだありません。</li>
-              )}
-            </ul>
-          </PresetSection>
-
-          <PresetSection title="授業種別">
-            <form onSubmit={handleAddLessonType} className="flex flex-wrap items-end gap-2">
-              <div className="min-w-[12rem] flex-1">
-                <label htmlFor="new-lesson-type" className="mb-1 block text-xs text-slate-400">
-                  追加
-                </label>
-                <input
-                  id="new-lesson-type"
-                  value={newLessonTypeName}
-                  onChange={(e) => setNewLessonTypeName(e.target.value)}
-                  placeholder="例: 通常"
-                  maxLength={100}
-                  className="w-full rounded-lg border border-slate-700 bg-slate-800/80 px-3 py-2 text-slate-100 placeholder:text-slate-500 focus:border-cyan-500/60 focus:outline-none focus:ring-2 focus:ring-cyan-500/25"
-                />
-              </div>
-              <button
-                type="submit"
-                className="rounded-lg bg-cyan-600 px-4 py-2 text-sm font-semibold text-white hover:bg-cyan-500"
-              >
-                追加
-              </button>
-            </form>
-            <ul className="mt-4 space-y-2">
-              {lessonTypes.map((row) => (
-                <li
-                  key={row.id}
-                  className="flex flex-col gap-2 rounded-xl border border-slate-800 bg-slate-950/60 p-3 sm:flex-row sm:items-center"
-                >
-                  <input
-                    aria-label={`授業種別 ${row.name}`}
-                    value={draftNames[row.id] ?? row.name}
-                    onChange={(e) => setDraftNames((prev) => ({ ...prev, [row.id]: e.target.value }))}
-                    maxLength={100}
-                    className="min-w-0 flex-1 rounded-lg border border-slate-700 bg-slate-800/80 px-3 py-2 text-slate-100"
-                  />
-                  <div className="flex shrink-0 flex-wrap gap-2">
-                    <button
-                      type="button"
-                      className="rounded-lg border border-slate-600 px-3 py-1.5 text-sm text-slate-200 hover:bg-slate-800"
-                      onClick={() => void patchLessonType(row.id)}
-                    >
-                      更新
-                    </button>
-                    <button
-                      type="button"
-                      className="rounded-lg border border-rose-500/40 bg-rose-950/50 px-3 py-1.5 text-sm text-rose-200 hover:bg-rose-900/60"
-                      onClick={() => void disableLessonType(row.id)}
-                    >
-                      無効化
-                    </button>
-                  </div>
-                </li>
-              ))}
-              {lessonTypes.length === 0 && (
-                <li className="text-sm text-slate-500">授業種別がまだありません。</li>
-              )}
-            </ul>
-          </PresetSection>
-
-          <PresetSection title="時間枠">
-            <form onSubmit={handleAddTimeSlot} className="flex flex-wrap items-end gap-2">
-              <div>
-                <label htmlFor="new-slot-start" className="mb-1 block text-xs text-slate-400">
-                  開始
-                </label>
-                <input
-                  id="new-slot-start"
-                  type="time"
-                  value={newSlotStart}
-                  onChange={(e) => setNewSlotStart(e.target.value)}
-                  className="rounded-lg border border-slate-700 bg-slate-800/80 px-3 py-2 text-slate-100"
-                />
-              </div>
-              <div>
-                <label htmlFor="new-slot-end" className="mb-1 block text-xs text-slate-400">
-                  終了
-                </label>
-                <input
-                  id="new-slot-end"
-                  type="time"
-                  value={newSlotEnd}
-                  onChange={(e) => setNewSlotEnd(e.target.value)}
-                  className="rounded-lg border border-slate-700 bg-slate-800/80 px-3 py-2 text-slate-100"
-                />
-              </div>
-              <button
-                type="submit"
-                className="rounded-lg bg-cyan-600 px-4 py-2 text-sm font-semibold text-white hover:bg-cyan-500"
-              >
-                追加
-              </button>
-            </form>
-            <ul className="mt-4 space-y-2">
-              {timeSlots.map((row) => {
-                const d = draftSlots[row.id] ?? { start: row.startTime, end: row.endTime };
-                return (
-                  <li
-                    key={row.id}
-                    className="flex flex-col gap-2 rounded-xl border border-slate-800 bg-slate-950/60 p-3 sm:flex-row sm:items-end"
-                  >
-                    <div className="flex flex-wrap gap-2">
-                      <div>
-                        <span className="mb-1 block text-xs text-slate-400">開始</span>
-                        <input
-                          type="time"
-                          aria-label={`時間枠開始 ${row.id}`}
-                          value={d.start}
-                          onChange={(e) =>
-                            setDraftSlots((prev) => ({
-                              ...prev,
-                              [row.id]: { ...d, start: e.target.value },
-                            }))
-                          }
-                          className="rounded-lg border border-slate-700 bg-slate-800/80 px-3 py-2 text-slate-100"
-                        />
-                      </div>
-                      <div>
-                        <span className="mb-1 block text-xs text-slate-400">終了</span>
-                        <input
-                          type="time"
-                          aria-label={`時間枠終了 ${row.id}`}
-                          value={d.end}
-                          onChange={(e) =>
-                            setDraftSlots((prev) => ({
-                              ...prev,
-                              [row.id]: { ...d, end: e.target.value },
-                            }))
-                          }
-                          className="rounded-lg border border-slate-700 bg-slate-800/80 px-3 py-2 text-slate-100"
-                        />
-                      </div>
-                    </div>
-                    <div className="flex shrink-0 flex-wrap gap-2 sm:ml-auto">
-                      <button
-                        type="button"
-                        className="rounded-lg border border-slate-600 px-3 py-1.5 text-sm text-slate-200 hover:bg-slate-800"
-                        onClick={() => void patchTimeSlot(row.id)}
-                      >
-                        更新
-                      </button>
-                      <button
-                        type="button"
-                        className="rounded-lg border border-rose-500/40 bg-rose-950/50 px-3 py-1.5 text-sm text-rose-200 hover:bg-rose-900/60"
-                        onClick={() => void disableTimeSlot(row.id)}
-                      >
-                        無効化
-                      </button>
-                    </div>
-                  </li>
-                );
-              })}
-              {timeSlots.length === 0 && (
-                <li className="text-sm text-slate-500">時間枠がまだありません。</li>
-              )}
-            </ul>
-          </PresetSection>
+          <SubjectsBlock
+            subjects={subjects}
+            newSubjectName={newSubjectName}
+            onNewSubjectNameChange={setNewSubjectName}
+            onAdd={handleAddSubject}
+            draftNames={draftNames}
+            setDraftNames={setDraftNames}
+            onPatch={patchSubject}
+            onDisable={disableSubject}
+          />
+          <LessonTypesBlock
+            lessonTypes={lessonTypes}
+            newLessonTypeName={newLessonTypeName}
+            onNewLessonTypeNameChange={setNewLessonTypeName}
+            onAdd={handleAddLessonType}
+            draftNames={draftNames}
+            setDraftNames={setDraftNames}
+            onPatch={patchLessonType}
+            onDisable={disableLessonType}
+          />
+          <TimeSlotsBlock
+            timeSlots={timeSlots}
+            newSlotStart={newSlotStart}
+            newSlotEnd={newSlotEnd}
+            onNewSlotStartChange={setNewSlotStart}
+            onNewSlotEndChange={setNewSlotEnd}
+            onAdd={handleAddTimeSlot}
+            draftSlots={draftSlots}
+            setDraftSlots={setDraftSlots}
+            onPatch={patchTimeSlot}
+            onDisable={disableTimeSlot}
+          />
         </div>
       )}
-    </section>
-  );
-}
-
-function PresetSection({ title, children }: { title: string; children: ReactNode }) {
-  return (
-    <section className="rounded-xl border border-slate-800/80 bg-slate-900/40 p-4 md:p-5">
-      <h3 className="mb-4 text-base font-semibold text-slate-100">{title}</h3>
-      {children}
     </section>
   );
 }

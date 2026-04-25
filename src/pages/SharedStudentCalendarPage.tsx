@@ -1,3 +1,6 @@
+/**
+ * （責務）生徒向け共有ビュー（未認証）。student_id クエリで週次コマのみ表示。
+ */
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import dayjs from 'dayjs';
 import 'dayjs/locale/ja';

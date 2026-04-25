@@ -1,3 +1,6 @@
+/**
+ * （責務）ルート定義、共有パス /share の未ログイン表示、それ以外の Auth0 ＋管理画面のルーティング。
+ */
 import { useAuth0 } from '@auth0/auth0-react';
 import { lazy, Suspense, useEffect } from 'react';
 import { Navigate, Route, Routes, useLocation } from 'react-router-dom';

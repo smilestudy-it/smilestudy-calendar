@@ -1,3 +1,6 @@
+/**
+ * （責務）授業プリセット（科目・種別・時間枠）設定ページの枠。
+ */
 import PresetsSettingsPanel from '../components/PresetsSettingsPanel';
 import type { CurrentUser } from '../types/currentUser';
 

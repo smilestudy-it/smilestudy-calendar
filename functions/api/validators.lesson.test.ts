@@ -1,3 +1,6 @@
+/**
+ * （責務）授業/レッスン関連バリデーション（validators）のユニットテスト。
+ */
 import { describe, expect, it } from 'vitest';
 import {
   validateCreateLessonInput,

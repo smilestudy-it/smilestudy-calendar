@@ -1,3 +1,6 @@
+/**
+ * （責務）react-day-picker を日本語化した Calendar 薄ラッパー。
+ */
 import * as React from 'react';
 import { DayPicker } from 'react-day-picker';
 import { ja } from 'date-fns/locale';

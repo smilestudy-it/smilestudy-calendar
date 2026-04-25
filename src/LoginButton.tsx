@@ -1,3 +1,6 @@
+/**
+ * （責務）Auth0 の `loginWithRedirect` によるログインボタン。
+ */
 import { useAuth0 } from "@auth0/auth0-react";
 
 const LoginButton = () => {

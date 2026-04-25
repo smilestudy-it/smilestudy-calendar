@@ -1,8 +1,12 @@
+/**
+ * （責務）生徒一覧の取得・新規登録・削除、共有 URL コピー。
+ */
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import type { Resolver, SubmitHandler } from 'react-hook-form';
+import { useAuthedFetch } from '@/hooks/useAuthedFetch';
 import type { CurrentUser } from '../types/currentUser';
 
 type Classroom = {
@@ -84,19 +88,7 @@ export default function StudentManagementPanel({ currentUser, getAccessTokenSile
     },
   });
 
-  const authedFetch = useCallback(
-    async (path: string, init?: RequestInit) => {
-      const token = await getAccessTokenSilently();
-      return fetch(path, {
-        ...init,
-        headers: {
-          Authorization: `Bearer ${token}`,
-          ...(init?.headers ?? {}),
-        },
-      });
-    },
-    [getAccessTokenSilently],
-  );
+  const authedFetch = useAuthedFetch(getAccessTokenSilently);
 
   const activeClassroomId = useMemo(() => {
     return isAdmin ? selectedClassroomId : (currentUser.classroomId ?? '');

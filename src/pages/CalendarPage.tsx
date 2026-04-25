@@ -1,3 +1,6 @@
+/**
+ * （責務）週次カレンダー。教室選択・週移動・コマ一覧とコマ登録ダイアログ。
+ */
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import dayjs from 'dayjs';
 import 'dayjs/locale/ja';
@@ -12,6 +15,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
+import { useAuthedFetch } from '@/hooks/useAuthedFetch';
 import { startOfWeekSunday } from '@/lib/calendarTime';
 import type { CurrentUser } from '@/types/currentUser';
 
@@ -82,19 +86,7 @@ export default function CalendarPage({
     return Array.from({ length: 7 }, (_, i) => weekStart.add(i, 'day'));
   }, [weekStart]);
 
-  const authedFetch = useCallback(
-    async (path: string, init?: RequestInit) => {
-      const token = await getAccessTokenSilently();
-      return fetch(path, {
-        ...init,
-        headers: {
-          Authorization: `Bearer ${token}`,
-          ...(init?.headers ?? {}),
-        },
-      });
-    },
-    [getAccessTokenSilently],
-  );
+  const authedFetch = useAuthedFetch(getAccessTokenSilently);
 
   useEffect(() => {
     if (!isAdmin) {

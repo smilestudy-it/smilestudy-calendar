@@ -1,4 +1,8 @@
+/**
+ * （責務）（管理者向け）教室名の新規登録と教室一覧表示。
+ */
 import { useCallback, useEffect, useState } from 'react';
+import { useAuthedFetch } from '@/hooks/useAuthedFetch';
 import type { ComponentProps } from 'react';
 
 type Classroom = {
@@ -20,16 +24,7 @@ export default function ClassroomAdminPanel({ getAccessTokenSilently }: Props) {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const authedFetch = useCallback(async (path: string, init?: RequestInit) => {
-    const token = await getAccessTokenSilently();
-    return fetch(path, {
-      ...init,
-      headers: {
-        Authorization: `Bearer ${token}`,
-        ...(init?.headers ?? {}),
-      },
-    });
-  }, [getAccessTokenSilently]);
+  const authedFetch = useAuthedFetch(getAccessTokenSilently);
 
   const loadClassrooms = useCallback(async () => {
     setIsLoading(true);

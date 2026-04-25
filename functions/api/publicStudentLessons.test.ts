@@ -1,3 +1,6 @@
+/**
+ * （責務）未認証 GET /api/public/student-lessons の Vitest。
+ */
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { classrooms, lessonTypes, lessons, students, subjects, users } from '../../db/schema';
 
