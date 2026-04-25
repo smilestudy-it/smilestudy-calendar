@@ -28,6 +28,8 @@ const state: {
   deleteAuth0Ok: boolean;
   deletedAuth0UserIds: string[];
   insertSimulateUniqueViolation: boolean;
+  /** `insert(users)` で D1 失敗を再現（Auth0 作成後のロールバック経路向け） */
+  insertThrowGeneric: boolean;
 } = {
   users: [],
   classrooms: [],
@@ -40,6 +42,7 @@ const state: {
   deleteAuth0Ok: true,
   deletedAuth0UserIds: [],
   insertSimulateUniqueViolation: false,
+  insertThrowGeneric: false,
 };
 
 const extractRequestedValue = (predicate: unknown): string | null => {
@@ -237,6 +240,9 @@ vi.mock('../../db', () => {
             'UNIQUE constraint failed: index users_email_active_unique',
           );
         }
+        if (state.insertThrowGeneric) {
+          throw new Error('simulated d1 insert');
+        }
         if (state.users.some((row) => row.email === value.email && row.deletedAt === null)) {
           throw new Error('duplicate email');
         }
@@ -389,6 +395,7 @@ describe('users api', () => {
     state.deleteAuth0Ok = true;
     state.deletedAuth0UserIds = [];
     state.insertSimulateUniqueViolation = false;
+    state.insertThrowGeneric = false;
     fetchMock.mockClear();
   });
 
@@ -431,6 +438,8 @@ describe('users api', () => {
     }, env);
 
     expect(response.status).toBe(201);
+    const createdBody = (await response.json()) as { passwordEmailSent?: boolean };
+    expect(createdBody.passwordEmailSent).toBe(true);
     expect(state.users.some((row) => row.id === 'auth0|created-user')).toBe(true);
     expect(fetchMock).toHaveBeenCalledWith(
       expect.stringContaining('/dbconnections/change_password'),
@@ -456,7 +465,7 @@ describe('users api', () => {
     expect(response.status).toBe(403);
   });
 
-  it('rolls back Auth0 user when password email fails', async () => {
+  it('keeps user when password email fails and reports passwordEmailSent', async () => {
     state.sendEmailOk = false;
     state.createUserId = 'auth0|rollback-user';
 
@@ -473,13 +482,15 @@ describe('users api', () => {
       }),
     }, env);
 
-    expect(response.status).toBe(400);
-    expect(state.users.some((row) => row.id === 'auth0|rollback-user')).toBe(false);
-    expect(state.deletedAuth0UserIds.some((id) => id.includes('auth0%7Crollback-user'))).toBe(true);
+    expect(response.status).toBe(201);
+    const noMailBody = (await response.json()) as { passwordEmailSent?: boolean };
+    expect(noMailBody.passwordEmailSent).toBe(false);
+    expect(state.users.some((row) => row.id === 'auth0|rollback-user')).toBe(true);
+    expect(state.deletedAuth0UserIds).toEqual([]);
   });
 
   it('returns 500 when Auth0 rollback fails after create failure', async () => {
-    state.sendEmailOk = false;
+    state.insertThrowGeneric = true;
     state.deleteAuth0Ok = false;
     state.createUserId = 'auth0|rollback-auth0-fail';
 
@@ -525,7 +536,7 @@ describe('users api', () => {
       method: 'DELETE',
     }, env);
 
-    expect(response.status).toBe(400);
+    expect(response.status).toBe(502);
     const restored = state.users.find((row) => row.id === 'auth0|staff-user');
     expect(restored?.deletedAt).toBeNull();
   });
@@ -550,7 +561,7 @@ describe('users api', () => {
     expect(response.status).toBe(409);
   });
 
-  it('returns 400 when management token fetch fails on create', async () => {
+  it('returns 502 when management token fetch fails on create', async () => {
     state.tokenOk = false;
 
     const response = await app.request('/api/users', {
@@ -566,7 +577,7 @@ describe('users api', () => {
       }),
     }, env);
 
-    expect(response.status).toBe(400);
+    expect(response.status).toBe(502);
   });
 
   it('returns 404 when classroom does not exist on create', async () => {

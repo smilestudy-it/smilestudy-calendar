@@ -219,7 +219,7 @@ app.delete('/classrooms/:id', auth, loadUser, requireAdmin, async(c) =>{
     try {
       managementToken = await getAuth0ManagementToken(c.env);
     } catch {
-      return c.json({ message: 'failed to delete classroom' }, 400);
+      return c.json({ message: 'failed to delete classroom' }, 502);
     }
   }
 
@@ -395,7 +395,7 @@ app.delete('/classrooms/:id', auth, loadUser, requireAdmin, async(c) =>{
   } catch (err) {
     logApiError('DELETE /classrooms/:id', err);
     await rollbackPartialClassroomDelete();
-    return c.json({ message: 'failed to delete classroom' }, 400);
+    return c.json({ message: 'failed to delete classroom' }, 500);
   }
 
   if (notFound) {
@@ -449,7 +449,7 @@ app.delete('/classrooms/:id', auth, loadUser, requireAdmin, async(c) =>{
         await db.update(users).set({ deletedAt: null }).where(eq(users.id, userId)).catch(() => undefined);
       }
       await rollbackClassroomChildSoftDeletes();
-      return c.json({ message: 'failed to delete classroom' }, 400);
+      return c.json({ message: 'failed to delete classroom' }, 502);
     }
   }
 
@@ -462,16 +462,39 @@ app.delete('/classrooms/:id', auth, loadUser, requireAdmin, async(c) =>{
       }
       successfullyDeletedAuth0Ids.push(userId);
     }
-  } catch {
-    await db.update(classrooms).set({ deletedAt: null }).where(eq(classrooms.id, id)).catch(() => undefined);
+  } catch (err) {
+    logApiError('DELETE /classrooms/:id (auth0)', err);
     const successSet = new Set(successfullyDeletedAuth0Ids);
-    for (const userId of updatedUserIds) {
-      if (!successSet.has(userId)) {
-        await db.update(users).set({ deletedAt: null }).where(eq(users.id, userId)).catch(() => undefined);
+    const remainingIds = updatedUserIds.filter((uid) => !successSet.has(uid));
+    const newlySucceeded: string[] = [];
+    for (const userId of remainingIds) {
+      try {
+        if (await deleteAuth0User(c.env, managementToken, userId)) {
+          newlySucceeded.push(userId);
+        }
+      } catch (retryErr) {
+        logApiError(`DELETE /classrooms/:id (auth0 retry ${userId})`, retryErr);
       }
     }
+    const finalAuth0Deleted = new Set([...successfullyDeletedAuth0Ids, ...newlySucceeded]);
+    if (finalAuth0Deleted.size === updatedUserIds.length) {
+      return c.json({ success: true }, 200);
+    }
+    const userIdsToRestoreD1 = updatedUserIds.filter((uid) => !finalAuth0Deleted.has(uid));
+    logApiError(
+      'DELETE /classrooms/:id (auth0 partial)',
+      new Error(
+        `auth0 delete incomplete after retry; deletedInAuth0=[${[...finalAuth0Deleted].join(
+          ',',
+        )}]; restoreD1=[${userIdsToRestoreD1.join(',')}]`,
+      ),
+    );
+    await db.update(classrooms).set({ deletedAt: null }).where(eq(classrooms.id, id)).catch(() => undefined);
+    for (const userId of userIdsToRestoreD1) {
+      await db.update(users).set({ deletedAt: null }).where(eq(users.id, userId)).catch(() => undefined);
+    }
     await rollbackClassroomChildSoftDeletes();
-    return c.json({ message: 'failed to delete classroom' }, 400);
+    return c.json({ message: 'failed to delete classroom' }, 502);
   }
 
   return c.json({ success: true }, 200);
@@ -485,8 +508,13 @@ app.post('/users', auth, loadUser, requireManagerOrAbove, async (c) =>{
     return c.json({ message: error ?? 'invalid request' }, 400);
   }
 
-  if(actor.role === 'manager'){
-    if(input.role === 'admin' || (actor.classroomId !== input.classroomId)){
+  if (actor.role === 'manager') {
+    if (
+      input.role === 'admin' ||
+      !actor.classroomId ||
+      !input.classroomId ||
+      actor.classroomId !== input.classroomId
+    ) {
       return c.json({ message: 'forbidden' }, 403);
     }
   }
@@ -515,18 +543,24 @@ app.post('/users', auth, loadUser, requireManagerOrAbove, async (c) =>{
   }
 
   let managementToken = '';
+  try {
+    managementToken = await getAuth0ManagementToken(c.env);
+  } catch {
+    return c.json({ message: 'failed to create user' }, 502);
+  }
+
   let auth0UserId = '';
   let d1Inserted = false;
+  let passwordEmailSent = false;
   const displayName = `${input.lastName} ${input.firstName}`.trim();
 
   try {
-    managementToken = await getAuth0ManagementToken(c.env);
     const auth0Result = await createAuth0User(c.env, managementToken, input.email, displayName);
     if (!auth0Result.ok) {
       if (auth0Result.status === 409) {
         return c.json({ message: 'user already exists' }, 409);
       }
-      return c.json({ message: auth0Result.message }, 400);
+      return c.json({ message: auth0Result.message }, 502);
     }
 
     auth0UserId = auth0Result.userId;
@@ -555,9 +589,9 @@ app.post('/users', auth, loadUser, requireManagerOrAbove, async (c) =>{
     });
     d1Inserted = true;
 
-    const mailSent = await sendAuth0PasswordSetupEmail(c.env, input.email);
-    if (!mailSent) {
-      throw new Error('failed to send password setup email');
+    passwordEmailSent = await sendAuth0PasswordSetupEmail(c.env, input.email);
+    if (!passwordEmailSent) {
+      logApiError('POST /users (password email)', new Error('password setup email not accepted by Auth0'));
     }
   } catch (error) {
     if (d1Inserted && auth0UserId) {
@@ -575,18 +609,22 @@ app.post('/users', auth, loadUser, requireManagerOrAbove, async (c) =>{
     if (isD1UsersEmailUniqueViolation(error)) {
       return c.json({ message: 'user already exists' }, 409);
     }
-    return c.json({ message: 'failed to create user' }, 400);
+    return c.json({ message: 'failed to create user' }, 500);
   }
 
-  return c.json({
-    id: auth0UserId,
-    firstName: input.firstName,
-    lastName: input.lastName,
-    email: input.email,
-    role: input.role,
-    classroomId: input.classroomId,
-    color: input.color,
-  }, 201);
+  return c.json(
+    {
+      id: auth0UserId,
+      firstName: input.firstName,
+      lastName: input.lastName,
+      email: input.email,
+      role: input.role,
+      classroomId: input.classroomId,
+      color: input.color,
+      passwordEmailSent,
+    },
+    201,
+  );
 });
 
 app.get('/users/admins', auth, loadUser, requireManagerOrAbove, async (c) => {
@@ -718,7 +756,7 @@ app.delete('/users/:id', auth, loadUser, requireManagerOrAbove, async(c) => {
   try {
     managementToken = await getAuth0ManagementToken(c.env);
   } catch {
-    return c.json({ message: 'failed to delete user' }, 400);
+    return c.json({ message: 'failed to delete user' }, 502);
   }
 
   const result = await db
@@ -742,11 +780,11 @@ app.delete('/users/:id', auth, loadUser, requireManagerOrAbove, async(c) => {
     const auth0Deleted = await deleteAuth0User(c.env, managementToken, targetId);
     if (!auth0Deleted) {
       await rollbackUserSoftDelete();
-      return c.json({ message: 'failed to delete user' }, 400);
+      return c.json({ message: 'failed to delete user' }, 502);
     }
   } catch {
     await rollbackUserSoftDelete();
-    return c.json({ message: 'failed to delete user' }, 400);
+    return c.json({ message: 'failed to delete user' }, 502);
   }
   
   return c.json({ success: true }, 200);

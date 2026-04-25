@@ -13,23 +13,12 @@ export const USERS_EMAIL_ACTIVE_UNIQUE_INDEX = 'users_email_active_unique';
 
 export function isD1ClassroomNameUniqueViolation(error: unknown): boolean {
   const text = collectErrorTextParts(error).join(' ');
-  const lower = text.toLowerCase();
-  return (
-    text.includes(CLASSROOMS_NAME_ACTIVE_UNIQUE_INDEX) ||
-    lower.includes('unique constraint failed') ||
-    (lower.includes('unique constraint') && lower.includes('classroom')) ||
-    (lower.includes('sqlite_constraint') && lower.includes('unique'))
-  );
+  return text.includes(CLASSROOMS_NAME_ACTIVE_UNIQUE_INDEX);
 }
 
 export function isD1UsersEmailUniqueViolation(error: unknown): boolean {
   const text = collectErrorTextParts(error).join(' ');
-  const lower = text.toLowerCase();
-  return (
-    text.includes(USERS_EMAIL_ACTIVE_UNIQUE_INDEX) ||
-    lower.includes('unique constraint failed') ||
-    lower.includes('unique constraint')
-  );
+  return text.includes(USERS_EMAIL_ACTIVE_UNIQUE_INDEX);
 }
 
 export function isD1ForeignKeyViolation(error: unknown): boolean {

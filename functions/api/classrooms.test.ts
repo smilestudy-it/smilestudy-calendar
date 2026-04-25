@@ -598,7 +598,7 @@ describe('classrooms api flow', () => {
     });
 
     const deleteResponse = await app.request(`/api/classrooms/${created.id}`, { method: 'DELETE' }, env);
-    expect(deleteResponse.status).toBe(400);
+    expect(deleteResponse.status).toBe(502);
 
     const classroom = state.classrooms.find((row) => row.id === created.id);
     expect(classroom?.deletedAt).toBeNull();
@@ -636,7 +636,7 @@ describe('classrooms api flow', () => {
     state.deleteAuth0Ok = false;
 
     const deleteResponse = await app.request(`/api/classrooms/${created.id}`, { method: 'DELETE' }, env);
-    expect(deleteResponse.status).toBe(400);
+    expect(deleteResponse.status).toBe(502);
     const classroom = state.classrooms.find((row) => row.id === created.id);
     expect(classroom?.deletedAt).toBeNull();
     expect(state.classroomUsers[0]?.deletedAt).toBeNull();
@@ -746,7 +746,7 @@ describe('classrooms api flow', () => {
     expect(state.presetTimeSlots[0]?.deletedAt).toBeInstanceOf(Date);
   });
 
-  it('returns 400 when preset subject soft-delete fails; compensating rollback restores classroom and members', async () => {
+  it('returns 500 when preset subject soft-delete fails; compensating rollback restores classroom and members', async () => {
     const postResponse = await app.request('/api/classrooms', {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
@@ -758,7 +758,7 @@ describe('classrooms api flow', () => {
     state.throwOnPresetSubjectSoftDelete = true;
 
     const deleteResponse = await app.request(`/api/classrooms/${created.id}`, { method: 'DELETE' }, env);
-    expect(deleteResponse.status).toBe(400);
+    expect(deleteResponse.status).toBe(500);
 
     expect(state.classrooms.find((r) => r.id === created.id)?.deletedAt).toBeNull();
     expect(state.presetSubjects[0]?.deletedAt).toBeNull();

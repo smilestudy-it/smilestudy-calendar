@@ -18,7 +18,11 @@ export function presetMutationNetworkError(prefix: string, e: unknown): string {
   if (e instanceof Error) {
     return `${prefix}: ${e.message}`;
   }
-  return 'ネットワークエラーが発生しました。';
+  const s = String(e);
+  if (s && s !== '[object Object]') {
+    return `${prefix}: ${s}`;
+  }
+  return `${prefix}: ネットワークエラーが発生しました。`;
 }
 
 export async function readPresetApiError(
