@@ -107,7 +107,7 @@ export default function ClassroomAdminPanel({ getAccessTokenSilently }: Props) {
 
       <form onSubmit={handleCreate} className="grid grid-cols-1 gap-2 sm:grid-cols-[1fr_auto] sm:items-end">
         <div className="space-y-1">
-          <label htmlFor={classroomNameInputId} className="text-sm text-slate-300">
+          <label htmlFor={classroomNameInputId} className="text-sm text-slate-700">
             教室名
           </label>
           <input
@@ -115,29 +115,29 @@ export default function ClassroomAdminPanel({ getAccessTokenSilently }: Props) {
             value={name}
             onChange={(e) => setName(e.target.value)}
             placeholder="教室名を入力"
-            className="w-full rounded-lg border border-slate-700 bg-slate-800 px-3 py-2 text-slate-100 placeholder:text-slate-400 focus:border-indigo-400 focus:outline-none focus:ring-2 focus:ring-indigo-500/30"
+            className="w-full rounded-lg border border-slate-200 bg-slate-200 px-3 py-2 text-slate-900 placeholder:text-slate-500 focus:border-indigo-400 focus:outline-none focus:ring-2 focus:ring-indigo-500/30"
             maxLength={100}
           />
         </div>
         <button
           type="submit"
-          className="rounded-lg bg-indigo-500 px-4 py-2 font-semibold text-white transition hover:bg-indigo-400 disabled:cursor-not-allowed disabled:opacity-60"
+          className="rounded-lg bg-indigo-700 px-4 py-2 font-semibold text-white transition hover:bg-indigo-600 disabled:cursor-not-allowed disabled:opacity-60"
           disabled={isSubmitting}
         >
           {isSubmitting ? '追加中...' : '教室を追加'}
         </button>
       </form>
 
-      {error && <p className="text-sm text-rose-300">{error}</p>}
+      {error && <p className="text-sm text-rose-600">{error}</p>}
 
       {isLoading ? (
-        <p className="text-sm text-slate-400">教室一覧を読み込み中...</p>
+        <p className="text-sm text-slate-500">教室一覧を読み込み中...</p>
       ) : (
         <ul className="space-y-2">
           {classrooms.map((room) => (
             <li
               key={room.id}
-              className="flex items-center justify-between gap-3 rounded-lg border border-slate-800 bg-slate-950/60 px-3 py-2"
+              className="flex items-center justify-between gap-3 rounded-lg border border-slate-200 bg-slate-50/60 px-3 py-2"
             >
               <span>{room.name}</span>
               <button
@@ -149,7 +149,7 @@ export default function ClassroomAdminPanel({ getAccessTokenSilently }: Props) {
               </button>
             </li>
           ))}
-          {classrooms.length === 0 && <li className="text-sm text-slate-400">教室がありません。</li>}
+          {classrooms.length === 0 && <li className="text-sm text-slate-500">教室がありません。</li>}
         </ul>
       )}
     </section>

@@ -14,8 +14,8 @@ type Props = {
  */
 export default function PresetSection({ title, children }: Props) {
   return (
-    <section className="rounded-xl border border-slate-800/80 bg-slate-900/40 p-4 md:p-5">
-      <h3 className="mb-4 text-base font-semibold text-slate-100">{title}</h3>
+    <section className="rounded-xl border border-slate-200/80 bg-slate-100/40 p-4 md:p-5">
+      <h3 className="mb-4 text-base font-semibold text-slate-900">{title}</h3>
       {children}
     </section>
   );

@@ -23,12 +23,12 @@ export default function HomePage({ currentUser }: Props) {
       <section className="space-y-6">
         <div>
           <h2 className="text-lg font-semibold md:text-xl">教室を選択してください</h2>
-          <p className="text-sm text-slate-400">管理する教室を選んでください。</p>
+          <p className="text-sm text-slate-500">管理する教室を選んでください。</p>
         </div>
 
         {activeClassroom && (
-          <div className="rounded-lg border border-slate-800 bg-slate-900/50 p-4">
-            <p className="text-sm text-slate-300">
+          <div className="rounded-lg border border-slate-200 bg-slate-100/50 p-4">
+            <p className="text-sm text-slate-700">
               教室を選択しました。左上のメニューから管理画面に移動できます。
             </p>
           </div>
@@ -40,11 +40,11 @@ export default function HomePage({ currentUser }: Props) {
   return (
     <section className="space-y-4">
       <h2 className="text-lg font-semibold md:text-xl">ホーム</h2>
-      <p className="text-sm text-slate-300">
+      <p className="text-sm text-slate-700">
         左上のメニューから、利用したい画面を選択してください。
       </p>
       {activeClassroom ? (
-        <p className="text-sm text-slate-400">現在の教室: {activeClassroom.name}</p>
+        <p className="text-sm text-slate-500">現在の教室: {activeClassroom.name}</p>
       ) : (
         <p className="text-sm text-amber-200/90">教室が設定されていません。</p>
       )}

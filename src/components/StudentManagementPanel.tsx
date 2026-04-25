@@ -283,10 +283,10 @@ export default function StudentManagementPanel({ currentUser, getAccessTokenSile
 
   return (
     <section className="space-y-8">
-      <header className="space-y-2 border-b border-slate-800 pb-6">
+      <header className="space-y-2 border-b border-slate-200 pb-6">
         <p className="text-xs font-semibold uppercase tracking-wider text-emerald-400/90">Students</p>
         <h2 className="text-xl font-bold tracking-tight text-slate-50 md:text-2xl">生徒管理</h2>
-        <p className="max-w-2xl text-sm leading-relaxed text-slate-400">
+        <p className="max-w-2xl text-sm leading-relaxed text-slate-500">
           {canManageStudents
             ? '教室ごとに生徒を登録・一覧・削除できます。出生年はカレンダー年度の参照用として保存されます。'
             : '所属教室の生徒一覧を閲覧できます（登録・削除は教室長以上のみ）。'}
@@ -294,12 +294,12 @@ export default function StudentManagementPanel({ currentUser, getAccessTokenSile
       </header>
 
       {canManageStudents && (
-      <section className="space-y-4 rounded-xl border border-slate-800/80 bg-gradient-to-br from-slate-900/90 to-slate-950/90 p-4 shadow-lg ring-1 ring-emerald-500/10 md:p-5">
-        <h3 className="text-base font-semibold text-slate-100">生徒を登録</h3>
+      <section className="space-y-4 rounded-xl border border-slate-200/80 bg-gradient-to-br from-slate-900/90 to-slate-950/90 p-4 shadow-lg ring-1 ring-emerald-500/10 md:p-5">
+        <h3 className="text-base font-semibold text-slate-900">生徒を登録</h3>
         <form onSubmit={handleSubmit(handleCreateStudent)} className="grid grid-cols-1 gap-3 md:grid-cols-2 md:gap-4">
           {isAdmin && (
             <div className="md:col-span-2">
-              <label htmlFor="student-classroom" className="mb-1 block text-sm text-slate-300">
+              <label htmlFor="student-classroom" className="mb-1 block text-sm text-slate-700">
                 所属教室
               </label>
               <select
@@ -309,7 +309,7 @@ export default function StudentManagementPanel({ currentUser, getAccessTokenSile
                   onChange: (e) => setSelectedClassroomId(e.target.value),
                 })}
                 disabled={isLoadingClassrooms}
-                className="w-full rounded-lg border border-slate-700 bg-slate-800/80 px-3 py-2.5 text-slate-100 focus:border-emerald-500/60 focus:outline-none focus:ring-2 focus:ring-emerald-500/25"
+                className="w-full rounded-lg border border-slate-200 bg-slate-200/80 px-3 py-2.5 text-slate-900 focus:border-emerald-500/60 focus:outline-none focus:ring-2 focus:ring-emerald-500/25"
               >
                 <option value="">教室を選択</option>
                 {classrooms.map((c) => (
@@ -319,13 +319,13 @@ export default function StudentManagementPanel({ currentUser, getAccessTokenSile
                 ))}
               </select>
               {errors.classroomId?.message && (
-                <p className="mt-1 text-sm text-rose-300">{errors.classroomId.message}</p>
+                <p className="mt-1 text-sm text-rose-600">{errors.classroomId.message}</p>
               )}
             </div>
           )}
 
           <div className="md:col-span-2">
-            <label htmlFor="student-name" className="mb-1 block text-sm text-slate-300">
+            <label htmlFor="student-name" className="mb-1 block text-sm text-slate-700">
               氏名
             </label>
             <input
@@ -334,13 +334,13 @@ export default function StudentManagementPanel({ currentUser, getAccessTokenSile
               {...register('name')}
               placeholder="山田 太郎"
               maxLength={100}
-              className="w-full rounded-lg border border-slate-700 bg-slate-800/80 px-3 py-2.5 text-slate-100 placeholder:text-slate-500 focus:border-emerald-500/60 focus:outline-none focus:ring-2 focus:ring-emerald-500/25"
+              className="w-full rounded-lg border border-slate-200 bg-slate-200/80 px-3 py-2.5 text-slate-900 placeholder:text-slate-500 focus:border-emerald-500/60 focus:outline-none focus:ring-2 focus:ring-emerald-500/25"
             />
-            {errors.name?.message && <p className="mt-1 text-sm text-rose-300">{errors.name.message}</p>}
+            {errors.name?.message && <p className="mt-1 text-sm text-rose-600">{errors.name.message}</p>}
           </div>
 
           <div>
-            <label htmlFor="student-email" className="mb-1 block text-sm text-slate-300">
+            <label htmlFor="student-email" className="mb-1 block text-sm text-slate-700">
               メールアドレス
             </label>
             <input
@@ -349,13 +349,13 @@ export default function StudentManagementPanel({ currentUser, getAccessTokenSile
               aria-label="メールアドレス"
               {...register('email')}
               placeholder="student@example.com"
-              className="w-full rounded-lg border border-slate-700 bg-slate-800/80 px-3 py-2.5 text-slate-100 placeholder:text-slate-500 focus:border-emerald-500/60 focus:outline-none focus:ring-2 focus:ring-emerald-500/25"
+              className="w-full rounded-lg border border-slate-200 bg-slate-200/80 px-3 py-2.5 text-slate-900 placeholder:text-slate-500 focus:border-emerald-500/60 focus:outline-none focus:ring-2 focus:ring-emerald-500/25"
             />
-            {errors.email?.message && <p className="mt-1 text-sm text-rose-300">{errors.email.message}</p>}
+            {errors.email?.message && <p className="mt-1 text-sm text-rose-600">{errors.email.message}</p>}
           </div>
 
           <div>
-            <label htmlFor="student-birth-year" className="mb-1 block text-sm text-slate-300">
+            <label htmlFor="student-birth-year" className="mb-1 block text-sm text-slate-700">
               出生年度（西暦）
             </label>
             <input
@@ -365,10 +365,10 @@ export default function StudentManagementPanel({ currentUser, getAccessTokenSile
               min={1900}
               max={currentYear}
               {...register('birthYear', { valueAsNumber: true })}
-              className="w-full rounded-lg border border-slate-700 bg-slate-800/80 px-3 py-2.5 text-slate-100 focus:border-emerald-500/60 focus:outline-none focus:ring-2 focus:ring-emerald-500/25"
+              className="w-full rounded-lg border border-slate-200 bg-slate-200/80 px-3 py-2.5 text-slate-900 focus:border-emerald-500/60 focus:outline-none focus:ring-2 focus:ring-emerald-500/25"
             />
             {errors.birthYear?.message && (
-              <p className="mt-1 text-sm text-rose-300">{errors.birthYear.message}</p>
+              <p className="mt-1 text-sm text-rose-600">{errors.birthYear.message}</p>
             )}
           </div>
 
@@ -388,22 +388,22 @@ export default function StudentManagementPanel({ currentUser, getAccessTokenSile
       )}
 
       {error && (
-        <p className="rounded-lg border border-rose-500/30 bg-rose-950/40 px-3 py-2 text-sm text-rose-200" role="alert">
+        <p className="rounded-lg border border-rose-500/30 bg-rose-100/40 px-3 py-2 text-sm text-rose-700" role="alert">
           {error}
         </p>
       )}
 
-      <section className="space-y-4 rounded-xl border border-slate-800/80 bg-slate-900/50 p-4 md:p-5">
+      <section className="space-y-4 rounded-xl border border-slate-200/80 bg-slate-100/50 p-4 md:p-5">
         <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
-          <h3 className="text-base font-semibold text-slate-100">生徒一覧</h3>
+          <h3 className="text-base font-semibold text-slate-900">生徒一覧</h3>
           {isAdmin && (
             <div className="w-full max-w-xs space-y-1">
-              <label htmlFor="list-classroom" className="text-xs text-slate-400">
+              <label htmlFor="list-classroom" className="text-xs text-slate-500">
                 表示する教室
               </label>
               <select
                 id="list-classroom"
-                className="w-full rounded-lg border border-slate-700 bg-slate-800 px-3 py-2 text-sm text-slate-100 focus:border-emerald-500/60 focus:outline-none focus:ring-2 focus:ring-emerald-500/25"
+                className="w-full rounded-lg border border-slate-200 bg-slate-200 px-3 py-2 text-sm text-slate-900 focus:border-emerald-500/60 focus:outline-none focus:ring-2 focus:ring-emerald-500/25"
                 value={selectedClassroomId}
                 onChange={(e) => {
                   const v = e.target.value;
@@ -424,7 +424,7 @@ export default function StudentManagementPanel({ currentUser, getAccessTokenSile
         </div>
 
         {isLoadingStudents ? (
-          <p className="text-sm text-slate-400">読み込み中…</p>
+          <p className="text-sm text-slate-500">読み込み中…</p>
         ) : !activeClassroomId ? (
           <p className="text-sm text-slate-500">
             {isAdmin
@@ -432,7 +432,7 @@ export default function StudentManagementPanel({ currentUser, getAccessTokenSile
               : '所属教室が割り当てられていないため、生徒一覧を表示できません。'}
           </p>
         ) : students.length === 0 ? (
-          <p className="rounded-lg border border-dashed border-slate-700 bg-slate-950/40 px-4 py-8 text-center text-sm text-slate-500">
+          <p className="rounded-lg border border-dashed border-slate-200 bg-slate-50/40 px-4 py-8 text-center text-sm text-slate-500">
             この教室に登録された生徒はまだいません。
           </p>
         ) : (
@@ -446,17 +446,17 @@ export default function StudentManagementPanel({ currentUser, getAccessTokenSile
               {students.map((row) => (
                 <li
                   key={row.id}
-                  className="flex flex-col gap-3 rounded-xl border border-slate-800 bg-slate-950/60 p-4 sm:flex-row sm:items-center sm:justify-between"
+                  className="flex flex-col gap-3 rounded-xl border border-slate-200 bg-slate-50/60 p-4 sm:flex-row sm:items-center sm:justify-between"
                 >
                   <div className="min-w-0 space-y-1">
-                    <p className="font-medium text-slate-100">{row.name}</p>
-                    <p className="truncate text-sm text-slate-400">{row.email}</p>
+                    <p className="font-medium text-slate-900">{row.name}</p>
+                    <p className="truncate text-sm text-slate-500">{row.email}</p>
                     <p className="text-xs text-slate-500">出生年: {row.birthYear}</p>
                   </div>
                   <div className="flex shrink-0 flex-wrap items-center gap-2">
                     <button
                       type="button"
-                      className="rounded-lg border border-slate-600 bg-slate-900/80 px-3 py-2 text-sm font-medium text-slate-200 transition hover:bg-slate-800/80"
+                      className="rounded-lg border border-slate-600 bg-slate-100/80 px-3 py-2 text-sm font-medium text-slate-800 transition hover:bg-slate-200/80"
                       onClick={() => void handleCopyShareLink(row.id)}
                     >
                       {copiedShareStudentId === row.id ? 'コピーしました' : '共有リンクをコピー'}
@@ -464,7 +464,7 @@ export default function StudentManagementPanel({ currentUser, getAccessTokenSile
                     {canManageStudents && (
                       <button
                         type="button"
-                        className="rounded-lg border border-rose-500/40 bg-rose-950/50 px-3 py-2 text-sm font-medium text-rose-200 transition hover:bg-rose-900/60"
+                        className="rounded-lg border border-rose-200/60 bg-rose-100/50 px-3 py-2 text-sm font-medium text-rose-700 transition hover:bg-rose-100/60"
                         onClick={() => void handleDeleteStudent(row.id)}
                       >
                         削除

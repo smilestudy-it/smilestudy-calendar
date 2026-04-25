@@ -170,7 +170,7 @@ export default function CalendarPage({
   }, [lessonTypes]);
 
   if (!currentUser) {
-    return <p className="text-sm text-slate-300">この画面にアクセスできません。</p>;
+    return <p className="text-sm text-slate-700">この画面にアクセスできません。</p>;
   }
 
   return (
@@ -178,7 +178,7 @@ export default function CalendarPage({
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h2 className="text-lg font-semibold md:text-xl">カレンダー</h2>
-          <p className="text-sm text-slate-400">現在の教室: {activeClassroom?.name || '未選択'}</p>
+          <p className="text-sm text-slate-500">現在の教室: {activeClassroom?.name || '未選択'}</p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
           <Button type="button" variant="outline" size="sm" onClick={() => setDialogOpen(true)}>
@@ -191,12 +191,12 @@ export default function CalendarPage({
         <p className="text-sm text-amber-200/90">教室を選択してください。</p>
       )}
 
-      {listError && <p className="text-sm text-rose-300">{listError}</p>}
+      {listError && <p className="text-sm text-rose-600">{listError}</p>}
 
       <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_auto]">
         <div className="space-y-4">
           <div className="flex flex-wrap items-center justify-between gap-2">
-            <p className="text-sm text-slate-300">
+            <p className="text-sm text-slate-700">
               {weekStart.format('M月D日')} 〜 {weekEndExclusive.subtract(1, 'day').format('M月D日')}
             </p>
             <div className="flex gap-2">
@@ -228,7 +228,7 @@ export default function CalendarPage({
           </div>
 
           {isLoadingWeek ? (
-            <p className="text-sm text-slate-400">週のコマを読み込み中...</p>
+            <p className="text-sm text-slate-500">週のコマを読み込み中...</p>
           ) : (
             <div className="grid grid-cols-1 gap-2 sm:grid-cols-7">
               {weekDays.map((day) => {
@@ -239,9 +239,9 @@ export default function CalendarPage({
                 return (
                   <div
                     key={dayKey}
-                    className="flex min-h-[220px] flex-col rounded-xl border border-slate-800 bg-slate-950/50 p-2"
+                    className="flex min-h-[220px] flex-col rounded-xl border border-slate-200 bg-slate-50/50 p-2"
                   >
-                    <p className="mb-2 border-b border-slate-800 pb-1 text-center text-xs font-medium text-slate-400">
+                    <p className="mb-2 border-b border-slate-200 pb-1 text-center text-xs font-medium text-slate-500">
                       {day.format('M/D')} {day.format('ddd')}
                     </p>
                     <ul className="flex flex-1 flex-col gap-1.5">
@@ -254,18 +254,18 @@ export default function CalendarPage({
                         return (
                           <li
                             key={l.id}
-                            className="rounded-md border border-slate-800 bg-slate-900/80 px-2 py-1.5 text-left text-xs text-slate-200"
+                            className="rounded-md border border-slate-200 bg-slate-100/80 px-2 py-1.5 text-left text-xs text-slate-800"
                             style={{ borderLeftWidth: 4, borderLeftColor: border }}
                           >
-                            <p className="font-medium text-slate-100">
+                            <p className="font-medium text-slate-900">
                               {dayjs(l.startAt).format('HH:mm')}–{dayjs(l.endAt).format('HH:mm')}
                             </p>
-                            <p className="text-slate-300">
+                            <p className="text-slate-700">
                               {l.teacherDisplay ||
                                 `${te?.lastName ?? ''} ${te?.firstName ?? ''}`.trim() ||
                                 l.teacherId}
                             </p>
-                            <p className="text-slate-300">
+                            <p className="text-slate-700">
                               {l.studentDisplay ?? st?.name ?? l.studentId}
                             </p>
                             {(sub || lt) && (
@@ -284,7 +284,7 @@ export default function CalendarPage({
           )}
         </div>
 
-        <div className="rounded-xl border border-slate-800 bg-slate-950/40 p-2">
+        <div className="rounded-xl border border-slate-200 bg-slate-50/40 p-2">
           <Calendar
             mode="single"
             required

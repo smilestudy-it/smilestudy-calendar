@@ -14,7 +14,7 @@ export default function ClassroomPage({
   getAccessTokenSilently,
 }: Props) {
   if (currentUser?.role !== 'admin') {
-    return <p className="text-sm text-slate-300">管理者のみ教室管理機能を利用できます。</p>;
+    return <p className="text-sm text-slate-700">管理者のみ教室管理機能を利用できます。</p>;
   }
 
   return <ClassroomAdminPanel getAccessTokenSilently={getAccessTokenSilently} />;

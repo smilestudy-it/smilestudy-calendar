@@ -47,7 +47,7 @@ const Profile = () => {
   }, [isAuthenticated, getAccessTokenSilently]);
 
   if (isLoading) {
-    return <div className="text-sm text-slate-300">Loading profile...</div>;
+    return <div className="text-sm text-slate-700">Loading profile...</div>;
   }
 
   return (
@@ -63,14 +63,14 @@ const Profile = () => {
           }}
         />
         <div className="text-center">
-          <div className="mb-2 text-2xl font-semibold text-slate-100">
+          <div className="mb-2 text-2xl font-semibold text-slate-900">
             {user.name}
           </div>
-          <div className="text-base text-slate-300">
+          <div className="text-base text-slate-700">
             {user.email}
           </div>
           {appUser && (
-            <div className="mt-3 text-sm text-slate-200">
+            <div className="mt-3 text-sm text-slate-800">
               <div>role: {appUser.role ?? '-'}</div>
               <div>classroom_id: {appUser.classroomId ?? '-'}</div>
             </div>

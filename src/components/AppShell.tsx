@@ -122,7 +122,7 @@ export default function AppShell({
 
   const navLinkClass = ({ isActive }: { isActive: boolean }) =>
     `block rounded-xl px-4 py-3 text-sm font-medium transition-colors ${
-      isActive ? 'bg-slate-800 text-slate-100' : 'text-slate-300 hover:bg-slate-800 hover:text-slate-100'
+      isActive ? 'bg-slate-200 text-slate-900' : 'text-slate-700 hover:bg-slate-200 hover:text-slate-900'
     }`;
 
   return (
@@ -134,7 +134,7 @@ export default function AppShell({
         activeClassroom,
       }}
     >
-      <div className="min-h-screen bg-slate-950 text-slate-100">
+      <div className="min-h-screen bg-slate-50 text-slate-900">
         {/* Drawer Menu */}
         <div
           className={`fixed inset-0 z-50 transition-opacity duration-300 ${
@@ -143,23 +143,23 @@ export default function AppShell({
         >
           {/* Backdrop */}
           <div
-            className="absolute inset-0 bg-black/50"
+            className="absolute inset-0 bg-slate-900/10"
             onClick={() => setIsMenuOpen(false)}
           />
 
           {/* Drawer */}
           <div
-            className={`absolute left-0 top-0 h-full w-80 bg-slate-900 border-r border-slate-800 transform transition-transform duration-300 ${
+            className={`absolute left-0 top-0 h-full w-80 bg-slate-100 border-r border-slate-200 transform transition-transform duration-300 ${
               isMenuOpen ? 'translate-x-0' : '-translate-x-full'
             }`}
           >
             <div className="flex h-full flex-col">
               {/* Header */}
-              <div className="flex items-center justify-between p-6 border-b border-slate-800">
+              <div className="flex items-center justify-between p-6 border-b border-slate-200">
                 <h2 className="text-lg font-semibold">メニュー</h2>
                 <button
                   type="button"
-                  className="rounded-lg p-2 hover:bg-slate-800"
+                  className="rounded-lg p-2 hover:bg-slate-200"
                   onClick={() => setIsMenuOpen(false)}
                   aria-label="メニューを閉じる"
                 >
@@ -170,17 +170,17 @@ export default function AppShell({
               </div>
 
               {/* User Info */}
-              <div className="p-6 border-b border-slate-800 space-y-2">
-                <div className="text-sm text-slate-400">
+              <div className="p-6 border-b border-slate-200 space-y-2">
+                <div className="text-sm text-slate-500">
                   {userName && <div>{userName}</div>}
                   {userEmail && <div>{userEmail}</div>}
                 </div>
                 <div className="flex items-center gap-2">
-                  <span className="rounded-full border border-slate-700 bg-slate-900 px-2 py-1 text-xs uppercase tracking-[0.2em] text-slate-300">
+                  <span className="rounded-full border border-slate-200 bg-slate-100 px-2 py-1 text-xs uppercase tracking-[0.2em] text-slate-700">
                     {role}
                   </span>
                   {activeClassroom && (
-                    <span className="rounded-full border border-slate-700 bg-slate-900 px-2 py-1 text-xs uppercase tracking-[0.2em] text-slate-300">
+                    <span className="rounded-full border border-slate-200 bg-slate-100 px-2 py-1 text-xs uppercase tracking-[0.2em] text-slate-700">
                       教室: {activeClassroom.name}
                     </span>
                   )}
@@ -189,8 +189,8 @@ export default function AppShell({
 
               {/* Admin Classroom Selection */}
               {isAdmin && (
-                <div className="p-6 border-b border-slate-800">
-                  <Label htmlFor="drawer-classroom" className="text-slate-300 mb-2 block">
+                <div className="p-6 border-b border-slate-200">
+                  <Label htmlFor="drawer-classroom" className="text-slate-700 mb-2 block">
                     教室切替
                   </Label>
                   <Select
@@ -231,7 +231,7 @@ export default function AppShell({
               </nav>
 
               {/* Logout */}
-              <div className="p-6 border-t border-slate-800">
+              <div className="p-6 border-t border-slate-200">
                 <LogoutButton />
               </div>
             </div>
@@ -240,13 +240,13 @@ export default function AppShell({
 
         {/* Main Content */}
         <div className="px-4 py-8">
-          <div className="mx-auto flex w-full max-w-5xl flex-col gap-4 rounded-2xl border border-slate-800 bg-slate-900 p-5 shadow-2xl md:p-8">
+          <div className="mx-auto flex w-full max-w-5xl flex-col gap-4 rounded-2xl border border-slate-200 bg-slate-100 p-5 shadow-2xl md:p-8">
             <div className="flex items-center justify-between gap-3">
-              <h1 className="text-xl font-semibold tracking-tight md:text-2xl">Smile Study Calendar</h1>
+              <h1 className="text-xl font-semibold tracking-tight md:text-2xl">Smile Study Calendar(α版)</h1>
               <div className="flex items-center gap-2">
                 <button
                   type="button"
-                  className="inline-flex h-10 w-10 flex-col justify-center gap-1.5 rounded-lg border border-slate-700 bg-slate-800 px-2"
+                  className="inline-flex h-10 w-10 flex-col justify-center gap-1.5 rounded-lg border border-slate-400 bg-slate-400 px-2"
                   aria-label={isMenuOpen ? 'メニューを閉じる' : 'メニューを開く'}
                   aria-expanded={isMenuOpen}
                   onClick={() => setIsMenuOpen((prev) => !prev)}
@@ -259,9 +259,9 @@ export default function AppShell({
             </div>
 
             {isLoadingCurrentUser ? (
-              <p className="text-sm text-slate-400">ユーザー情報を読み込み中...</p>
+              <p className="text-sm text-slate-500">ユーザー情報を読み込み中...</p>
             ) : currentUserError ? (
-              <p className="text-sm text-rose-300">{currentUserError}</p>
+              <p className="text-sm text-rose-600">{currentUserError}</p>
             ) : (
               children
             )}
