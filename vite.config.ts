@@ -17,4 +17,18 @@ export default defineConfig({
       '@': path.resolve(__dirname, './src'),
     },
   },
+  build: {
+    rollupOptions: {
+      output: {
+        manualChunks: {
+          vendor: ['react', 'react-dom', 'react-router-dom'],
+          ui: ['@radix-ui/react-dialog', '@radix-ui/react-label', '@radix-ui/react-popover', '@radix-ui/react-select', '@radix-ui/react-slot'],
+          utils: ['dayjs', 'date-fns', 'dayjs/locale/ja', 'react-day-picker', 'lucide-react'],
+          auth: ['@auth0/auth0-react'],
+          db: ['drizzle-orm', 'hono'],
+          form: ['react-hook-form', '@hookform/resolvers', 'zod'],
+        },
+      },
+    },
+  },
 })
