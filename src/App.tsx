@@ -88,19 +88,19 @@ function App() {
   }
 
   const role = currentUser?.role ?? '-';
-  const classroomId = currentUser?.classroomId ?? '-';
   return (
     <AppShell
+      currentUser={currentUser}
+      getAccessTokenSilently={getAccessTokenSilently}
       userName={user?.name}
       userEmail={user?.email}
       role={role}
-      classroomId={classroomId}
       isLoadingCurrentUser={isLoadingCurrentUser}
       currentUserError={currentUserError}
     >
       <Suspense fallback={<p className="text-sm text-slate-400">画面を読み込み中...</p>}>
         <Routes>
-          <Route path="/" element={<HomePage />} />
+          <Route path="/" element={<HomePage currentUser={currentUser} />} />
           <Route
             path="/classroom"
             element={

@@ -1,27 +1,18 @@
 /**
  * （責務）週次カレンダー。教室選択・週移動・コマ一覧とコマ登録ダイアログ。
  */
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import dayjs from 'dayjs';
 import 'dayjs/locale/ja';
 import CreateLessonDialog from '@/components/CreateLessonDialog';
 import { Button } from '@/components/ui/button';
 import { Calendar } from '@/components/ui/calendar';
-import { Label } from '@/components/ui/label';
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select';
 import { useAuthedFetch } from '@/hooks/useAuthedFetch';
+import { SelectedClassroomContext } from '@/components/AppShell';
 import { startOfWeekSunday } from '@/lib/calendarTime';
 import type { CurrentUser } from '@/types/currentUser';
 
 dayjs.locale('ja');
-
-type Classroom = { id: string; name: string };
 
 type LessonApi = {
   id: string;
@@ -56,9 +47,11 @@ export default function CalendarPage({
   currentUser,
   getAccessTokenSilently,
 }: Props) {
-  const isAdmin = currentUser?.role === 'admin';
-  const [classrooms, setClassrooms] = useState<Classroom[]>([]);
-  const [selectedClassroomId, setSelectedClassroomId] = useState('');
+  const context = useContext(SelectedClassroomContext);
+  if (!context) {
+    throw new Error('useSelectedClassroom must be used within AppShell');
+  }
+  const { activeClassroom } = context;
   const [focusDate, setFocusDate] = useState(() => new Date());
   const [lessons, setLessons] = useState<LessonApi[]>([]);
   const [teachers, setTeachers] = useState<TeacherRow[]>([]);
@@ -70,13 +63,6 @@ export default function CalendarPage({
   const [dialogOpen, setDialogOpen] = useState(false);
   const weekRequestIdRef = useRef(0);
 
-  const activeClassroomId = useMemo(() => {
-    if (isAdmin) {
-      return selectedClassroomId;
-    }
-    return currentUser?.classroomId ?? '';
-  }, [isAdmin, selectedClassroomId, currentUser?.classroomId]);
-
   const weekStart = useMemo(() => startOfWeekSunday(focusDate), [focusDate]);
   const weekEndExclusive = useMemo(() => weekStart.add(7, 'day'), [weekStart]);
 
@@ -86,48 +72,25 @@ export default function CalendarPage({
 
   const authedFetch = useAuthedFetch(getAccessTokenSilently);
 
-  useEffect(() => {
-    if (!isAdmin) {
-      return;
-    }
-    let cancelled = false;
-    (async () => {
-      try {
-        const res = await authedFetch('/api/classrooms');
-        if (!res.ok || cancelled) {
-          return;
-        }
-        const data = (await res.json()) as Classroom[];
-        setClassrooms(data);
-        setSelectedClassroomId((prev) => (prev ? prev : (data[0]?.id ?? '')));
-      } catch {
-        /* ignore */
-      }
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, [isAdmin, authedFetch]);
-
   const reloadWeek = useCallback(async () => {
-    if (!activeClassroomId) {
-      setLessons([]);
-      return;
-    }
     const requestId = ++weekRequestIdRef.current;
     setIsLoadingWeek(true);
     setListError(null);
+    if(!activeClassroom){
+      setLessons([]);
+      return;
+    }
     try {
       const from = weekStart.toISOString();
       const to = weekEndExclusive.toISOString();
       const qs = new URLSearchParams({ from, to });
       const userQs = new URLSearchParams({ includeAdmins: '1' });
       const [lRes, uRes, sRes, subRes, ltRes] = await Promise.all([
-        authedFetch(`/api/classrooms/${encodeURIComponent(activeClassroomId)}/lessons?${qs}`),
-        authedFetch(`/api/users/${encodeURIComponent(activeClassroomId)}?${userQs}`),
-        authedFetch(`/api/students/${encodeURIComponent(activeClassroomId)}`),
-        authedFetch(`/api/classrooms/${encodeURIComponent(activeClassroomId)}/subjects`),
-        authedFetch(`/api/classrooms/${encodeURIComponent(activeClassroomId)}/lesson-types`),
+        authedFetch(`/api/classrooms/${encodeURIComponent(activeClassroom.id)}/lessons?${qs}`),
+        authedFetch(`/api/users/${encodeURIComponent(activeClassroom.id)}?${userQs}`),
+        authedFetch(`/api/students/${encodeURIComponent(activeClassroom.id)}`),
+        authedFetch(`/api/classrooms/${encodeURIComponent(activeClassroom.id)}/subjects`),
+        authedFetch(`/api/classrooms/${encodeURIComponent(activeClassroom.id)}/lesson-types`),
       ]);
       if (weekRequestIdRef.current !== requestId) {
         return;
@@ -168,7 +131,7 @@ export default function CalendarPage({
         setIsLoadingWeek(false);
       }
     }
-  }, [activeClassroomId, authedFetch, weekEndExclusive, weekStart]);
+  }, [activeClassroom, authedFetch, weekEndExclusive, weekStart]);
 
   useEffect(() => {
     void reloadWeek();
@@ -213,7 +176,10 @@ export default function CalendarPage({
   return (
     <section className="space-y-6">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-        <h2 className="text-lg font-semibold md:text-xl">カレンダー</h2>
+        <div>
+          <h2 className="text-lg font-semibold md:text-xl">カレンダー</h2>
+          <p className="text-sm text-slate-400">現在の教室: {activeClassroom?.name || '未選択'}</p>
+        </div>
         <div className="flex flex-wrap items-center gap-2">
           <Button type="button" variant="outline" size="sm" onClick={() => setDialogOpen(true)}>
             コマを登録
@@ -221,25 +187,7 @@ export default function CalendarPage({
         </div>
       </div>
 
-      {isAdmin && (
-        <div className="grid max-w-md gap-2">
-          <Label htmlFor="cal-classroom">教室</Label>
-          <Select value={selectedClassroomId} onValueChange={setSelectedClassroomId}>
-            <SelectTrigger id="cal-classroom">
-              <SelectValue placeholder="教室を選択" />
-            </SelectTrigger>
-            <SelectContent>
-              {classrooms.map((c) => (
-                <SelectItem key={c.id} value={c.id}>
-                  {c.name}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
-      )}
-
-      {!activeClassroomId && (
+      {!activeClassroom && (
         <p className="text-sm text-amber-200/90">教室を選択してください。</p>
       )}
 
@@ -347,11 +295,11 @@ export default function CalendarPage({
         </div>
       </div>
 
-      {activeClassroomId && (
+      {activeClassroom && (
         <CreateLessonDialog
           open={dialogOpen}
           onOpenChange={setDialogOpen}
-          classroomId={activeClassroomId}
+          classroomId={activeClassroom.id}
           getAccessTokenSilently={getAccessTokenSilently}
           initialDate={focusDate}
           onCreated={() => void reloadWeek()}
