@@ -124,7 +124,7 @@ export default function PresetsSettingsPanel({ currentUser, getAccessTokenSilent
         setIsLoadingPresets(false);
       }
     }
-  }, [loadClassroomPresets, activeClassroomId]);
+  }, [loadClassroomPresets, activeClassroomIdRef]);
 
   useEffect(() => {
     void loadClassrooms();
@@ -363,7 +363,7 @@ export default function PresetsSettingsPanel({ currentUser, getAccessTokenSilent
 
   if (!isAdmin && !currentUser.classroomId) {
     return (
-      <p className="text-sm text-slate-400">
+      <p className="text-sm text-slate-500">
         所属教室が割り当てられていないため、プリセットを設定できません。
       </p>
     );
@@ -371,22 +371,22 @@ export default function PresetsSettingsPanel({ currentUser, getAccessTokenSilent
 
   return (
     <section className="space-y-8">
-      <header className="space-y-2 border-b border-slate-800 pb-6">
-        <p className="text-xs font-semibold uppercase tracking-wider text-cyan-400/90">Presets</p>
-        <h2 className="text-xl font-bold tracking-tight text-slate-50 md:text-2xl">授業プリセット</h2>
-        <p className="max-w-2xl text-sm leading-relaxed text-slate-400">
+      <header className="space-y-2 border-b border-slate-200 pb-6">
+        <p className="text-xs font-semibold uppercase tracking-wider text-cyan-600">Presets</p>
+        <h2 className="text-xl font-bold tracking-tight text-slate-900 md:text-2xl">授業プリセット</h2>
+        <p className="max-w-2xl text-sm leading-relaxed text-slate-500">
           科目・授業種別・時間枠の選択肢を教室ごとに管理します。無効化した項目は一覧に表示されず、新規コマで選べなくなります。
         </p>
       </header>
 
       {isAdmin && (
         <div className="max-w-md space-y-1">
-          <label htmlFor="preset-classroom" className="text-sm text-slate-300">
+          <label htmlFor="preset-classroom" className="text-sm text-slate-700">
             対象教室
           </label>
           <select
             id="preset-classroom"
-            className="w-full rounded-lg border border-slate-700 bg-slate-800 px-3 py-2 text-slate-100 focus:border-cyan-500/60 focus:outline-none focus:ring-2 focus:ring-cyan-500/25"
+            className="w-full rounded-lg border border-slate-200 bg-slate-200 px-3 py-2 text-slate-900 focus:border-cyan-500/60 focus:outline-none focus:ring-2 focus:ring-cyan-500/25"
             value={selectedClassroomId}
             onChange={(e) => setSelectedClassroomId(e.target.value)}
             disabled={isLoadingClassrooms}
@@ -402,7 +402,7 @@ export default function PresetsSettingsPanel({ currentUser, getAccessTokenSilent
       )}
 
       {error && (
-        <p className="rounded-lg border border-rose-500/30 bg-rose-950/40 px-3 py-2 text-sm text-rose-200" role="alert">
+        <p className="rounded-lg border border-rose-500/30 bg-rose-100/40 px-3 py-2 text-sm text-rose-700" role="alert">
           {error}
         </p>
       )}
@@ -410,7 +410,7 @@ export default function PresetsSettingsPanel({ currentUser, getAccessTokenSilent
       {!activeClassroomId ? (
         <p className="text-sm text-slate-500">教室を選択するとプリセットを編集できます。</p>
       ) : isLoadingPresets ? (
-        <p className="text-sm text-slate-400">読み込み中…</p>
+        <p className="text-sm text-slate-500">読み込み中…</p>
       ) : (
         <div className="space-y-10">
           <SubjectsBlock

@@ -225,9 +225,9 @@ export default function CreateLessonDialog({
         <DialogHeader>
           <DialogTitle>コマを登録</DialogTitle>
         </DialogHeader>
-        {loadError && <p className="text-sm text-rose-300">{loadError}</p>}
+        {loadError && <p className="text-sm text-rose-600">{loadError}</p>}
         {isLoading ? (
-          <p className="text-sm text-slate-400">読み込み中...</p>
+          <p className="text-sm text-slate-500">読み込み中...</p>
         ) : (
           <form className="grid gap-4" onSubmit={handleSubmit}>
             <div className="grid gap-2">
@@ -340,7 +340,7 @@ export default function CreateLessonDialog({
               </Select>
             </div>
 
-            {submitError && <p className="text-sm text-rose-300">{submitError}</p>}
+            {submitError && <p className="text-sm text-rose-600">{submitError}</p>}
 
             <div className="flex justify-end gap-2 pt-2">
               <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>

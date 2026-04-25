@@ -38,7 +38,7 @@ export default function TimeSlotsBlock({
     <PresetSection title="時間枠">
       <form onSubmit={onAdd} className="flex flex-wrap items-end gap-2">
         <div>
-          <label htmlFor="new-slot-start" className="mb-1 block text-xs text-slate-400">
+          <label htmlFor="new-slot-start" className="mb-1 block text-xs text-slate-500">
             開始
           </label>
           <input
@@ -46,11 +46,11 @@ export default function TimeSlotsBlock({
             type="time"
             value={newSlotStart}
             onChange={(e) => onNewSlotStartChange(e.target.value)}
-            className="rounded-lg border border-slate-700 bg-slate-800/80 px-3 py-2 text-slate-100"
+            className="rounded-lg border border-slate-200 bg-slate-200/80 px-3 py-2 text-slate-900"
           />
         </div>
         <div>
-          <label htmlFor="new-slot-end" className="mb-1 block text-xs text-slate-400">
+          <label htmlFor="new-slot-end" className="mb-1 block text-xs text-slate-500">
             終了
           </label>
           <input
@@ -58,7 +58,7 @@ export default function TimeSlotsBlock({
             type="time"
             value={newSlotEnd}
             onChange={(e) => onNewSlotEndChange(e.target.value)}
-            className="rounded-lg border border-slate-700 bg-slate-800/80 px-3 py-2 text-slate-100"
+            className="rounded-lg border border-slate-200 bg-slate-200/80 px-3 py-2 text-slate-900"
           />
         </div>
         <button
@@ -74,11 +74,11 @@ export default function TimeSlotsBlock({
           return (
             <li
               key={row.id}
-              className="flex flex-col gap-2 rounded-xl border border-slate-800 bg-slate-950/60 p-3 sm:flex-row sm:items-end"
+              className="flex flex-col gap-2 rounded-xl border border-slate-200 bg-slate-50/60 p-3 sm:flex-row sm:items-end"
             >
               <div className="flex flex-wrap gap-2">
                 <div>
-                  <span className="mb-1 block text-xs text-slate-400">開始</span>
+                  <span className="mb-1 block text-xs text-slate-500">開始</span>
                   <input
                     type="time"
                     aria-label={`時間枠開始 ${row.id}`}
@@ -89,11 +89,11 @@ export default function TimeSlotsBlock({
                         [row.id]: { ...d, start: e.target.value },
                       }))
                     }
-                    className="rounded-lg border border-slate-700 bg-slate-800/80 px-3 py-2 text-slate-100"
+                    className="rounded-lg border border-slate-200 bg-slate-200/80 px-3 py-2 text-slate-900"
                   />
                 </div>
                 <div>
-                  <span className="mb-1 block text-xs text-slate-400">終了</span>
+                  <span className="mb-1 block text-xs text-slate-500">終了</span>
                   <input
                     type="time"
                     aria-label={`時間枠終了 ${row.id}`}
@@ -104,21 +104,21 @@ export default function TimeSlotsBlock({
                         [row.id]: { ...d, end: e.target.value },
                       }))
                     }
-                    className="rounded-lg border border-slate-700 bg-slate-800/80 px-3 py-2 text-slate-100"
+                    className="rounded-lg border border-slate-200 bg-slate-200/80 px-3 py-2 text-slate-900"
                   />
                 </div>
               </div>
               <div className="flex shrink-0 flex-wrap gap-2 sm:ml-auto">
                 <button
                   type="button"
-                  className="rounded-lg border border-slate-600 px-3 py-1.5 text-sm text-slate-200 hover:bg-slate-800"
+                  className="rounded-lg border border-slate-600 px-3 py-1.5 text-sm text-slate-800 hover:bg-slate-300"
                   onClick={() => void onPatch(row.id)}
                 >
                   更新
                 </button>
                 <button
                   type="button"
-                  className="rounded-lg border border-rose-500/40 bg-rose-950/50 px-3 py-1.5 text-sm text-rose-200 hover:bg-rose-900/60"
+                  className="rounded-lg border border-rose-200/60 bg-rose-100/50 px-3 py-1.5 text-sm text-rose-700 hover:bg-rose-100/60"
                   onClick={() => void onDisable(row.id)}
                 >
                   無効化
