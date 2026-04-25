@@ -1,3 +1,6 @@
+/**
+ * （責務）教室プリセット系 API の Vitest。科目・授業種別・時間枠等。
+ */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { classrooms, lessonTypes, subjects, timeSlots, users } from '../../db/schema';
 

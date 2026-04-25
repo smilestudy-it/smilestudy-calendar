@@ -1,3 +1,6 @@
+/**
+ * （責務）生徒一覧の取得・新規登録・削除、共有 URL コピー。
+ */
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';

@@ -1,3 +1,6 @@
+/**
+ * （責務）講師の一覧・招待（作成）と管理者一覧。教室長以上向け操作。
+ */
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';

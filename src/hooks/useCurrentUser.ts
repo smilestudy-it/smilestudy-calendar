@@ -1,3 +1,6 @@
+/**
+ * （責務）`/api/me` を呼び、ログイン中ユーザの CurrentUser を state で保持。
+ */
 import { useEffect, useState } from 'react';
 import type { CurrentUser } from '../types/currentUser';
 

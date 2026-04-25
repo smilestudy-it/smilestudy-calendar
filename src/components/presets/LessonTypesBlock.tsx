@@ -1,3 +1,6 @@
+/**
+ * （責務）教室ごとの授業種別の追加・行編集・無効化 UI。
+ */
 import type { LessonTypeListItem } from '@/types/api';
 import PresetSection from './PresetSection';
 

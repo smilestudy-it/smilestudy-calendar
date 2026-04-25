@@ -1,3 +1,6 @@
+/**
+ * （責務）教室 CRUD 等の API の Vitest。
+ */
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { classrooms, lessonTypes, lessons, students, subjects, timeSlots, users } from '../../db/schema';
 

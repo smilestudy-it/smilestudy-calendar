@@ -1,3 +1,6 @@
+/**
+ * （責務）プリセット設定内のセクション枠（見出し＋子）。
+ */
 import type { ReactNode } from 'react';
 
 type Props = {

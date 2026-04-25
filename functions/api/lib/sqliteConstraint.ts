@@ -1,3 +1,6 @@
+/**
+ * （責務）D1/SQLite の unique / FK 違反のテキスト判定。教室名・メール衝突など。
+ */
 import { collectErrorTextParts } from './logApiError';
 
 export const CLASSROOM_NOT_ACTIVE_ERROR = 'CLASSROOM_NOT_ACTIVE_ERROR';

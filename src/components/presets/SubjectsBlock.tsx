@@ -1,3 +1,6 @@
+/**
+ * （責務）教室ごとの科目の追加・行編集・無効化 UI。
+ */
 import type { SubjectListItem } from '@/types/api';
 import PresetSection from './PresetSection';
 

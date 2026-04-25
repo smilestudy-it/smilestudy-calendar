@@ -1,3 +1,6 @@
+/**
+ * （責務）ロールの日本語表示ラベルと、ナビ表示可否向けの軽い判定ヘルパ。
+ */
 import type { AppRole } from '@/types/role';
 import type { CurrentUser } from '@/types/currentUser';
 

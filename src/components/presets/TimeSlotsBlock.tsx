@@ -1,3 +1,6 @@
+/**
+ * （責務）教室ごとの時間枠の追加・開始終了編集・無効化 UI。
+ */
 import type { TimeSlotListItem } from '@/types/api';
 import PresetSection from './PresetSection';
 

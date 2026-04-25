@@ -1,3 +1,6 @@
+/**
+ * （責務）共有用 API 等で、論理削除前の生徒＋有効教室の行をまとめて取得。
+ */
 import { and, eq, isNull } from 'drizzle-orm';
 import type { getDb } from '../../../db';
 import { classrooms, students } from '../../../db/schema';

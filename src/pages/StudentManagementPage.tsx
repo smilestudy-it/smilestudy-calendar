@@ -1,3 +1,6 @@
+/**
+ * （責務）生徒管理ページの枠。StudentManagementPanel を包む。
+ */
 import StudentManagementPanel from '../components/StudentManagementPanel';
 import type { CurrentUser } from '../types/currentUser';
 

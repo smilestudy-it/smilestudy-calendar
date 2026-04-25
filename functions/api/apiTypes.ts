@@ -1,3 +1,6 @@
+/**
+ * （責務）Hono 用の ApiBindings・AppUser・AppVariables 等の共有型。
+ */
 import type { JwtVariables } from 'hono/jwt';
 import type { Context } from 'hono';
 

@@ -1,3 +1,6 @@
+/**
+ * （責務）（サンプル寄り）Auth0 連携のユーザプロフィール表示。/api/me からアプリ上のユーザ行を表示。
+ */
 import { useAuth0 } from "@auth0/auth0-react";
 import { useEffect, useState } from "react";
 import type { CurrentUser } from "./types/currentUser";

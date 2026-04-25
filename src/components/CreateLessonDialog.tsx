@@ -1,3 +1,6 @@
+/**
+ * （責務）コマ新規登録ダイアログ。講師・生徒・科目・枠の選択と API POST。
+ */
 import { useEffect, useState } from 'react';
 import { ja } from 'date-fns/locale';
 import { format } from 'date-fns';

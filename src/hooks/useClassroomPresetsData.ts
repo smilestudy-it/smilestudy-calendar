@@ -1,3 +1,6 @@
+/**
+ * （責務）1 教室の subject / lesson-type / time-slot を並列取得するフック用ロジック。
+ */
 import { useCallback } from 'react';
 import type { AuthedFetch } from '@/hooks/useAuthedFetch';
 import type {

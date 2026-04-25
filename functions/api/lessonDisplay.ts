@@ -1,6 +1,8 @@
 /**
- * レッスン付帯表示用のラベル・時刻ユーティリティ（API レスポンスの整形）
+ * （責務）API レスポンス用の講師/生徒表示名整形と、HH:mm 分数変換（hmToMinutes）。
+ * レッスン付帯表示用のラベル・時刻ユーティリティ（API レスポンスの整形）。
  */
+
 export function lessonTeacherDisplay(
   row:
     | { firstName: string | null; lastName: string | null; deletedAt: Date | null }

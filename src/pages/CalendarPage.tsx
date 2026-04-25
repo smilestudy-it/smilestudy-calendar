@@ -1,3 +1,6 @@
+/**
+ * （責務）週次カレンダー。教室選択・週移動・コマ一覧とコマ登録ダイアログ。
+ */
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import dayjs from 'dayjs';
 import 'dayjs/locale/ja';

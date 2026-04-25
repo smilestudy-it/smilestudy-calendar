@@ -1,3 +1,6 @@
+/**
+ * （責務）フロントが扱うログインユーザの型（/api/me 等）。
+ */
 import type { AppRole } from './role';
 
 export type CurrentUser = {

@@ -1,6 +1,6 @@
 /**
- * Hono API の集約（Pages Functions から `[[route]].ts` 経由で export）
- * ルート群の物理分割は段階的にここへ集約する想定
+ * （責務）Hono API の集約: `/api` 下の全ルート登録と `onRequest` 提供。Pages Functions は [[route].ts] から export。
+ * ルート定義のさらに細かいファイル分割は段階的にここへ集約可能。
  */
 import { Hono } from 'hono';
 import { handle } from 'hono/cloudflare-pages';

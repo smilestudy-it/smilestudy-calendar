@@ -1,3 +1,6 @@
+/**
+ * （責務）Auth0 の `logout` によるログアウトボタン。
+ */
 import { useAuth0 } from "@auth0/auth0-react";
 
 const LogoutButton = () => {

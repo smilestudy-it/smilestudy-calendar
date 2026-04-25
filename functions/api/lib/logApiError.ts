@@ -1,6 +1,8 @@
 /**
- * 診断用（Wrangler / ダッシュボードのログ）。クライアントには返さない
+ * （責務）API ルート用の診断ログ。エラーメッセージ部品の再帰収集。
+ * 診断用（Wrangler / ダッシュボード）。クライアントには返さない。
  */
+
 export function collectErrorTextParts(error: unknown, depth = 0): string[] {
   if (depth > 6) {
     return [];

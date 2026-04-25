@@ -1,3 +1,6 @@
+/**
+ * （責務）React ルートへマウント。Auth0Provider・BrowserRouter で App を包むエントリ。
+ */
 import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
 import './index.css'

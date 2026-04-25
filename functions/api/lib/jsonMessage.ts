@@ -1,3 +1,6 @@
+/**
+ * （責務）API 一貫の JSON エラーレスポンス { message } を返す薄いヘルパ。
+ */
 import type { Context } from 'hono';
 import type { ContentfulStatusCode } from 'hono/utils/http-status';
 

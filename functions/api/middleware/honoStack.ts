@@ -1,3 +1,6 @@
+/**
+ * （責務）Hono: JWT 検証、loadUser、ロール/教室スコープ系のミドルウェア群。
+ */
 import { jwk } from 'hono/jwk';
 import type { Next } from 'hono';
 import { and, eq, isNull } from 'drizzle-orm';

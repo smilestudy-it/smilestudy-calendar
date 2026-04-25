@@ -1,3 +1,6 @@
+/**
+ * （責務）管理画面の共通シェル。ナビ・ユーザ情報枠と子 route の描画。
+ */
 import { useState } from 'react';
 import { NavLink } from 'react-router-dom';
 import type { ReactNode } from 'react';

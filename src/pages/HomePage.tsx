@@ -1,3 +1,6 @@
+/**
+ * （責務）トップ / ダッシュ的なホーム画面（軽量）。
+ */
 export default function HomePage() {
   return (
     <section className="space-y-2">

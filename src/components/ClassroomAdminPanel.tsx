@@ -1,3 +1,6 @@
+/**
+ * （責務）（管理者向け）教室名の新規登録と教室一覧表示。
+ */
 import { useCallback, useEffect, useState } from 'react';
 import { useAuthedFetch } from '@/hooks/useAuthedFetch';
 import type { ComponentProps } from 'react';

@@ -1,3 +1,6 @@
+/**
+ * （責務）コマ CRUD・週件取得系 API の Vitest。
+ */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { Column, SQL, StringChunk, is } from 'drizzle-orm';
 import { classrooms, lessons, students, users } from '../../db/schema';

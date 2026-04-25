@@ -1,3 +1,6 @@
+/**
+ * （責務）Auth0 サイレント取得トークン付きの fetch フック。認証必須 API 用。
+ */
 import { useCallback } from 'react';
 
 /**

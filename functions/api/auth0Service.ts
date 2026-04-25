@@ -1,3 +1,6 @@
+/**
+ * （責務）Auth0 Management API および change_password 等、サーバー専用の Auth0 呼び出し。
+ */
 import type { ApiBindings, Auth0ErrorResponse, Auth0UserResponse } from './apiTypes';
 
 /**

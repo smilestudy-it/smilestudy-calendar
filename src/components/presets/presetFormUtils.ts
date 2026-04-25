@@ -1,5 +1,6 @@
 /**
- * 授業プリセット画面の API エラー解釈と `<input type="time">` 正規化
+ * （責務）プリセット操作時の time→HH:mm 正規化と API エラー文面化。
+ * 授業プリセット画面の API エラー解釈と `<input type="time">` 正規化を担当。
  */
 
 /** `<input type="time">` の値を API の `HH:mm` に揃える */

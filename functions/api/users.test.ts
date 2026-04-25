@@ -1,3 +1,6 @@
+/**
+ * （責務）ユーザ作成・削除・教室別一覧等の API の Vitest。
+ */
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { classrooms, users } from '../../db/schema';
 

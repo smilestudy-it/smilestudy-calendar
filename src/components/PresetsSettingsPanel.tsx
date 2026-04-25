@@ -1,3 +1,6 @@
+/**
+ * （責務）授業プリセット管理のコンテナ。科目/種別/枠の各ブロックを束ねる。
+ */
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useAuthedFetch } from '@/hooks/useAuthedFetch';
 import { useClassroomPresetsData } from '@/hooks/useClassroomPresetsData';
