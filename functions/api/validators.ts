@@ -13,7 +13,7 @@ const userSchema = z
   .object({
     firstName: z.string().trim().min(1, 'first name is required').max(100, 'first name must be 100 characters or less'),
     lastName: z.string().trim().min(1, 'last name is required').max(100, 'last name must be 100 characters or less'),
-    classroomId: z.string().trim().optional(),
+    classroomId: z.string().trim().nullable().optional(),
     color: z
       .string()
       .trim()
