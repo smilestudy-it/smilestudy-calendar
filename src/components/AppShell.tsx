@@ -208,7 +208,7 @@ export default function AppShell({
               isMenuOpen ? 'translate-x-0' : '-translate-x-full'
             }`}
           >
-            <div className="flex h-full flex-col">
+            <div className="flex h-full min-h-0 flex-col overflow-y-auto overscroll-contain">
               {/* Header */}
               <div className="flex items-center justify-between p-6 border-b border-slate-200">
                 <h2 className="text-lg font-semibold">メニュー</h2>
@@ -271,7 +271,7 @@ export default function AppShell({
               )}
 
               {/* Navigation */}
-              <nav className="flex-1 p-6">
+              <nav className="p-6">
                 <ul className="space-y-2">
                   {filteredMenuItems.map((item) => (
                     <li key={item.to}>
