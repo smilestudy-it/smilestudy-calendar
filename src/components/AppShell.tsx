@@ -1,7 +1,7 @@
 /**
  * （責務）管理画面の共通シェル。ナビ・教室切替・ユーザ情報枠と子 route の描画。
  */
-import { useEffect, useMemo, useState, createContext, type Dispatch, type ReactNode, type SetStateAction } from 'react';
+import { useEffect, useMemo, useState, createContext, type Dispatch, type ReactNode, type SetStateAction, useCallback } from 'react';
 import { NavLink } from 'react-router-dom';
 import LogoutButton from './ui/LogoutButton';
 import { Label } from './ui/label';
@@ -22,6 +22,8 @@ type SelectedClassroomContextState = {
   setSelectedClassroomId: Dispatch<SetStateAction<string>>;
   classrooms: Classroom[];
   activeClassroom: Classroom | undefined;
+  /** 管理者向け教室一覧 API を再取得し、ドロワーの教室切替と state を同期する */
+  refreshClassrooms: () => Promise<void>;
 };
 
 const SelectedClassroomContext = createContext<SelectedClassroomContextState | null>(null);
@@ -65,42 +67,69 @@ export default function AppShell({
     }
   }, [isAdmin, selectedClassroomId, currentUser?.classroomId, classrooms]);
 
+  type LoadAdminClassroomsMode = 'initial' | 'sync';
+
+  const loadAdminClassrooms = useCallback(
+    async (mode: LoadAdminClassroomsMode, cancelled?: { current: boolean }) => {
+      if (!isAdmin || !currentUser) {
+        return;
+      }
+
+      setIsLoadingClassrooms(true);
+      setClassroomsError(null);
+      try {
+        const res = await authedFetch('/api/classrooms');
+        if (!res.ok) {
+          if (!cancelled?.current) {
+            setClassroomsError('教室一覧の取得に失敗しました。');
+          }
+          return;
+        }
+        const data = (await res.json()) as Classroom[];
+        if (cancelled?.current) {
+          return;
+        }
+        setClassrooms(data);
+        if (mode === 'initial') {
+          setSelectedClassroomId((prev) => (prev ? prev : data[0]?.id ?? ''));
+        } else {
+          setSelectedClassroomId((prev) => {
+            if (prev && data.some((c) => c.id === prev)) {
+              return prev;
+            }
+            return data[0]?.id ?? '';
+          });
+        }
+      } catch (error) {
+        if (!cancelled?.current) {
+          console.error(error);
+          setClassroomsError('教室一覧の取得に失敗しました。');
+        }
+      } finally {
+        if (!cancelled?.current) {
+          setIsLoadingClassrooms(false);
+        }
+      }
+    },
+    [authedFetch, currentUser, isAdmin],
+  );
+
+  const refreshClassrooms = useCallback(async () => {
+    await loadAdminClassrooms('sync');
+  }, [loadAdminClassrooms]);
+
   useEffect(() => {
     if (!isAdmin || !currentUser) {
       return;
     }
 
-    let cancelled = false;
-    setIsLoadingClassrooms(true);
-
-    (async () => {
-      try {
-        const res = await authedFetch('/api/classrooms');
-        if (!res.ok || cancelled) {
-          return;
-        }
-        const data = (await res.json()) as Classroom[];
-        if (cancelled) {
-          return;
-        }
-        setClassrooms(data);
-        setSelectedClassroomId((prev) => (prev ? prev : data[0]?.id ?? ''));
-      } catch (error) {
-        if (!cancelled) {
-          console.error(error);
-          setClassroomsError('教室一覧の取得に失敗しました。');
-        }
-      } finally {
-        if (!cancelled) {
-          setIsLoadingClassrooms(false);
-        }
-      }
-    })();
+    const cancelled = { current: false };
+    void loadAdminClassrooms('initial', cancelled);
 
     return () => {
-      cancelled = true;
+      cancelled.current = true;
     };
-  }, [authedFetch, currentUser, isAdmin]);
+  }, [loadAdminClassrooms, isAdmin, currentUser]);
 
   type MenuItem = {
     label: string;
@@ -138,6 +167,7 @@ export default function AppShell({
         setSelectedClassroomId,
         classrooms,
         activeClassroom,
+        refreshClassrooms,
       }}
     >
       <div className="min-h-screen bg-slate-50 text-slate-900">
