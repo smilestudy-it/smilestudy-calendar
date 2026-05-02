@@ -1,15 +1,10 @@
 /**
  * （責務）（管理者向け）教室名の新規登録と教室一覧表示。
  */
-import { useCallback, useContext, useEffect, useState } from 'react';
+import { useContext, useState } from 'react';
 import { SelectedClassroomContext } from '@/components/AppShell';
 import { useAuthedFetch } from '@/hooks/useAuthedFetch';
 import type { ComponentProps } from 'react';
-
-type Classroom = {
-  id: string;
-  name: string;
-};
 
 type Props = {
   getAccessTokenSilently: () => Promise<string>;
@@ -19,40 +14,16 @@ type FormSubmitHandler = NonNullable<ComponentProps<'form'>['onSubmit']>;
 
 export default function ClassroomAdminPanel({ getAccessTokenSilently }: Props) {
   const classroomNameInputId = 'classroom-name';
-  const [classrooms, setClassrooms] = useState<Classroom[]>([]);
   const [name, setName] = useState('');
-  const [isLoading, setIsLoading] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const shellClassroom = useContext(SelectedClassroomContext);
 
   const authedFetch = useAuthedFetch(getAccessTokenSilently);
 
-  const loadClassrooms = useCallback(async () => {
-    setIsLoading(true);
-    try {
-      const response = await authedFetch('/api/classrooms');
-      if (!response.ok) {
-        setError(
-          response.status === 403
-            ? '教室一覧を表示する権限がありません。'
-            : '教室一覧の取得に失敗しました。',
-        );
-        return;
-      }
-      const data = (await response.json()) as Classroom[];
-      setError(null);
-      setClassrooms(data);
-    } catch {
-      setError('教室一覧の取得に失敗しました。');
-    } finally {
-      setIsLoading(false);
-    }
-  }, [authedFetch]);
-
-  useEffect(() => {
-    void loadClassrooms();
-  }, [loadClassrooms]);
+  const classrooms = shellClassroom?.classrooms ?? [];
+  const isLoadingClassroomsList = shellClassroom?.isLoadingClassrooms ?? false;
+  const listError = shellClassroom?.classroomsError ?? null;
 
   const handleCreate: FormSubmitHandler = async (e) => {
     e.preventDefault();
@@ -79,7 +50,6 @@ export default function ClassroomAdminPanel({ getAccessTokenSilently }: Props) {
       }
 
       setName('');
-      await loadClassrooms();
       await shellClassroom?.refreshClassrooms();
     } catch {
       setError('教室の追加に失敗しました。');
@@ -98,7 +68,6 @@ export default function ClassroomAdminPanel({ getAccessTokenSilently }: Props) {
         setError('教室の削除に失敗しました。');
         return;
       }
-      await loadClassrooms();
       await shellClassroom?.refreshClassrooms();
     } catch {
       setError('教室の削除に失敗しました。');
@@ -133,8 +102,9 @@ export default function ClassroomAdminPanel({ getAccessTokenSilently }: Props) {
       </form>
 
       {error && <p className="text-sm text-rose-600">{error}</p>}
+      {listError && <p className="text-sm text-rose-600">{listError}</p>}
 
-      {isLoading ? (
+      {isLoadingClassroomsList ? (
         <p className="text-sm text-slate-500">教室一覧を読み込み中...</p>
       ) : (
         <ul className="space-y-2">
