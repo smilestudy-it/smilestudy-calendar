@@ -4,7 +4,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { classrooms, lessonTypes, lessons, students, subjects, users } from '../../db/schema';
 
-type StudentRow = { id: string; classroomId: string; deletedAt: Date | null };
+type StudentRow = { id: string; classroomId: string; name: string; deletedAt: Date | null };
 type ClassroomRow = { id: string; deletedAt: Date | null };
 type LessonRow = {
   id: string;
@@ -22,6 +22,7 @@ type UserRow = {
   id: string;
   firstName: string | null;
   lastName: string | null;
+  color: string | null;
   deletedAt: Date | null;
 };
 type SubjectRow = { id: string; classroomId: string; name: string; deletedAt: Date | null };
@@ -91,7 +92,7 @@ vi.mock('../../db', () => {
                   const { strings } = walkPredicate(predicate);
                   const id = strings.find((s) => state.studentRows.some((r) => r.id === s));
                   const row = state.studentRows.find((r) => r.id === id && r.deletedAt === null);
-                  return row ? [{ id: row.id, classroomId: row.classroomId }] : [];
+                  return row ? [{ id: row.id, classroomId: row.classroomId, name: row.name }] : [];
                 },
               }),
             };
@@ -160,6 +161,7 @@ vi.mock('../../db', () => {
                     id: u.id,
                     firstName: u.firstName,
                     lastName: u.lastName,
+                    color: u.color,
                     deletedAt: u.deletedAt,
                   }));
               },
@@ -228,12 +230,13 @@ const env = {
 describe('GET /api/public/student-lessons', () => {
   beforeEach(() => {
     state.classroomRows = [{ id: 'room-1', deletedAt: null }];
-    state.studentRows = [{ id: 'stu-1', classroomId: 'room-1', deletedAt: null }];
+    state.studentRows = [{ id: 'stu-1', classroomId: 'room-1', name: '佐藤 花子', deletedAt: null }];
     state.userRows = [
       {
         id: 'teacher-1',
         firstName: '太郎',
         lastName: '山田',
+        color: '#22c55e',
         deletedAt: null,
       },
     ];
@@ -298,7 +301,7 @@ describe('GET /api/public/student-lessons', () => {
   });
 
   it('returns 404 for soft-deleted student', async () => {
-    state.studentRows[0] = { id: 'stu-1', classroomId: 'room-1', deletedAt: new Date() };
+    state.studentRows[0] = { id: 'stu-1', classroomId: 'room-1', name: '佐藤 花子', deletedAt: new Date() };
     const res = await app.request(
       '/api/public/student-lessons?student_id=stu-1&from=2025-06-01T00:00:00.000Z&to=2025-07-01T00:00:00.000Z',
       { method: 'GET' },
@@ -314,10 +317,15 @@ describe('GET /api/public/student-lessons', () => {
       env,
     );
     expect(res.status).toBe(200);
-    const rows = (await res.json()) as Array<{ id: string; status: string; teacherDisplay: string }>;
-    expect(rows.map((r) => r.id)).toEqual(['L-pub']);
-    expect(rows[0]?.teacherDisplay).toContain('山田');
-    expect(rows[0]?.status).toBe('published');
+    const payload = (await res.json()) as {
+      studentName: string;
+      lessons: Array<{ id: string; status: string; teacherDisplay: string; teacherColor: string | null }>;
+    };
+    expect(payload.studentName).toBe('佐藤 花子');
+    expect(payload.lessons.map((r) => r.id)).toEqual(['L-pub']);
+    expect(payload.lessons[0]?.teacherDisplay).toContain('山田');
+    expect(payload.lessons[0]?.status).toBe('published');
+    expect(payload.lessons[0]?.teacherColor).toBe('#22c55e');
   });
 
   it('excludes lessons whose teacher is soft-deleted', async () => {
@@ -325,6 +333,7 @@ describe('GET /api/public/student-lessons', () => {
       id: 'teacher-1',
       firstName: '太郎',
       lastName: '山田',
+      color: '#22c55e',
       deletedAt: new Date(),
     };
     const res = await app.request(
@@ -333,8 +342,8 @@ describe('GET /api/public/student-lessons', () => {
       env,
     );
     expect(res.status).toBe(200);
-    const rows = (await res.json()) as unknown[];
-    expect(rows).toHaveLength(0);
+    const payload = (await res.json()) as { lessons: unknown[] };
+    expect(payload.lessons).toHaveLength(0);
   });
 
   it('does not require Authorization header', async () => {

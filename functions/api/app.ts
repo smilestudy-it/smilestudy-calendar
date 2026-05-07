@@ -49,6 +49,28 @@ const deleteAuth0User = auth0.deleteAuth0User;
 const sendAuth0PasswordSetupEmail = auth0.sendAuth0PasswordSetupEmail;
 
 export const app = new Hono<{ Bindings: Bindings; Variables: AppVariables }>().basePath('/api');
+
+let holidayMapPromise: Promise<Record<string, string>> | null = null;
+
+async function getHolidayMap(): Promise<Record<string, string>> {
+  if (!holidayMapPromise) {
+    holidayMapPromise = (async () => {
+      try {
+        const res = await fetch('https://holidays-jp.github.io/api/v1/date.json');
+        if (!res.ok) {
+          holidayMapPromise = null;
+          return {};
+        }
+        const json = (await res.json()) as Record<string, string>;
+        return json;
+      } catch {
+        holidayMapPromise = null;
+        return {};
+      }
+    })();
+  }
+  return holidayMapPromise;
+}
 /** 未認証。`student_id` を知っている利用者向けの簡易共有ビュー用。 */
 app.get('/public/student-lessons', async (c) => {
   const studentId = (c.req.query('student_id') ?? '').trim();
@@ -102,6 +124,7 @@ app.get('/public/student-lessons', async (c) => {
             id: users.id,
             firstName: users.firstName,
             lastName: users.lastName,
+            color: users.color,
             deletedAt: users.deletedAt,
           })
           .from(users)
@@ -155,11 +178,29 @@ app.get('/public/student-lessons', async (c) => {
     endAt: row.endAt.toISOString(),
     status: row.status,
     teacherDisplay: lessonTeacherDisplay(teacherById.get(row.teacherId)),
+    teacherColor: teacherById.get(row.teacherId)?.color ?? null,
     subjectName: row.subjectId ? (subjectById.get(row.subjectId) ?? null) : null,
     lessonTypeName: row.lessonTypeId ? (lessonTypeById.get(row.lessonTypeId) ?? null) : null,
   }));
 
-  return c.json(rows, 200);
+  return c.json({ studentName: studentRow.name, lessons: rows }, 200);
+});
+
+/** 未認証。指定年月の日本の祝日一覧を返す。 */
+app.get('/public/holidays', async (c) => {
+  const year = Number(c.req.query('year') ?? '');
+  const month = Number(c.req.query('month') ?? '');
+  if (!Number.isInteger(year) || !Number.isInteger(month) || month < 1 || month > 12) {
+    return c.json({ message: 'year and month query parameters are required' }, 400);
+  }
+
+  const monthPrefix = `${year}-${String(month).padStart(2, '0')}-`;
+  const holidayMap = await getHolidayMap();
+  const holidays = Object.entries(holidayMap)
+    .filter(([date]) => date.startsWith(monthPrefix))
+    .map(([date, name]) => ({ date, name }));
+
+  return c.json(holidays, 200);
 });
 
 app.post('/classrooms', auth, loadUser, requireAdmin, async (c) => {
