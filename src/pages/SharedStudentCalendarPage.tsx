@@ -60,16 +60,10 @@ export default function SharedStudentCalendarPage() {
           setLessons([]);
           return;
         }
-        const data = (await res.json()) as
-          | PublicLesson[]
-          | { studentName?: string; lessons?: PublicLesson[] };
+        const data = (await res.json()) as { studentName?: string; lessons?: PublicLesson[] };
         if (!isDisposed) {
-          if (Array.isArray(data)) {
-            setLessons(data);
-          } else {
-            setStudentName(data.studentName ?? '');
-            setLessons(data.lessons ?? []);
-          }
+          setStudentName(data.studentName ?? '');
+          setLessons(data.lessons ?? []);
         }
       } catch {
         if (!isDisposed) {
