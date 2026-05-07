@@ -14,11 +14,11 @@ export async function getActiveStudentAndClassroom(
   db: Db,
   studentId: string,
 ): Promise<{
-  student: { id: string; classroomId: string };
+  student: { id: string; classroomId: string; name: string };
   classroom: { id: string } | null;
 } | null> {
   const [studentRow] = await db
-    .select({ id: students.id, classroomId: students.classroomId })
+    .select({ id: students.id, classroomId: students.classroomId, name: students.name })
     .from(students)
     .where(and(eq(students.id, studentId), isNull(students.deletedAt)))
     .limit(1);

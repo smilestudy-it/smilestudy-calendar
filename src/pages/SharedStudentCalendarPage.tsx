@@ -16,6 +16,7 @@ type PublicLesson = {
   endAt: string;
   status: string;
   teacherDisplay: string;
+  teacherColor: string | null;
   subjectName: string | null;
   lessonTypeName: string | null;
 };
@@ -24,6 +25,7 @@ export default function SharedStudentCalendarPage() {
   const [searchParams] = useSearchParams();
   const studentId = (searchParams.get('student_id') ?? '').trim();
   const [focusDate, setFocusDate] = useState(() => new Date());
+  const [studentName, setStudentName] = useState('');
   const [lessons, setLessons] = useState<PublicLesson[]>([]);
   const [listError, setListError] = useState<string | null>(null);
   const [isLoadingMonth, setIsLoadingMonth] = useState(false);
@@ -58,9 +60,16 @@ export default function SharedStudentCalendarPage() {
           setLessons([]);
           return;
         }
-        const data = (await res.json()) as PublicLesson[];
+        const data = (await res.json()) as
+          | PublicLesson[]
+          | { studentName?: string; lessons?: PublicLesson[] };
         if (!isDisposed) {
-          setLessons(data);
+          if (Array.isArray(data)) {
+            setLessons(data);
+          } else {
+            setStudentName(data.studentName ?? '');
+            setLessons(data.lessons ?? []);
+          }
         }
       } catch {
         if (!isDisposed) {
@@ -88,7 +97,9 @@ export default function SharedStudentCalendarPage() {
         }`,
         start: l.startAt,
         end: l.endAt,
-        borderColor: '#6366f1',
+        backgroundColor: l.teacherColor && /^#([0-9a-fA-F]{6})$/.test(l.teacherColor) ? l.teacherColor : '#6366f1',
+        borderColor: l.teacherColor && /^#([0-9a-fA-F]{6})$/.test(l.teacherColor) ? l.teacherColor : '#6366f1',
+        textColor: '#ffffff',
       };
     });
   }, [lessons]);
@@ -108,8 +119,9 @@ export default function SharedStudentCalendarPage() {
     <section className="mx-auto max-w-6xl space-y-6">
       <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h1 className="text-lg font-semibold text-slate-900 md:text-xl">共有カレンダー</h1>
-          <p className="text-xs text-slate-500">閲覧のみ（ログイン不要）</p>
+          <h1 className="text-lg font-semibold text-slate-900 md:text-xl">
+            共有カレンダー{studentName ? `(${studentName})` : ''}
+          </h1>
         </div>
       </div>
 

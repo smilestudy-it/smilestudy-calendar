@@ -118,6 +118,7 @@ app.get('/public/student-lessons', async (c) => {
             id: users.id,
             firstName: users.firstName,
             lastName: users.lastName,
+            color: users.color,
             deletedAt: users.deletedAt,
           })
           .from(users)
@@ -171,11 +172,12 @@ app.get('/public/student-lessons', async (c) => {
     endAt: row.endAt.toISOString(),
     status: row.status,
     teacherDisplay: lessonTeacherDisplay(teacherById.get(row.teacherId)),
+    teacherColor: teacherById.get(row.teacherId)?.color ?? null,
     subjectName: row.subjectId ? (subjectById.get(row.subjectId) ?? null) : null,
     lessonTypeName: row.lessonTypeId ? (lessonTypeById.get(row.lessonTypeId) ?? null) : null,
   }));
 
-  return c.json(rows, 200);
+  return c.json({ studentName: studentRow.name, lessons: rows }, 200);
 });
 
 /** 未認証。指定年月の日本の祝日一覧を返す。 */
