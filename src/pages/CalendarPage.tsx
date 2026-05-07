@@ -7,6 +7,7 @@ import 'dayjs/locale/ja';
 import CreateLessonDialog from '@/components/CreateLessonDialog';
 import { Button } from '@/components/ui/button';
 import MonthCalendar from '@/components/ui/full-calendar';
+import LessonDeletePanel, { type LessonDeleteTarget } from '@/components/ui/lesson-delete-panel';
 import { useAuthedFetch } from '@/hooks/useAuthedFetch';
 import { SelectedClassroomContext } from '@/components/AppShell';
 import type { CurrentUser } from '@/types/currentUser';
@@ -50,18 +51,18 @@ function toNameMap(rows: PresetRow[]) {
   return new Map(rows.map((row) => [row.id, row.name]));
 }
 
-function buildLessonTitle(
+function buildModalEventTitle(
   lesson: LessonApi,
   teacher?: TeacherRow,
   student?: StudentRow,
   subjectName?: string,
   lessonTypeName?: string
 ) {
-  const teacherText =
+  const teacherName =
     lesson.teacherDisplay || `${teacher?.lastName ?? ''} ${teacher?.firstName ?? ''}`.trim() || lesson.teacherId;
-  const studentText = lesson.studentDisplay ?? student?.name ?? lesson.studentId;
-  const detailText = [subjectName, lessonTypeName].filter(Boolean).join(' · ');
-  return detailText ? `${teacherText} / ${studentText} (${detailText})` : `${teacherText} / ${studentText}`;
+  const studentName = lesson.studentDisplay ?? student?.name ?? lesson.studentId;
+  const detailText = [subjectName, lessonTypeName].filter(Boolean).join('・');
+  return detailText ? `${teacherName} - ${studentName} (${detailText})` : `${teacherName} - ${studentName}`;
 }
 
 export default function CalendarPage({
@@ -83,6 +84,9 @@ export default function CalendarPage({
   const [isLoadingMonth, setIsLoadingMonth] = useState(false);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [reloadTick, setReloadTick] = useState(0);
+  const [selectedEvent, setSelectedEvent] = useState<LessonDeleteTarget | null>(null);
+  const [isDeletingLesson, setIsDeletingLesson] = useState(false);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
 
   const monthStart = useMemo(() => dayjs(focusDate).startOf('month'), [focusDate]);
   const monthEndExclusive = useMemo(() => monthStart.add(1, 'month'), [monthStart]);
@@ -90,6 +94,28 @@ export default function CalendarPage({
   const monthToIso = useMemo(() => monthEndExclusive.toISOString(), [monthEndExclusive]);
 
   const authedFetch = useAuthedFetch(getAccessTokenSilently);
+
+  const handleDeleteLesson = async () => {
+    if (!selectedEvent) {
+      return;
+    }
+    setDeleteError(null);
+    setIsDeletingLesson(true);
+    try {
+      const res = await authedFetch(`/api/lessons/${encodeURIComponent(selectedEvent.id)}`, { method: 'DELETE' });
+      if (!res.ok) {
+        const body = (await res.json().catch(() => ({}))) as { message?: string };
+        setDeleteError(body.message ? `削除に失敗しました（${body.message}）` : '削除に失敗しました。');
+        return;
+      }
+      setSelectedEvent(null);
+      setReloadTick((v) => v + 1);
+    } catch {
+      setDeleteError('ネットワークエラーが発生しました。');
+    } finally {
+      setIsDeletingLesson(false);
+    }
+  };
 
   useEffect(() => {
     let isDisposed = false;
@@ -156,19 +182,19 @@ export default function CalendarPage({
   const calendarEvents = useMemo(() => {
     return lessons.map((l) => {
       const te = teacherById.get(l.teacherId);
-      const st = studentById.get(l.studentId);
-      const borderColor = te?.color && /^#([0-9a-fA-F]{6})$/.test(te.color) ? te.color : '#6366f1';
-      const sub = l.subjectId ? subjectById.get(l.subjectId) : undefined;
-      const lt = l.lessonTypeId ? lessonTypeById.get(l.lessonTypeId) : undefined;
+      const teacherLastName = te?.lastName?.trim() || l.teacherDisplay.trim().split(/\s+/)[0] || l.teacherId;
+      const eventColor = te?.color && /^#([0-9a-fA-F]{6})$/.test(te.color) ? te.color : '#6366f1';
       return {
         id: l.id,
-        title: buildLessonTitle(l, te, st, sub, lt),
+        title: teacherLastName,
         start: l.startAt,
         end: l.endAt,
-        borderColor,
+        backgroundColor: eventColor,
+        borderColor: eventColor,
+        textColor: '#ffffff',
       };
     });
-  }, [lessons, lessonTypeById, studentById, subjectById, teacherById]);
+  }, [lessons, teacherById]);
 
   if (!currentUser) {
     return <p className="text-sm text-slate-700">この画面にアクセスできません。</p>;
@@ -236,11 +262,35 @@ export default function CalendarPage({
                 focusDate={focusDate}
                 events={calendarEvents}
                 onFocusDateChange={setFocusDate}
+                onEventClick={(event) => {
+                  setDeleteError(null);
+                  const lesson = lessons.find((l) => l.id === event.id);
+                  if (!lesson) {
+                    setSelectedEvent(event);
+                    return;
+                  }
+                  const teacher = teacherById.get(lesson.teacherId);
+                  const student = studentById.get(lesson.studentId);
+                  const subjectName = lesson.subjectId ? subjectById.get(lesson.subjectId) : undefined;
+                  const lessonTypeName = lesson.lessonTypeId ? lessonTypeById.get(lesson.lessonTypeId) : undefined;
+                  setSelectedEvent({
+                    ...event,
+                    title: buildModalEventTitle(lesson, teacher, student, subjectName, lessonTypeName),
+                  });
+                }}
               />
             </div>
           )}
         </div>
       </div>
+
+      <LessonDeletePanel
+        event={selectedEvent}
+        isDeleting={isDeletingLesson}
+        error={deleteError}
+        onClose={() => setSelectedEvent(null)}
+        onDelete={() => void handleDeleteLesson()}
+      />
 
       {activeClassroom && (
         <CreateLessonDialog

@@ -1,13 +1,21 @@
 import { useEffect, useMemo, useState } from 'react';
 import dayGridPlugin from '@fullcalendar/daygrid';
-import type { EventInput } from '@fullcalendar/core/index.js';
+import type { EventClickArg, EventInput } from '@fullcalendar/core/index.js';
 import FullCalendar from '@fullcalendar/react';
+
+type CalendarEventClick = {
+  id: string;
+  title: string;
+  start: Date | null;
+  end: Date | null;
+};
 
 type Props = {
   focusDate: Date;
   events?: EventInput[];
   onFocusDateChange?: (date: Date) => void;
   onDateClick?: (date: Date) => void;
+  onEventClick?: (event: CalendarEventClick) => void;
   selectedDate?: Date;
   showHeaderToolbar?: boolean;
   calendarKey?: string;
@@ -18,6 +26,7 @@ export default function MonthCalendar({
   events = [],
   onFocusDateChange,
   onDateClick,
+  onEventClick,
   selectedDate,
   showHeaderToolbar = false,
   calendarKey,
@@ -79,6 +88,9 @@ export default function MonthCalendar({
       locale="ja"
       height="auto"
       fixedWeekCount={false}
+      eventDisplay="block"
+      displayEventTime={false}
+      eventClassNames={['text-center']}
       headerToolbar={
         showHeaderToolbar
           ? {
@@ -115,6 +127,17 @@ export default function MonthCalendar({
         }
         arg.el.style.cursor = 'pointer';
         arg.el.onclick = () => onDateClick(arg.date);
+      }}
+      eventClick={(arg: EventClickArg) => {
+        if (!onEventClick) {
+          return;
+        }
+        onEventClick({
+          id: arg.event.id,
+          title: arg.event.title,
+          start: arg.event.start,
+          end: arg.event.end,
+        });
       }}
     />
   );
