@@ -300,7 +300,6 @@ export default function AppShell({
         <div className="px-4 py-8">
           <div className="mx-auto flex w-full max-w-5xl flex-col gap-4 rounded-2xl border border-slate-200 bg-slate-100 p-5 shadow-2xl md:p-8">
             <div className="flex items-center justify-between gap-3">
-              <h1 className="text-xl font-semibold tracking-tight md:text-2xl">Smile Study Calendar(α版)</h1>
               <div className="flex items-center gap-2">
                 <button
                   type="button"
@@ -314,6 +313,7 @@ export default function AppShell({
                   <span className="h-0.5 w-full rounded bg-slate-200" />
                 </button>
               </div>
+              <h1 className="text-xl font-semibold tracking-tight md:text-2xl">Smile Study Calendar(α版)</h1>
             </div>
 
             {isLoadingCurrentUser ? (
