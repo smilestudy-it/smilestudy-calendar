@@ -37,6 +37,7 @@ export default function SharedStudentCalendarPage() {
     let isDisposed = false;
     const load = async () => {
       if (!studentId) {
+        setStudentName('');
         setLessons([]);
         return;
       }
@@ -52,11 +53,13 @@ export default function SharedStudentCalendarPage() {
         }
         if (res.status === 404) {
           setListError('表示できません。リンクが無効か、対象の生徒が見つかりません。');
+          setStudentName('');
           setLessons([]);
           return;
         }
         if (!res.ok) {
           setListError('コマ一覧の取得に失敗しました。');
+          setStudentName('');
           setLessons([]);
           return;
         }
@@ -68,6 +71,8 @@ export default function SharedStudentCalendarPage() {
       } catch {
         if (!isDisposed) {
           setListError('ネットワークエラーが発生しました。');
+          setStudentName('');
+          setLessons([]);
         }
       } finally {
         if (!isDisposed) {

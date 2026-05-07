@@ -54,14 +54,20 @@ let holidayMapPromise: Promise<Record<string, string>> | null = null;
 
 async function getHolidayMap(): Promise<Record<string, string>> {
   if (!holidayMapPromise) {
-    holidayMapPromise = fetch('https://holidays-jp.github.io/api/v1/date.json')
-      .then(async (res) => {
+    holidayMapPromise = (async () => {
+      try {
+        const res = await fetch('https://holidays-jp.github.io/api/v1/date.json');
         if (!res.ok) {
+          holidayMapPromise = null;
           return {};
         }
-        return (await res.json()) as Record<string, string>;
-      })
-      .catch(() => ({}));
+        const json = (await res.json()) as Record<string, string>;
+        return json;
+      } catch {
+        holidayMapPromise = null;
+        return {};
+      }
+    })();
   }
   return holidayMapPromise;
 }

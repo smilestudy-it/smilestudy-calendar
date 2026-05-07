@@ -60,7 +60,7 @@ function buildModalEventTitle(
 ) {
   const teacherName =
     lesson.teacherDisplay || `${teacher?.lastName ?? ''} ${teacher?.firstName ?? ''}`.trim() || lesson.teacherId;
-  const studentName = lesson.studentDisplay ?? student?.name ?? lesson.studentId;
+  const studentName = lesson.studentDisplay || student?.name || lesson.studentId;
   const detailText = [subjectName, lessonTypeName].filter(Boolean).join('・');
   return detailText ? `${teacherName} - ${studentName} (${detailText})` : `${teacherName} - ${studentName}`;
 }
@@ -123,6 +123,7 @@ export default function CalendarPage({
       setListError(null);
       if (!activeClassroom) {
         setLessons([]);
+        setIsLoadingMonth(false);
         return;
       }
       setIsLoadingMonth(true);
@@ -163,9 +164,7 @@ export default function CalendarPage({
           setListError('ネットワークエラーが発生しました。');
         }
       } finally {
-        if (!isDisposed) {
-          setIsLoadingMonth(false);
-        }
+        setIsLoadingMonth(false);
       }
     };
     void load();

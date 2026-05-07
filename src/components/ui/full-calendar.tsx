@@ -51,6 +51,9 @@ export default function MonthCalendar({
         });
         const res = await fetch(`/api/public/holidays?${qs}`);
         if (!res.ok || isDisposed) {
+          if (!isDisposed) {
+            setHolidayDates([]);
+          }
           return;
         }
         const data = (await res.json()) as Array<{ date: string }>;
