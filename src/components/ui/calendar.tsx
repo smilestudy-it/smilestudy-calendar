@@ -18,6 +18,7 @@ function Calendar({ className, ...props }: CalendarProps) {
     />
   );
 }
+
 Calendar.displayName = 'Calendar';
 
 export { Calendar };
