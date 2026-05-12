@@ -1,15 +1,15 @@
 /**
- * （責務）月次カレンダー。教室選択・月移動・コマ一覧とコマ登録ダイアログ。
+ * （責務）月次カレンダー。教室選択・月移動・コマ一覧と週編集への導線。
  */
-import { useContext, useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import dayjs from 'dayjs';
 import 'dayjs/locale/ja';
-import CreateLessonDialog from '@/components/CreateLessonDialog';
+import { Link } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import MonthCalendar from '@/components/ui/full-calendar';
 import LessonDeletePanel, { type LessonDeleteTarget } from '@/components/ui/lesson-delete-panel';
 import { useAuthedFetch } from '@/hooks/useAuthedFetch';
-import { SelectedClassroomContext } from '@/components/AppShell';
+import { useSelectedClassroom } from '@/hooks/useSelectedClassroom';
 import type { CurrentUser } from '@/types/currentUser';
 
 dayjs.locale('ja');
@@ -69,11 +69,7 @@ export default function CalendarPage({
   currentUser,
   getAccessTokenSilently,
 }: Props) {
-  const context = useContext(SelectedClassroomContext);
-  if (!context) {
-    throw new Error('useSelectedClassroom must be used within AppShell');
-  }
-  const { activeClassroom } = context;
+  const { activeClassroom } = useSelectedClassroom();
   const [focusDate, setFocusDate] = useState(() => new Date());
   const [lessons, setLessons] = useState<LessonApi[]>([]);
   const [teachers, setTeachers] = useState<TeacherRow[]>([]);
@@ -82,7 +78,6 @@ export default function CalendarPage({
   const [lessonTypes, setLessonTypes] = useState<PresetRow[]>([]);
   const [listError, setListError] = useState<string | null>(null);
   const [isLoadingMonth, setIsLoadingMonth] = useState(false);
-  const [dialogOpen, setDialogOpen] = useState(false);
   const [reloadTick, setReloadTick] = useState(0);
   const [selectedEvent, setSelectedEvent] = useState<LessonDeleteTarget | null>(null);
   const [isDeletingLesson, setIsDeletingLesson] = useState(false);
@@ -207,8 +202,8 @@ export default function CalendarPage({
           <p className="text-sm text-slate-500">現在の教室: {activeClassroom?.name || '未選択'}</p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
-          <Button type="button" variant="outline" size="sm" onClick={() => setDialogOpen(true)}>
-            コマを登録
+          <Button type="button" variant="outline" size="sm" asChild>
+            <Link to={`/calendar/edit?week=${dayjs(focusDate).format('YYYY-MM-DD')}`}>編集</Link>
           </Button>
         </div>
       </div>
@@ -291,18 +286,6 @@ export default function CalendarPage({
         onDelete={() => void handleDeleteLesson()}
       />
 
-      {activeClassroom && (
-        <CreateLessonDialog
-          open={dialogOpen}
-          onOpenChange={setDialogOpen}
-          classroomId={activeClassroom.id}
-          getAccessTokenSilently={getAccessTokenSilently}
-          initialDate={focusDate}
-          onCreated={() => setReloadTick((v) => v + 1)}
-          actorUserId={currentUser.id}
-          actorRole={currentUser.role}
-        />
-      )}
     </section>
   );
 }

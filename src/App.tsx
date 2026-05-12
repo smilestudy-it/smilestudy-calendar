@@ -14,6 +14,7 @@ const TeacherManagementPage = lazy(() => import('./pages/TeacherManagementPage')
 const StudentManagementPage = lazy(() => import('./pages/StudentManagementPage'));
 const PresetsSettingsPage = lazy(() => import('./pages/PresetsSettingsPage'));
 const CalendarPage = lazy(() => import('./pages/CalendarPage'));
+const CalendarBulkEditPage = lazy(() => import('./pages/CalendarBulkEditPage'));
 const SharedStudentCalendarPage = lazy(() => import('./pages/SharedStudentCalendarPage'));
 
 /** `/share` または `/share/...` のみ。`/shared` などは除外 */
@@ -141,6 +142,15 @@ function App() {
             path="/calendar"
             element={
               <CalendarPage
+                currentUser={currentUser}
+                getAccessTokenSilently={getAccessTokenSilently}
+              />
+            }
+          />
+          <Route
+            path="/calendar/edit"
+            element={
+              <CalendarBulkEditPage
                 currentUser={currentUser}
                 getAccessTokenSilently={getAccessTokenSilently}
               />
