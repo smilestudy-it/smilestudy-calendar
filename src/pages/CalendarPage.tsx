@@ -1,7 +1,7 @@
 /**
  * （責務）月次カレンダー。教室選択・月移動・コマ一覧と週編集への導線。
  */
-import { useContext, useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import dayjs from 'dayjs';
 import 'dayjs/locale/ja';
 import { Link } from 'react-router-dom';
@@ -9,7 +9,7 @@ import { Button } from '@/components/ui/button';
 import MonthCalendar from '@/components/ui/full-calendar';
 import LessonDeletePanel, { type LessonDeleteTarget } from '@/components/ui/lesson-delete-panel';
 import { useAuthedFetch } from '@/hooks/useAuthedFetch';
-import { SelectedClassroomContext } from '@/components/AppShell';
+import { useSelectedClassroom } from '@/hooks/useSelectedClassroom';
 import type { CurrentUser } from '@/types/currentUser';
 
 dayjs.locale('ja');
@@ -69,11 +69,7 @@ export default function CalendarPage({
   currentUser,
   getAccessTokenSilently,
 }: Props) {
-  const context = useContext(SelectedClassroomContext);
-  if (!context) {
-    throw new Error('useSelectedClassroom must be used within AppShell');
-  }
-  const { activeClassroom } = context;
+  const { activeClassroom } = useSelectedClassroom();
   const [focusDate, setFocusDate] = useState(() => new Date());
   const [lessons, setLessons] = useState<LessonApi[]>([]);
   const [teachers, setTeachers] = useState<TeacherRow[]>([]);

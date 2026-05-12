@@ -40,6 +40,21 @@ export function hmToMinutes(hm: string): number {
 const DATE_KEY_STRICT = /^([0-9]{4})-([0-9]{2})-([0-9]{2})$/;
 const HM_STRICT = /^([0-9]{1,2}):([0-9]{2})$/;
 
+export function isValidDateKey(dateKey: string): boolean {
+  const dm = DATE_KEY_STRICT.exec(dateKey.trim());
+  if (!dm) {
+    return false;
+  }
+  const y = Number(dm[1]);
+  const mo = Number(dm[2]);
+  const d = Number(dm[3]);
+  if (!Number.isInteger(y) || !Number.isInteger(mo) || !Number.isInteger(d) || mo < 1 || mo > 12) {
+    return false;
+  }
+  const daysInMonth = new Date(y, mo, 0).getDate();
+  return d >= 1 && d <= daysInMonth;
+}
+
 /**
  * ローカルの暦日 YYYY-MM-DD + 壁時計 HH:mm を UTC の Date に変換する。
  * `timezoneOffsetMinutes` は `Date.prototype.getTimezoneOffset()` と同じ（例: JST では -540）。
@@ -50,7 +65,7 @@ export function utcDateFromLocalDateKeyAndHm(
   timezoneOffsetMinutes: number,
 ): Date | null {
   const dm = DATE_KEY_STRICT.exec(dateKey.trim());
-  if (!dm) {
+  if (!dm || !isValidDateKey(dateKey)) {
     return null;
   }
   const y = Number(dm[1]);
@@ -70,8 +85,6 @@ export function utcDateFromLocalDateKeyAndHm(
     !Number.isInteger(minute) ||
     mo < 1 ||
     mo > 12 ||
-    d < 1 ||
-    d > 31 ||
     hour < 0 ||
     hour > 23 ||
     minute < 0 ||

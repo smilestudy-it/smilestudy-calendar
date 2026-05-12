@@ -1,21 +1,23 @@
 /**
  * （責務）週スロットグリッドでのコマ一括編集。POST /api/lessons/bulk を使用。
  */
-import { useCallback, useContext, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import dayjs from 'dayjs';
+import customParseFormat from 'dayjs/plugin/customParseFormat';
 import 'dayjs/locale/ja';
 import { Link, useSearchParams } from 'react-router-dom';
 import LessonBulkActionPanel from '@/components/LessonBulkActionPanel';
 import WeekLessonSlotGrid, { type TimeSlotRow, type WeekGridLesson } from '@/components/WeekLessonSlotGrid';
 import LessonDeletePanel, { type LessonDetailTarget } from '@/components/ui/lesson-delete-panel';
 import { Button } from '@/components/ui/button';
-import { SelectedClassroomContext } from '@/components/AppShell';
 import { useAuthedFetch } from '@/hooks/useAuthedFetch';
-import { combineLocalDateAndHm, startOfWeekSunday } from '@/lib/calendarTime';
+import { useSelectedClassroom } from '@/hooks/useSelectedClassroom';
+import { startOfWeekSunday } from '@/lib/calendarTime';
 import { parseWeekSlotCellKey, weekSlotCellKey } from '@/lib/weekSlotCell';
 import type { CurrentUser } from '@/types/currentUser';
 
 dayjs.locale('ja');
+dayjs.extend(customParseFormat);
 
 type TeacherRow = {
   id: string;
@@ -42,26 +44,8 @@ function hmToMinutes(hm: string): number {
   return h * 60 + m;
 }
 
-function lessonInCell(
-  lesson: WeekGridLesson,
-  day: Date,
-  slot: TimeSlotRow,
-  classroomId: string,
-): boolean {
-  if (lesson.classroomId !== classroomId) {
-    return false;
-  }
-  const start = combineLocalDateAndHm(day, slot.startTime);
-  const end = combineLocalDateAndHm(day, slot.endTime);
-  return new Date(lesson.startAt).getTime() === start.getTime() && new Date(lesson.endAt).getTime() === end.getTime();
-}
-
 export default function CalendarBulkEditPage({ currentUser, getAccessTokenSilently }: Props) {
-  const context = useContext(SelectedClassroomContext);
-  if (!context) {
-    throw new Error('useSelectedClassroom must be used within AppShell');
-  }
-  const { activeClassroom } = context;
+  const { activeClassroom } = useSelectedClassroom();
   const [searchParams, setSearchParams] = useSearchParams();
   const weekParam = searchParams.get('week');
   const initialWeek = weekParam && dayjs(weekParam, 'YYYY-MM-DD', true).isValid() ? dayjs(weekParam).toDate() : new Date();
@@ -108,11 +92,25 @@ export default function CalendarBulkEditPage({ currentUser, getAccessTokenSilent
     if (!activeClassroom) {
       return map;
     }
+    const slotIdByHmRange = new Map(sortedSlots.map((slot) => [`${slot.startTime}-${slot.endTime}`, slot.id]));
+    const lessonIndex = new Map<string, WeekGridLesson>();
+    for (const lesson of lessons) {
+      if (lesson.classroomId !== activeClassroom.id) {
+        continue;
+      }
+      const startLocal = dayjs(new Date(lesson.startAt));
+      const endLocal = dayjs(new Date(lesson.endAt));
+      const slotId = slotIdByHmRange.get(`${startLocal.format('HH:mm')}-${endLocal.format('HH:mm')}`);
+      if (!slotId) {
+        continue;
+      }
+      lessonIndex.set(weekSlotCellKey(startLocal.format('YYYY-MM-DD'), slotId), lesson);
+    }
     for (const day of weekDays) {
       const dk = dayjs(day).format('YYYY-MM-DD');
       for (const slot of sortedSlots) {
         const key = weekSlotCellKey(dk, slot.id);
-        const found = lessons.find((l) => lessonInCell(l, day, slot, activeClassroom.id));
+        const found = lessonIndex.get(key);
         if (found) {
           map.set(key, found);
         }

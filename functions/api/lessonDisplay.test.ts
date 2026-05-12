@@ -16,4 +16,14 @@ describe('utcDateFromLocalDateKeyAndHm', () => {
     expect(d).not.toBeNull();
     expect(d!.toISOString()).toBe('2025-06-10T15:30:00.000Z');
   });
+
+  it('returns null for invalid calendar date', () => {
+    const d = utcDateFromLocalDateKeyAndHm('2025-02-31', '10:00', -540);
+    expect(d).toBeNull();
+  });
+
+  it('returns null for invalid time', () => {
+    const d = utcDateFromLocalDateKeyAndHm('2025-06-10', '24:00', 0);
+    expect(d).toBeNull();
+  });
 });

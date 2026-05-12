@@ -2,6 +2,7 @@
  * （責務）リクエスト body / クエリの zod 系バリデーション。各 POST/PATCH の入力検証。
  */
 import { z } from 'zod';
+import { isValidDateKey } from './lessonDisplay';
 
 type HexColor = string & { readonly __brand: 'HexColor' };
 
@@ -336,7 +337,8 @@ const bulkLessonCreateItemSchema = z.object({
   dateKey: z
     .string()
     .trim()
-    .regex(/^\d{4}-\d{2}-\d{2}$/, 'invalid dateKey (use YYYY-MM-DD)'),
+    .regex(/^\d{4}-\d{2}-\d{2}$/, 'invalid dateKey (use YYYY-MM-DD)')
+    .refine((v) => isValidDateKey(v), 'invalid dateKey'),
   timeSlotId: z.string().trim().min(1, 'time slot id is required'),
   subjectId: z.string().trim().min(1).optional(),
   lessonTypeId: z.string().trim().min(1).optional(),

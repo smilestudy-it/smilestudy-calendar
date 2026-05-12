@@ -1695,7 +1695,44 @@ app.post('/lessons/bulk', auth, loadUser, requireStaffOrAbove, async (c) => {
   const db = getDb(c.env);
   const classroomId = input.classroomId;
 
-  type OpResult = { ok: boolean; message?: string; id?: string };
+  type OpResult = {
+    ok: boolean;
+    message?: string;
+    id?: string;
+    dateKey?: string;
+    timeSlotId?: string;
+  };
+  type BulkCreateFailureReason =
+    | 'classroom_not_found'
+    | 'teacher_invalid'
+    | 'student_invalid'
+    | 'subject_invalid'
+    | 'lesson_type_invalid'
+    | 'teacher_double_booking'
+    | 'student_double_booking';
+  const withCreateRef = (item: { dateKey: string; timeSlotId: string }) => ({
+    dateKey: item.dateKey,
+    timeSlotId: item.timeSlotId,
+  });
+  const mapBulkCreateReason = (reason: BulkCreateFailureReason) => {
+    switch (reason) {
+      case 'teacher_double_booking':
+      case 'student_double_booking':
+        return 'schedule conflict';
+      case 'teacher_invalid':
+        return 'teacher not found or not in classroom';
+      case 'student_invalid':
+        return 'student not found or not in classroom';
+      case 'subject_invalid':
+        return 'subject not found';
+      case 'lesson_type_invalid':
+        return 'lesson type not found';
+      case 'classroom_not_found':
+        return 'classroom not found';
+      default:
+        return 'failed to create lesson';
+    }
+  };
 
   const deleteResults: OpResult[] = [];
   for (const targetId of input.deleteIds ?? []) {
@@ -1764,7 +1801,7 @@ app.post('/lessons/bulk', auth, loadUser, requireStaffOrAbove, async (c) => {
       .limit(1);
 
     if (!slotRow) {
-      createResults.push({ ok: false, message: 'time slot not found' });
+      createResults.push({ ok: false, message: 'time slot not found', ...withCreateRef(item) });
       continue;
     }
 
@@ -1773,13 +1810,13 @@ app.post('/lessons/bulk', auth, loadUser, requireStaffOrAbove, async (c) => {
     const endAt =
       tzOff === undefined ? null : utcDateFromLocalDateKeyAndHm(item.dateKey, slotRow.endTime, tzOff);
     if (!startAt || !endAt || startAt.getTime() >= endAt.getTime()) {
-      createResults.push({ ok: false, message: 'invalid date or time slot range' });
+      createResults.push({ ok: false, message: 'invalid date or time slot range', ...withCreateRef(item) });
       continue;
     }
 
     const staffTeacherDenied = denyUnlessStaffLessonTeacherIsSelf(c, actor, item.teacherId);
     if (staffTeacherDenied) {
-      createResults.push({ ok: false, message: 'forbidden' });
+      createResults.push({ ok: false, message: 'forbidden', ...withCreateRef(item) });
       continue;
     }
 
@@ -1790,7 +1827,7 @@ app.post('/lessons/bulk', auth, loadUser, requireStaffOrAbove, async (c) => {
         .where(eq(users.id, item.teacherId))
         .limit(1);
       if (!teacherUser || teacherUser.classroomId !== classroomId) {
-        createResults.push({ ok: false, message: 'forbidden' });
+        createResults.push({ ok: false, message: 'forbidden', ...withCreateRef(item) });
         continue;
       }
     }
@@ -1933,21 +1970,17 @@ app.post('/lessons/bulk', auth, loadUser, requireStaffOrAbove, async (c) => {
     } catch (err) {
       logApiError('POST /lessons/bulk creates', err);
       if (isD1ForeignKeyViolation(err)) {
-        createResults.push({ ok: false, message: 'invalid reference' });
+        createResults.push({ ok: false, message: 'invalid reference', ...withCreateRef(item) });
       } else {
-        createResults.push({ ok: false, message: 'failed to create lesson' });
+        createResults.push({ ok: false, message: 'failed to create lesson', ...withCreateRef(item) });
       }
       continue;
     }
 
     if (!txResult.ok) {
-      const msg =
-        txResult.reason === 'teacher_double_booking' || txResult.reason === 'student_double_booking'
-          ? 'schedule conflict'
-          : txResult.reason;
-      createResults.push({ ok: false, message: msg });
+      createResults.push({ ok: false, message: mapBulkCreateReason(txResult.reason), ...withCreateRef(item) });
     } else {
-      createResults.push({ ok: true, id });
+      createResults.push({ ok: true, id, ...withCreateRef(item) });
     }
   }
 
