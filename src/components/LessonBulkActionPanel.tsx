@@ -76,7 +76,7 @@ export default function LessonBulkActionPanel({
   }
 
   return (
-    <div className="fixed inset-x-0 bottom-[120px] z-40 mx-auto max-h-[min(40vh,320px)] w-full max-w-5xl overflow-y-auto rounded-t-xl border border-slate-200 bg-white p-4 shadow-lg sm:bottom-[100px]">
+    <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
       <div className="flex flex-col gap-3">
         <div className="flex flex-wrap items-center justify-between gap-2">
           <p className="text-sm font-medium text-slate-900">

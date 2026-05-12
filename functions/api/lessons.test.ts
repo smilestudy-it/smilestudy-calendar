@@ -575,8 +575,6 @@ const env = {
 describe('lessons api', () => {
   const t1 = new Date('2025-06-10T10:00:00.000Z');
   const t2 = new Date('2025-06-10T11:00:00.000Z');
-  const tOverlapStart = new Date('2025-06-10T10:30:00.000Z');
-  const tOverlapEnd = new Date('2025-06-10T11:30:00.000Z');
 
   beforeEach(() => {
     state.userRole = 'admin';
@@ -672,137 +670,6 @@ describe('lessons api', () => {
     expect(rows[0]?.teacherDisplay).toContain('削除済み');
   });
 
-  it('POST /lessons creates when no overlap', async () => {
-    state.expectPostLessonTx = true;
-    state.postFixture = {
-      classroomId: 'room-1',
-      teacherId: 'teacher-1',
-      studentId: 'student-1',
-      startAt: t1,
-      endAt: t2,
-    };
-    const res = await app.request(
-      '/api/lessons',
-      {
-        method: 'POST',
-        headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({
-          classroomId: 'room-1',
-          teacherId: 'teacher-1',
-          studentId: 'student-1',
-          startAt: t1.toISOString(),
-          endAt: t2.toISOString(),
-        }),
-      },
-      env,
-    );
-    expect(res.status).toBe(201);
-    expect(state.lessonRows.some((r) => r.id === 'lesson-uuid-001')).toBe(true);
-  });
-
-  it('POST /lessons returns 409 on teacher overlap', async () => {
-    state.lessonRows.push({
-      id: 'existing',
-      teacherId: 'teacher-1',
-      studentId: 'student-1',
-      classroomId: 'room-1',
-      subjectId: null,
-      lessonTypeId: null,
-      startAt: tOverlapStart,
-      endAt: tOverlapEnd,
-      status: 'draft',
-      deletedAt: null,
-    });
-    state.expectPostLessonTx = true;
-    state.postFixture = {
-      classroomId: 'room-1',
-      teacherId: 'teacher-1',
-      studentId: 'student-1',
-      startAt: t1,
-      endAt: t2,
-    };
-    const res = await app.request(
-      '/api/lessons',
-      {
-        method: 'POST',
-        headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({
-          classroomId: 'room-1',
-          teacherId: 'teacher-1',
-          studentId: 'student-1',
-          startAt: t1.toISOString(),
-          endAt: t2.toISOString(),
-        }),
-      },
-      env,
-    );
-    expect(res.status).toBe(409);
-    const body = (await res.json()) as { message: string };
-    expect(body.message).toContain('teacher');
-  });
-
-  it('POST /lessons returns 409 on student overlap', async () => {
-    state.lessonRows.push({
-      id: 'existing',
-      teacherId: 'teacher-2',
-      studentId: 'student-1',
-      classroomId: 'room-1',
-      subjectId: null,
-      lessonTypeId: null,
-      startAt: tOverlapStart,
-      endAt: tOverlapEnd,
-      status: 'draft',
-      deletedAt: null,
-    });
-    state.expectPostLessonTx = true;
-    state.postFixture = {
-      classroomId: 'room-1',
-      teacherId: 'teacher-1',
-      studentId: 'student-1',
-      startAt: t1,
-      endAt: t2,
-    };
-    const res = await app.request(
-      '/api/lessons',
-      {
-        method: 'POST',
-        headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({
-          classroomId: 'room-1',
-          teacherId: 'teacher-1',
-          studentId: 'student-1',
-          startAt: t1.toISOString(),
-          endAt: t2.toISOString(),
-        }),
-      },
-      env,
-    );
-    expect(res.status).toBe(409);
-    const body = (await res.json()) as { message: string };
-    expect(body.message).toContain('student');
-  });
-
-  it('POST /lessons returns 403 when manager targets other classroom', async () => {
-    state.userRole = 'manager';
-    state.jwtSub = 'auth0|manager-user';
-    const res = await app.request(
-      '/api/lessons',
-      {
-        method: 'POST',
-        headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({
-          classroomId: 'room-2',
-          teacherId: 'teacher-1',
-          studentId: 'student-1',
-          startAt: t1.toISOString(),
-          endAt: t2.toISOString(),
-        }),
-      },
-      env,
-    );
-    expect(res.status).toBe(403);
-  });
-
   it('PATCH /lessons/:id can move time without self-overlap', async () => {
     state.lessonRows.push({
       id: 'L-patch',
@@ -842,128 +709,7 @@ describe('lessons api', () => {
     expect(res.status).toBe(200);
     const updated = state.lessonRows.find((r) => r.id === 'L-patch');
     expect(updated?.startAt.getTime()).toBe(newStart.getTime());
-  });
-
-  it('POST /lessons returns 403 when staff assigns another teacher', async () => {
-    state.userRole = 'staff';
-    state.jwtSub = 'teacher-1';
-    const res = await app.request(
-      '/api/lessons',
-      {
-        method: 'POST',
-        headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({
-          classroomId: 'room-1',
-          teacherId: 'teacher-2',
-          studentId: 'student-1',
-          startAt: t1.toISOString(),
-          endAt: t2.toISOString(),
-        }),
-      },
-      env,
-    );
-    expect(res.status).toBe(403);
-  });
-
-  it('POST /lessons allows staff to register as self teacher', async () => {
-    state.userRole = 'staff';
-    state.jwtSub = 'teacher-1';
-    state.expectPostLessonTx = true;
-    state.postFixture = {
-      classroomId: 'room-1',
-      teacherId: 'teacher-1',
-      studentId: 'student-1',
-      startAt: t1,
-      endAt: t2,
-    };
-    const res = await app.request(
-      '/api/lessons',
-      {
-        method: 'POST',
-        headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({
-          classroomId: 'room-1',
-          teacherId: 'teacher-1',
-          studentId: 'student-1',
-          startAt: t1.toISOString(),
-          endAt: t2.toISOString(),
-        }),
-      },
-      env,
-    );
-    expect(res.status).toBe(201);
-  });
-
-  it('POST /lessons allows admin to assign teacher from another classroom', async () => {
-    state.classrooms = [
-      { id: 'room-1', deletedAt: null },
-      { id: 'room-2', deletedAt: null },
-    ];
-    state.users = [
-      { id: 'teacher-remote', role: 'staff', classroomId: 'room-2', deletedAt: null },
-      { id: 'teacher-2', role: 'staff', classroomId: 'room-1', deletedAt: null },
-    ];
-    state.expectPostLessonTx = true;
-    state.postFixture = {
-      classroomId: 'room-1',
-      teacherId: 'teacher-remote',
-      studentId: 'student-1',
-      startAt: t1,
-      endAt: t2,
-    };
-    const res = await app.request(
-      '/api/lessons',
-      {
-        method: 'POST',
-        headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({
-          classroomId: 'room-1',
-          teacherId: 'teacher-remote',
-          studentId: 'student-1',
-          startAt: t1.toISOString(),
-          endAt: t2.toISOString(),
-        }),
-      },
-      env,
-    );
-    expect(res.status).toBe(201);
-  });
-
-  it('POST /lessons returns 400 when manager assigns teacher not in lesson classroom', async () => {
-    state.userRole = 'manager';
-    state.jwtSub = 'auth0|manager-user';
-    state.classrooms = [
-      { id: 'room-1', deletedAt: null },
-      { id: 'room-2', deletedAt: null },
-    ];
-    state.users = [
-      { id: 'teacher-remote', role: 'staff', classroomId: 'room-2', deletedAt: null },
-      { id: 'teacher-2', role: 'staff', classroomId: 'room-1', deletedAt: null },
-    ];
-    state.expectPostLessonTx = true;
-    state.postFixture = {
-      classroomId: 'room-1',
-      teacherId: 'teacher-remote',
-      studentId: 'student-1',
-      startAt: t1,
-      endAt: t2,
-    };
-    const res = await app.request(
-      '/api/lessons',
-      {
-        method: 'POST',
-        headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({
-          classroomId: 'room-1',
-          teacherId: 'teacher-remote',
-          studentId: 'student-1',
-          startAt: t1.toISOString(),
-          endAt: t2.toISOString(),
-        }),
-      },
-      env,
-    );
-    expect(res.status).toBe(403);
+    expect(updated?.endAt.getTime()).toBe(newEnd.getTime());
   });
 
   it('PATCH /lessons returns 403 when staff updates another teacher lesson', async () => {
@@ -990,31 +736,6 @@ describe('lessons api', () => {
       },
       env,
     );
-    expect(res.status).toBe(403);
-  });
-
-  it('DELETE /lessons returns 403 when manager targets lesson whose teacher is outside classroom', async () => {
-    state.userRole = 'manager';
-    state.jwtSub = 'auth0|manager-user';
-    state.classrooms = [
-      { id: 'room-1', deletedAt: null },
-      { id: 'room-2', deletedAt: null },
-    ];
-    state.users = [{ id: 'teacher-remote', role: 'staff', classroomId: 'room-2', deletedAt: null }];
-    state.students = [{ id: 'student-1', classroomId: 'room-1', deletedAt: null }];
-    state.lessonRows.push({
-      id: 'L-mgr-del-remote',
-      teacherId: 'teacher-remote',
-      studentId: 'student-1',
-      classroomId: 'room-1',
-      subjectId: null,
-      lessonTypeId: null,
-      startAt: t1,
-      endAt: t2,
-      status: 'draft',
-      deletedAt: null,
-    });
-    const res = await app.request('/api/lessons/L-mgr-del-remote', { method: 'DELETE' }, env);
     expect(res.status).toBe(403);
   });
 
@@ -1048,25 +769,6 @@ describe('lessons api', () => {
       },
       env,
     );
-    expect(res.status).toBe(403);
-  });
-
-  it('DELETE /lessons returns 403 when staff targets another teacher lesson', async () => {
-    state.userRole = 'staff';
-    state.jwtSub = 'teacher-1';
-    state.lessonRows.push({
-      id: 'L-del-other',
-      teacherId: 'teacher-2',
-      studentId: 'student-1',
-      classroomId: 'room-1',
-      subjectId: null,
-      lessonTypeId: null,
-      startAt: t1,
-      endAt: t2,
-      status: 'draft',
-      deletedAt: null,
-    });
-    const res = await app.request('/api/lessons/L-del-other', { method: 'DELETE' }, env);
     expect(res.status).toBe(403);
   });
 

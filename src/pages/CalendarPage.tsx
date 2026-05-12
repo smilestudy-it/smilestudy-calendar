@@ -78,10 +78,7 @@ export default function CalendarPage({
   const [lessonTypes, setLessonTypes] = useState<PresetRow[]>([]);
   const [listError, setListError] = useState<string | null>(null);
   const [isLoadingMonth, setIsLoadingMonth] = useState(false);
-  const [reloadTick, setReloadTick] = useState(0);
   const [selectedEvent, setSelectedEvent] = useState<LessonDeleteTarget | null>(null);
-  const [isDeletingLesson, setIsDeletingLesson] = useState(false);
-  const [deleteError, setDeleteError] = useState<string | null>(null);
 
   const monthStart = useMemo(() => dayjs(focusDate).startOf('month'), [focusDate]);
   const monthEndExclusive = useMemo(() => monthStart.add(1, 'month'), [monthStart]);
@@ -89,28 +86,6 @@ export default function CalendarPage({
   const monthToIso = useMemo(() => monthEndExclusive.toISOString(), [monthEndExclusive]);
 
   const authedFetch = useAuthedFetch(getAccessTokenSilently);
-
-  const handleDeleteLesson = async () => {
-    if (!selectedEvent) {
-      return;
-    }
-    setDeleteError(null);
-    setIsDeletingLesson(true);
-    try {
-      const res = await authedFetch(`/api/lessons/${encodeURIComponent(selectedEvent.id)}`, { method: 'DELETE' });
-      if (!res.ok) {
-        const body = (await res.json().catch(() => ({}))) as { message?: string };
-        setDeleteError(body.message ? `削除に失敗しました（${body.message}）` : '削除に失敗しました。');
-        return;
-      }
-      setSelectedEvent(null);
-      setReloadTick((v) => v + 1);
-    } catch {
-      setDeleteError('ネットワークエラーが発生しました。');
-    } finally {
-      setIsDeletingLesson(false);
-    }
-  };
 
   useEffect(() => {
     let isDisposed = false;
@@ -166,7 +141,7 @@ export default function CalendarPage({
     return () => {
       isDisposed = true;
     };
-  }, [activeClassroom, authedFetch, monthFromIso, monthToIso, reloadTick]);
+  }, [activeClassroom, authedFetch, monthFromIso, monthToIso]);
 
   const teacherById = useMemo(() => toMapById(teachers), [teachers]);
   const studentById = useMemo(() => toMapById(students), [students]);
@@ -257,7 +232,6 @@ export default function CalendarPage({
                 events={calendarEvents}
                 onFocusDateChange={setFocusDate}
                 onEventClick={(event) => {
-                  setDeleteError(null);
                   const lesson = lessons.find((l) => l.id === event.id);
                   if (!lesson) {
                     setSelectedEvent(event);
@@ -280,10 +254,8 @@ export default function CalendarPage({
 
       <LessonDeletePanel
         event={selectedEvent}
-        isDeleting={isDeletingLesson}
-        error={deleteError}
+        error={null}
         onClose={() => setSelectedEvent(null)}
-        onDelete={() => void handleDeleteLesson()}
       />
 
     </section>

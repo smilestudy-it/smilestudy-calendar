@@ -257,13 +257,17 @@ export default function CalendarBulkEditPage({ currentUser, getAccessTokenSilent
   );
 
   const handleDeleteLesson = async () => {
-    if (!detailEvent) {
+    if (!detailEvent || !activeClassroom) {
       return;
     }
     setDeleteError(null);
     setIsDeletingLesson(true);
     try {
-      const res = await authedFetch(`/api/lessons/${encodeURIComponent(detailEvent.id)}`, { method: 'DELETE' });
+      const res = await authedFetch('/api/lessons/bulk', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ classroomId: activeClassroom.id, deleteIds: [detailEvent.id] }),
+      });
       if (!res.ok) {
         const body = (await res.json().catch(() => ({}))) as { message?: string };
         setDeleteError(body.message ? `削除に失敗しました（${body.message}）` : '削除に失敗しました。');
@@ -470,44 +474,45 @@ export default function CalendarBulkEditPage({ currentUser, getAccessTokenSilent
           <p className="text-xs text-slate-500">
             セルをクリックまたはドラッグで複数選択。コマがある枠は「詳細」で下部パネルを開けます。
           </p>
+
+          <LessonBulkActionPanel
+            selectedCount={selectedKeys.size}
+            emptySlotCount={selectionMeta.empty}
+            occupiedSlotCount={selectionMeta.occ}
+            teachers={teachers}
+            students={students}
+            subjects={subjects}
+            lessonTypes={lessonTypes}
+            actorUserId={currentUser.id}
+            actorRole={currentUser.role}
+            isSubmitting={isBulkSubmitting}
+            error={bulkError}
+            onClearSelection={() => {
+              setSelectedKeys(new Set());
+              setBulkError(null);
+            }}
+            onCreate={(p) => void handleBulkCreate(p)}
+            onDelete={() => void handleBulkDelete()}
+          />
+
+          <LessonDeletePanel
+            event={detailEvent}
+            isDeleting={isDeletingLesson}
+            error={deleteError}
+            onClose={() => setDetailEvent(null)}
+            onDelete={() => void handleDeleteLesson()}
+            presetSubjects={subjects}
+            presetLessonTypes={lessonTypes}
+            isSavingPresets={isSavingPresets}
+            presetsError={presetsError}
+            onPresetChange={(next) =>
+              setDetailEvent((prev) => (prev ? { ...prev, ...next } : null))
+            }
+            onSavePresets={() => void handleSaveDetailPresets()}
+          />
         </>
       )}
 
-      <LessonBulkActionPanel
-        selectedCount={selectedKeys.size}
-        emptySlotCount={selectionMeta.empty}
-        occupiedSlotCount={selectionMeta.occ}
-        teachers={teachers}
-        students={students}
-        subjects={subjects}
-        lessonTypes={lessonTypes}
-        actorUserId={currentUser.id}
-        actorRole={currentUser.role}
-        isSubmitting={isBulkSubmitting}
-        error={bulkError}
-        onClearSelection={() => {
-          setSelectedKeys(new Set());
-          setBulkError(null);
-        }}
-        onCreate={(p) => void handleBulkCreate(p)}
-        onDelete={() => void handleBulkDelete()}
-      />
-
-      <LessonDeletePanel
-        event={detailEvent}
-        isDeleting={isDeletingLesson}
-        error={deleteError}
-        onClose={() => setDetailEvent(null)}
-        onDelete={() => void handleDeleteLesson()}
-        presetSubjects={subjects}
-        presetLessonTypes={lessonTypes}
-        isSavingPresets={isSavingPresets}
-        presetsError={presetsError}
-        onPresetChange={(next) =>
-          setDetailEvent((prev) => (prev ? { ...prev, ...next } : null))
-        }
-        onSavePresets={() => void handleSaveDetailPresets()}
-      />
     </section>
   );
 }

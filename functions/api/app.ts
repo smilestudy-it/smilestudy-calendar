@@ -10,7 +10,6 @@ import { users, classrooms, students, subjects, lessonTypes, timeSlots, lessons 
 import {
   validateCreateClassroomInput,
   validateBulkLessonsInput,
-  validateCreateLessonInput,
   validateCreateLessonTypeInput,
   validateCreateStudentInput,
   validateCreateSubjectInput,
@@ -1460,225 +1459,6 @@ type CreateLessonTxResult =
         | 'student_double_booking';
     };
 
-app.post('/lessons', auth, loadUser, async (c) => {
-  const actor = c.var.currentUser;
-  const body = await c.req.json<unknown>().catch(() => null);
-  const { input, error } = validateCreateLessonInput(body);
-  if (!input) {
-    return c.json({ message: error ?? 'invalid request' }, 400);
-  }
-
-  const scopeDenied = denyUnlessClassroomScope(c, input.classroomId);
-  if (scopeDenied) {
-    return scopeDenied;
-  }
-
-  const staffTeacherDenied = denyUnlessStaffLessonTeacherIsSelf(c, actor, input.teacherId);
-  if (staffTeacherDenied) {
-    return staffTeacherDenied;
-  }
-
-  const db = getDb(c.env);
-
-  if (actor.role === 'manager') {
-    const [teacherUser] = await db
-      .select({ classroomId: users.classroomId })
-      .from(users)
-      .where(eq(users.id, input.teacherId))
-      .limit(1);
-    if (!teacherUser || teacherUser.classroomId !== input.classroomId) {
-      return c.json({ message: 'forbidden' }, 403);
-    }
-  }
-
-  const id = crypto.randomUUID();
-  const actorRole = actor.role;
-
-  // Overlap: SQLite/D1 has no exclusion constraint for time ranges; a UNIQUE on
-  // (teacher_id, start_at, end_at) does not stop overlapping intervals. Teacher/student clash
-  // SELECTs are best-effort fast-fails; concurrent POSTs can still double-book unless enforced
-  // outside SQLite (e.g. queue, external lock, or a DB with range exclusion support).
-  let txResult: CreateLessonTxResult;
-  try {
-    txResult = await (async () => {
-        const [activeClassroom] = await db
-          .select({ id: classrooms.id })
-          .from(classrooms)
-          .where(and(eq(classrooms.id, input.classroomId), isNull(classrooms.deletedAt)))
-          .limit(1);
-        if (!activeClassroom) {
-          return { ok: false as const, reason: 'classroom_not_found' as const };
-        }
-
-        const teacherScope =
-          actorRole === 'admin'
-            ? and(eq(users.id, input.teacherId), isNull(users.deletedAt))
-            : and(
-                eq(users.id, input.teacherId),
-                eq(users.classroomId, input.classroomId),
-                isNull(users.deletedAt),
-              );
-
-        const [teacher] = await db.select({ id: users.id }).from(users).where(teacherScope).limit(1);
-        if (!teacher) {
-          return { ok: false as const, reason: 'teacher_invalid' as const };
-        }
-
-        const [student] = await db
-          .select({ id: students.id })
-          .from(students)
-          .where(
-            and(
-              eq(students.id, input.studentId),
-              eq(students.classroomId, input.classroomId),
-              isNull(students.deletedAt),
-            ),
-          )
-          .limit(1);
-        if (!student) {
-          return { ok: false as const, reason: 'student_invalid' as const };
-        }
-
-        if (input.subjectId) {
-          const [sub] = await db
-            .select({ id: subjects.id })
-            .from(subjects)
-            .where(
-              and(
-                eq(subjects.id, input.subjectId),
-                eq(subjects.classroomId, input.classroomId),
-                isNull(subjects.deletedAt),
-              ),
-            )
-            .limit(1);
-          if (!sub) {
-            return { ok: false as const, reason: 'subject_invalid' as const };
-          }
-        }
-
-        if (input.lessonTypeId) {
-          const [ltRow] = await db
-            .select({ id: lessonTypes.id })
-            .from(lessonTypes)
-            .where(
-              and(
-                eq(lessonTypes.id, input.lessonTypeId),
-                eq(lessonTypes.classroomId, input.classroomId),
-                isNull(lessonTypes.deletedAt),
-              ),
-            )
-            .limit(1);
-          if (!ltRow) {
-            return { ok: false as const, reason: 'lesson_type_invalid' as const };
-          }
-        }
-
-        const [teacherClash] = await db
-          .select({ id: lessons.id })
-          .from(lessons)
-          .where(
-            and(
-              eq(lessons.teacherId, input.teacherId),
-              isNull(lessons.deletedAt),
-              lt(lessons.startAt, input.endAt),
-              gt(lessons.endAt, input.startAt),
-            ),
-          )
-          .limit(1);
-        if (teacherClash) {
-          return { ok: false as const, reason: 'teacher_double_booking' as const };
-        }
-
-        const [studentClash] = await db
-          .select({ id: lessons.id })
-          .from(lessons)
-          .where(
-            and(
-              eq(lessons.studentId, input.studentId),
-              isNull(lessons.deletedAt),
-              lt(lessons.startAt, input.endAt),
-              gt(lessons.endAt, input.startAt),
-            ),
-          )
-          .limit(1);
-        if (studentClash) {
-          return { ok: false as const, reason: 'student_double_booking' as const };
-        }
-
-        await db.insert(lessons).values({
-          id,
-          teacherId: input.teacherId,
-          studentId: input.studentId,
-          classroomId: input.classroomId,
-          subjectId: input.subjectId ?? null,
-          lessonTypeId: input.lessonTypeId ?? null,
-          startAt: input.startAt,
-          endAt: input.endAt,
-          status: input.status ?? 'draft',
-          deletedAt: null,
-        });
-        return { ok: true as const };
-    })();
-  } catch (err) {
-    logApiError('POST /lessons', err);
-    if (isD1ForeignKeyViolation(err)) {
-      return c.json({ message: 'invalid reference' }, 400);
-    }
-    return c.json({ message: 'failed to create lesson' }, 500);
-  }
-
-  if (!txResult.ok) {
-    switch (txResult.reason) {
-      case 'classroom_not_found':
-        return c.json({ message: 'classroom not found' }, 404);
-      case 'teacher_invalid':
-        return c.json({ message: 'teacher not found or not in classroom' }, 400);
-      case 'student_invalid':
-        return c.json({ message: 'student not found or not in classroom' }, 400);
-      case 'subject_invalid':
-        return c.json({ message: 'subject not found' }, 400);
-      case 'lesson_type_invalid':
-        return c.json({ message: 'lesson type not found' }, 400);
-      case 'teacher_double_booking':
-        return c.json({ message: 'teacher schedule conflict' }, 409);
-      case 'student_double_booking':
-        return c.json({ message: 'student schedule conflict' }, 409);
-      default:
-        return c.json({ message: 'failed to create lesson' }, 500);
-    }
-  }
-
-  return c.json(
-    {
-      id,
-      teacherId: input.teacherId,
-      studentId: input.studentId,
-      classroomId: input.classroomId,
-      subjectId: input.subjectId ?? null,
-      lessonTypeId: input.lessonTypeId ?? null,
-      startAt: input.startAt,
-      endAt: input.endAt,
-      status: input.status ?? 'draft',
-    },
-    201,
-  );
-});
-
-type PatchLessonTxResult =
-  | { ok: true }
-  | {
-      ok: false;
-      reason:
-        | 'lesson_not_found'
-        | 'classroom_not_found'
-        | 'teacher_invalid'
-        | 'student_invalid'
-        | 'subject_invalid'
-        | 'lesson_type_invalid'
-        | 'teacher_double_booking'
-        | 'student_double_booking';
-    };
-
 app.post('/lessons/bulk', auth, loadUser, requireStaffOrAbove, async (c) => {
   const actor = c.var.currentUser;
   const body = await c.req.json<unknown>().catch(() => null);
@@ -1994,6 +1774,21 @@ app.post('/lessons/bulk', auth, loadUser, requireStaffOrAbove, async (c) => {
   );
 });
 
+type PatchLessonTxResult =
+  | { ok: true }
+  | {
+      ok: false;
+      reason:
+        | 'lesson_not_found'
+        | 'classroom_not_found'
+        | 'teacher_invalid'
+        | 'student_invalid'
+        | 'subject_invalid'
+        | 'lesson_type_invalid'
+        | 'teacher_double_booking'
+        | 'student_double_booking';
+    };
+
 app.patch('/lessons/:id', auth, loadUser, async (c) => {
   const actor = c.var.currentUser;
   const targetId = c.req.param('id');
@@ -2063,139 +1858,139 @@ app.patch('/lessons/:id', auth, loadUser, async (c) => {
   let txResult: PatchLessonTxResult;
   try {
     txResult = await (async () => {
-        const [stillThere] = await db
-          .select({ id: lessons.id })
-          .from(lessons)
-          .where(and(eq(lessons.id, targetId), isNull(lessons.deletedAt)))
-          .limit(1);
-        if (!stillThere) {
-          return { ok: false as const, reason: 'lesson_not_found' as const };
-        }
+      const [stillThere] = await db
+        .select({ id: lessons.id })
+        .from(lessons)
+        .where(and(eq(lessons.id, targetId), isNull(lessons.deletedAt)))
+        .limit(1);
+      if (!stillThere) {
+        return { ok: false as const, reason: 'lesson_not_found' as const };
+      }
 
-        const [activeClassroom] = await db
-          .select({ id: classrooms.id })
-          .from(classrooms)
-          .where(and(eq(classrooms.id, mergedClassroomId), isNull(classrooms.deletedAt)))
-          .limit(1);
-        if (!activeClassroom) {
-          return { ok: false as const, reason: 'classroom_not_found' as const };
-        }
+      const [activeClassroom] = await db
+        .select({ id: classrooms.id })
+        .from(classrooms)
+        .where(and(eq(classrooms.id, mergedClassroomId), isNull(classrooms.deletedAt)))
+        .limit(1);
+      if (!activeClassroom) {
+        return { ok: false as const, reason: 'classroom_not_found' as const };
+      }
 
-        const mergedTeacherScope =
-          actorRole === 'admin'
-            ? and(eq(users.id, mergedTeacherId), isNull(users.deletedAt))
-            : and(
-                eq(users.id, mergedTeacherId),
-                eq(users.classroomId, mergedClassroomId),
-                isNull(users.deletedAt),
-              );
+      const mergedTeacherScope =
+        actorRole === 'admin'
+          ? and(eq(users.id, mergedTeacherId), isNull(users.deletedAt))
+          : and(
+              eq(users.id, mergedTeacherId),
+              eq(users.classroomId, mergedClassroomId),
+              isNull(users.deletedAt),
+            );
 
-        const [teacher] = await db.select({ id: users.id }).from(users).where(mergedTeacherScope).limit(1);
-        if (!teacher) {
-          return { ok: false as const, reason: 'teacher_invalid' as const };
-        }
+      const [teacher] = await db.select({ id: users.id }).from(users).where(mergedTeacherScope).limit(1);
+      if (!teacher) {
+        return { ok: false as const, reason: 'teacher_invalid' as const };
+      }
 
-        const [student] = await db
-          .select({ id: students.id })
-          .from(students)
+      const [student] = await db
+        .select({ id: students.id })
+        .from(students)
+        .where(
+          and(
+            eq(students.id, mergedStudentId),
+            eq(students.classroomId, mergedClassroomId),
+            isNull(students.deletedAt),
+          ),
+        )
+        .limit(1);
+      if (!student) {
+        return { ok: false as const, reason: 'student_invalid' as const };
+      }
+
+      if (mergedSubjectId) {
+        const [sub] = await db
+          .select({ id: subjects.id })
+          .from(subjects)
           .where(
             and(
-              eq(students.id, mergedStudentId),
-              eq(students.classroomId, mergedClassroomId),
-              isNull(students.deletedAt),
+              eq(subjects.id, mergedSubjectId),
+              eq(subjects.classroomId, mergedClassroomId),
+              isNull(subjects.deletedAt),
             ),
           )
           .limit(1);
-        if (!student) {
-          return { ok: false as const, reason: 'student_invalid' as const };
+        if (!sub) {
+          return { ok: false as const, reason: 'subject_invalid' as const };
         }
+      }
 
-        if (mergedSubjectId) {
-          const [sub] = await db
-            .select({ id: subjects.id })
-            .from(subjects)
-            .where(
-              and(
-                eq(subjects.id, mergedSubjectId),
-                eq(subjects.classroomId, mergedClassroomId),
-                isNull(subjects.deletedAt),
-              ),
-            )
-            .limit(1);
-          if (!sub) {
-            return { ok: false as const, reason: 'subject_invalid' as const };
-          }
-        }
-
-        if (mergedLessonTypeId) {
-          const [ltRow] = await db
-            .select({ id: lessonTypes.id })
-            .from(lessonTypes)
-            .where(
-              and(
-                eq(lessonTypes.id, mergedLessonTypeId),
-                eq(lessonTypes.classroomId, mergedClassroomId),
-                isNull(lessonTypes.deletedAt),
-              ),
-            )
-            .limit(1);
-          if (!ltRow) {
-            return { ok: false as const, reason: 'lesson_type_invalid' as const };
-          }
-        }
-
-        const [teacherClash] = await db
-          .select({ id: lessons.id })
-          .from(lessons)
+      if (mergedLessonTypeId) {
+        const [ltRow] = await db
+          .select({ id: lessonTypes.id })
+          .from(lessonTypes)
           .where(
             and(
-              eq(lessons.teacherId, mergedTeacherId),
-              isNull(lessons.deletedAt),
-              ne(lessons.id, targetId),
-              lt(lessons.startAt, mergedEndAt),
-              gt(lessons.endAt, mergedStartAt),
+              eq(lessonTypes.id, mergedLessonTypeId),
+              eq(lessonTypes.classroomId, mergedClassroomId),
+              isNull(lessonTypes.deletedAt),
             ),
           )
           .limit(1);
-        if (teacherClash) {
-          return { ok: false as const, reason: 'teacher_double_booking' as const };
+        if (!ltRow) {
+          return { ok: false as const, reason: 'lesson_type_invalid' as const };
         }
+      }
 
-        const [studentClash] = await db
-          .select({ id: lessons.id })
-          .from(lessons)
-          .where(
-            and(
-              eq(lessons.studentId, mergedStudentId),
-              isNull(lessons.deletedAt),
-              ne(lessons.id, targetId),
-              lt(lessons.startAt, mergedEndAt),
-              gt(lessons.endAt, mergedStartAt),
-            ),
-          )
-          .limit(1);
-        if (studentClash) {
-          return { ok: false as const, reason: 'student_double_booking' as const };
-        }
+      const [teacherClash] = await db
+        .select({ id: lessons.id })
+        .from(lessons)
+        .where(
+          and(
+            eq(lessons.teacherId, mergedTeacherId),
+            isNull(lessons.deletedAt),
+            ne(lessons.id, targetId),
+            lt(lessons.startAt, mergedEndAt),
+            gt(lessons.endAt, mergedStartAt),
+          ),
+        )
+        .limit(1);
+      if (teacherClash) {
+        return { ok: false as const, reason: 'teacher_double_booking' as const };
+      }
 
-        const result = await db
-          .update(lessons)
-          .set({
-            teacherId: mergedTeacherId,
-            studentId: mergedStudentId,
-            classroomId: mergedClassroomId,
-            subjectId: mergedSubjectId,
-            lessonTypeId: mergedLessonTypeId,
-            startAt: mergedStartAt,
-            endAt: mergedEndAt,
-            status: mergedStatus,
-          })
-          .where(and(eq(lessons.id, targetId), isNull(lessons.deletedAt)));
+      const [studentClash] = await db
+        .select({ id: lessons.id })
+        .from(lessons)
+        .where(
+          and(
+            eq(lessons.studentId, mergedStudentId),
+            isNull(lessons.deletedAt),
+            ne(lessons.id, targetId),
+            lt(lessons.startAt, mergedEndAt),
+            gt(lessons.endAt, mergedStartAt),
+          ),
+        )
+        .limit(1);
+      if (studentClash) {
+        return { ok: false as const, reason: 'student_double_booking' as const };
+      }
 
-        if (result.meta.changes === 0) {
-          return { ok: false as const, reason: 'lesson_not_found' as const };
-        }
-        return { ok: true as const };
+      const result = await db
+        .update(lessons)
+        .set({
+          teacherId: mergedTeacherId,
+          studentId: mergedStudentId,
+          classroomId: mergedClassroomId,
+          subjectId: mergedSubjectId,
+          lessonTypeId: mergedLessonTypeId,
+          startAt: mergedStartAt,
+          endAt: mergedEndAt,
+          status: mergedStatus,
+        })
+        .where(and(eq(lessons.id, targetId), isNull(lessons.deletedAt)));
+
+      if (result.meta.changes === 0) {
+        return { ok: false as const, reason: 'lesson_not_found' as const };
+      }
+      return { ok: true as const };
     })();
   } catch (err) {
     logApiError('PATCH /lessons/:id', err);
@@ -2242,57 +2037,6 @@ app.patch('/lessons/:id', auth, loadUser, async (c) => {
     },
     200,
   );
-});
-
-app.delete('/lessons/:id', auth, loadUser, async (c) => {
-  const actor = c.var.currentUser;
-  const targetId = c.req.param('id');
-  if (!targetId) {
-    return c.json({ message: 'id is required' }, 400);
-  }
-
-  const db = getDb(c.env);
-  const [row] = await db
-    .select({ id: lessons.id, classroomId: lessons.classroomId, teacherId: lessons.teacherId })
-    .from(lessons)
-    .where(and(eq(lessons.id, targetId), isNull(lessons.deletedAt)))
-    .limit(1);
-
-  if (!row) {
-    return c.json({ message: 'lesson not found' }, 404);
-  }
-
-  const scopeDenied = denyUnlessClassroomScope(c, row.classroomId);
-  if (scopeDenied) {
-    return scopeDenied;
-  }
-
-  if (actor.role === 'staff' && row.teacherId !== actor.id) {
-    return c.json({ message: 'forbidden' }, 403);
-  }
-
-  if (actor.role === 'manager') {
-    const [teacherUser] = await db
-      .select({ classroomId: users.classroomId })
-      .from(users)
-      .where(eq(users.id, row.teacherId))
-      .limit(1);
-    if (!teacherUser || teacherUser.classroomId !== row.classroomId) {
-      return c.json({ message: 'forbidden' }, 403);
-    }
-  }
-
-  const deletedAt = new Date();
-  const result = await db
-    .update(lessons)
-    .set({ deletedAt })
-    .where(and(eq(lessons.id, targetId), isNull(lessons.deletedAt)));
-
-  if (result.meta.changes === 0) {
-    return c.json({ message: 'lesson not found' }, 404);
-  }
-
-  return c.json({ success: true }, 200);
 });
 
 app.get('/me', auth, async (c) => {
