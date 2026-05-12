@@ -36,3 +36,49 @@ export function hmToMinutes(hm: string): number {
   const [h, m] = hm.split(':').map(Number);
   return h * 60 + m;
 }
+
+const DATE_KEY_STRICT = /^([0-9]{4})-([0-9]{2})-([0-9]{2})$/;
+const HM_STRICT = /^([0-9]{1,2}):([0-9]{2})$/;
+
+/**
+ * ローカルの暦日 YYYY-MM-DD + 壁時計 HH:mm を UTC の Date に変換する。
+ * `timezoneOffsetMinutes` は `Date.prototype.getTimezoneOffset()` と同じ（例: JST では -540）。
+ */
+export function utcDateFromLocalDateKeyAndHm(
+  dateKey: string,
+  hm: string,
+  timezoneOffsetMinutes: number,
+): Date | null {
+  const dm = DATE_KEY_STRICT.exec(dateKey.trim());
+  if (!dm) {
+    return null;
+  }
+  const y = Number(dm[1]);
+  const mo = Number(dm[2]);
+  const d = Number(dm[3]);
+  const tm = HM_STRICT.exec(hm.trim());
+  if (!tm) {
+    return null;
+  }
+  const hour = Number(tm[1]);
+  const minute = Number(tm[2]);
+  if (
+    !Number.isInteger(y) ||
+    !Number.isInteger(mo) ||
+    !Number.isInteger(d) ||
+    !Number.isInteger(hour) ||
+    !Number.isInteger(minute) ||
+    mo < 1 ||
+    mo > 12 ||
+    d < 1 ||
+    d > 31 ||
+    hour < 0 ||
+    hour > 23 ||
+    minute < 0 ||
+    minute > 59
+  ) {
+    return null;
+  }
+  const utcMs = Date.UTC(y, mo - 1, d, hour, minute, 0, 0) + timezoneOffsetMinutes * 60 * 1000;
+  return new Date(utcMs);
+}

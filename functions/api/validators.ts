@@ -329,6 +329,57 @@ const patchLessonSchema = z
     }
   });
 
+const bulkLessonCreateItemSchema = z.object({
+  teacherId: z.string().trim().min(1, 'teacher id is required'),
+  studentId: z.string().trim().min(1, 'student id is required'),
+  /** ローカル暦日 YYYY-MM-DD（プリセット時間枠と組み合わせて開始終了を決定） */
+  dateKey: z
+    .string()
+    .trim()
+    .regex(/^\d{4}-\d{2}-\d{2}$/, 'invalid dateKey (use YYYY-MM-DD)'),
+  timeSlotId: z.string().trim().min(1, 'time slot id is required'),
+  subjectId: z.string().trim().min(1).optional(),
+  lessonTypeId: z.string().trim().min(1).optional(),
+  status: lessonStatusSchema.optional(),
+});
+
+const bulkLessonsBodySchema = z
+  .object({
+    classroomId: z.string().trim().min(1, 'classroom id is required'),
+    deleteIds: z.array(z.string().trim().min(1)).optional(),
+    creates: z.array(bulkLessonCreateItemSchema).optional(),
+    /** creates があるとき必須。`Date#getTimezoneOffset` と同じ値（クライアントが送る） */
+    createsTimezoneOffsetMinutes: z.number().int().min(-840).max(840).optional(),
+  })
+  .superRefine((data, ctx) => {
+    const d = data.deleteIds?.length ?? 0;
+    const c = data.creates?.length ?? 0;
+    if (d + c === 0) {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['deleteIds'],
+        message: 'at least one of deleteIds or creates is required',
+      });
+    }
+    if (c > 0 && data.createsTimezoneOffsetMinutes === undefined) {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['createsTimezoneOffsetMinutes'],
+        message: 'createsTimezoneOffsetMinutes is required when creates is non-empty',
+      });
+    }
+  });
+
+type BulkLessonsInput = z.infer<typeof bulkLessonsBodySchema>;
+
+export function validateBulkLessonsInput(body: unknown): { input?: BulkLessonsInput; error?: string } {
+  const result = bulkLessonsBodySchema.safeParse(body);
+  if (!result.success) {
+    return { error: firstIssueMessage(result.error) };
+  }
+  return { input: result.data };
+}
+
 type CreateLessonInput = z.infer<typeof createLessonSchema>;
 type PatchLessonInput = z.infer<typeof patchLessonSchema>;
 

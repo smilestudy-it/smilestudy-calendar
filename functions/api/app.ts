@@ -9,6 +9,7 @@ import { getDb } from '../../db';
 import { users, classrooms, students, subjects, lessonTypes, timeSlots, lessons } from '../../db/schema';
 import {
   validateCreateClassroomInput,
+  validateBulkLessonsInput,
   validateCreateLessonInput,
   validateCreateLessonTypeInput,
   validateCreateStudentInput,
@@ -29,7 +30,7 @@ import {
   isD1ForeignKeyViolation,
   CLASSROOM_NOT_ACTIVE_ERROR,
 } from './lib/sqliteConstraint';
-import { lessonTeacherDisplay, lessonStudentDisplay, hmToMinutes } from './lessonDisplay';
+import { lessonTeacherDisplay, lessonStudentDisplay, hmToMinutes, utcDateFromLocalDateKeyAndHm } from './lessonDisplay';
 import { getActiveStudentAndClassroom } from './db/studentRead';
 import * as auth0 from './auth0Service';
 import {
@@ -1677,6 +1678,288 @@ type PatchLessonTxResult =
         | 'teacher_double_booking'
         | 'student_double_booking';
     };
+
+app.post('/lessons/bulk', auth, loadUser, requireStaffOrAbove, async (c) => {
+  const actor = c.var.currentUser;
+  const body = await c.req.json<unknown>().catch(() => null);
+  const { input, error } = validateBulkLessonsInput(body);
+  if (!input) {
+    return c.json({ message: error ?? 'invalid request' }, 400);
+  }
+
+  const scopeDenied = denyUnlessClassroomScope(c, input.classroomId);
+  if (scopeDenied) {
+    return scopeDenied;
+  }
+
+  const db = getDb(c.env);
+  const classroomId = input.classroomId;
+
+  type OpResult = { ok: boolean; message?: string; id?: string };
+
+  const deleteResults: OpResult[] = [];
+  for (const targetId of input.deleteIds ?? []) {
+    const [row] = await db
+      .select({ id: lessons.id, classroomId: lessons.classroomId, teacherId: lessons.teacherId })
+      .from(lessons)
+      .where(and(eq(lessons.id, targetId), isNull(lessons.deletedAt)))
+      .limit(1);
+
+    if (!row) {
+      deleteResults.push({ ok: false, message: 'lesson not found', id: targetId });
+      continue;
+    }
+    if (row.classroomId !== classroomId) {
+      deleteResults.push({ ok: false, message: 'lesson not in classroom', id: targetId });
+      continue;
+    }
+
+    if (actor.role === 'staff' && row.teacherId !== actor.id) {
+      deleteResults.push({ ok: false, message: 'forbidden', id: targetId });
+      continue;
+    }
+
+    if (actor.role === 'manager') {
+      const [teacherUser] = await db
+        .select({ classroomId: users.classroomId })
+        .from(users)
+        .where(eq(users.id, row.teacherId))
+        .limit(1);
+      if (!teacherUser || teacherUser.classroomId !== row.classroomId) {
+        deleteResults.push({ ok: false, message: 'forbidden', id: targetId });
+        continue;
+      }
+    }
+
+    const deletedAt = new Date();
+    const result = await db
+      .update(lessons)
+      .set({ deletedAt })
+      .where(and(eq(lessons.id, targetId), isNull(lessons.deletedAt)));
+
+    if (result.meta.changes === 0) {
+      deleteResults.push({ ok: false, message: 'lesson not found', id: targetId });
+    } else {
+      deleteResults.push({ ok: true, id: targetId });
+    }
+  }
+
+  const createResults: OpResult[] = [];
+  const tzOff = input.createsTimezoneOffsetMinutes;
+  for (const item of input.creates ?? []) {
+    const [slotRow] = await db
+      .select({
+        id: timeSlots.id,
+        startTime: timeSlots.startTime,
+        endTime: timeSlots.endTime,
+      })
+      .from(timeSlots)
+      .where(
+        and(
+          eq(timeSlots.id, item.timeSlotId),
+          eq(timeSlots.classroomId, classroomId),
+          isNull(timeSlots.deletedAt),
+        ),
+      )
+      .limit(1);
+
+    if (!slotRow) {
+      createResults.push({ ok: false, message: 'time slot not found' });
+      continue;
+    }
+
+    const startAt =
+      tzOff === undefined ? null : utcDateFromLocalDateKeyAndHm(item.dateKey, slotRow.startTime, tzOff);
+    const endAt =
+      tzOff === undefined ? null : utcDateFromLocalDateKeyAndHm(item.dateKey, slotRow.endTime, tzOff);
+    if (!startAt || !endAt || startAt.getTime() >= endAt.getTime()) {
+      createResults.push({ ok: false, message: 'invalid date or time slot range' });
+      continue;
+    }
+
+    const staffTeacherDenied = denyUnlessStaffLessonTeacherIsSelf(c, actor, item.teacherId);
+    if (staffTeacherDenied) {
+      createResults.push({ ok: false, message: 'forbidden' });
+      continue;
+    }
+
+    if (actor.role === 'manager') {
+      const [teacherUser] = await db
+        .select({ classroomId: users.classroomId })
+        .from(users)
+        .where(eq(users.id, item.teacherId))
+        .limit(1);
+      if (!teacherUser || teacherUser.classroomId !== classroomId) {
+        createResults.push({ ok: false, message: 'forbidden' });
+        continue;
+      }
+    }
+
+    const createInput = {
+      teacherId: item.teacherId,
+      studentId: item.studentId,
+      classroomId,
+      subjectId: item.subjectId,
+      lessonTypeId: item.lessonTypeId,
+      startAt,
+      endAt,
+      status: item.status,
+    };
+
+    const id = crypto.randomUUID();
+    const actorRole = actor.role;
+
+    let txResult: CreateLessonTxResult;
+    try {
+      txResult = await (async () => {
+        const [activeClassroom] = await db
+          .select({ id: classrooms.id })
+          .from(classrooms)
+          .where(and(eq(classrooms.id, classroomId), isNull(classrooms.deletedAt)))
+          .limit(1);
+        if (!activeClassroom) {
+          return { ok: false as const, reason: 'classroom_not_found' as const };
+        }
+
+        const teacherScope =
+          actorRole === 'admin'
+            ? and(eq(users.id, createInput.teacherId), isNull(users.deletedAt))
+            : and(
+                eq(users.id, createInput.teacherId),
+                eq(users.classroomId, classroomId),
+                isNull(users.deletedAt),
+              );
+
+        const [teacher] = await db.select({ id: users.id }).from(users).where(teacherScope).limit(1);
+        if (!teacher) {
+          return { ok: false as const, reason: 'teacher_invalid' as const };
+        }
+
+        const [student] = await db
+          .select({ id: students.id })
+          .from(students)
+          .where(
+            and(
+              eq(students.id, createInput.studentId),
+              eq(students.classroomId, classroomId),
+              isNull(students.deletedAt),
+            ),
+          )
+          .limit(1);
+        if (!student) {
+          return { ok: false as const, reason: 'student_invalid' as const };
+        }
+
+        if (createInput.subjectId) {
+          const [sub] = await db
+            .select({ id: subjects.id })
+            .from(subjects)
+            .where(
+              and(
+                eq(subjects.id, createInput.subjectId),
+                eq(subjects.classroomId, classroomId),
+                isNull(subjects.deletedAt),
+              ),
+            )
+            .limit(1);
+          if (!sub) {
+            return { ok: false as const, reason: 'subject_invalid' as const };
+          }
+        }
+
+        if (createInput.lessonTypeId) {
+          const [ltRow] = await db
+            .select({ id: lessonTypes.id })
+            .from(lessonTypes)
+            .where(
+              and(
+                eq(lessonTypes.id, createInput.lessonTypeId),
+                eq(lessonTypes.classroomId, classroomId),
+                isNull(lessonTypes.deletedAt),
+              ),
+            )
+            .limit(1);
+          if (!ltRow) {
+            return { ok: false as const, reason: 'lesson_type_invalid' as const };
+          }
+        }
+
+        const [teacherClash] = await db
+          .select({ id: lessons.id })
+          .from(lessons)
+          .where(
+            and(
+              eq(lessons.teacherId, createInput.teacherId),
+              isNull(lessons.deletedAt),
+              lt(lessons.startAt, createInput.endAt),
+              gt(lessons.endAt, createInput.startAt),
+            ),
+          )
+          .limit(1);
+        if (teacherClash) {
+          return { ok: false as const, reason: 'teacher_double_booking' as const };
+        }
+
+        const [studentClash] = await db
+          .select({ id: lessons.id })
+          .from(lessons)
+          .where(
+            and(
+              eq(lessons.studentId, createInput.studentId),
+              isNull(lessons.deletedAt),
+              lt(lessons.startAt, createInput.endAt),
+              gt(lessons.endAt, createInput.startAt),
+            ),
+          )
+          .limit(1);
+        if (studentClash) {
+          return { ok: false as const, reason: 'student_double_booking' as const };
+        }
+
+        await db.insert(lessons).values({
+          id,
+          teacherId: createInput.teacherId,
+          studentId: createInput.studentId,
+          classroomId,
+          subjectId: createInput.subjectId ?? null,
+          lessonTypeId: createInput.lessonTypeId ?? null,
+          startAt: createInput.startAt,
+          endAt: createInput.endAt,
+          status: createInput.status ?? 'draft',
+          deletedAt: null,
+        });
+        return { ok: true as const };
+      })();
+    } catch (err) {
+      logApiError('POST /lessons/bulk creates', err);
+      if (isD1ForeignKeyViolation(err)) {
+        createResults.push({ ok: false, message: 'invalid reference' });
+      } else {
+        createResults.push({ ok: false, message: 'failed to create lesson' });
+      }
+      continue;
+    }
+
+    if (!txResult.ok) {
+      const msg =
+        txResult.reason === 'teacher_double_booking' || txResult.reason === 'student_double_booking'
+          ? 'schedule conflict'
+          : txResult.reason;
+      createResults.push({ ok: false, message: msg });
+    } else {
+      createResults.push({ ok: true, id });
+    }
+  }
+
+  return c.json(
+    {
+      classroomId,
+      deletes: deleteResults,
+      creates: createResults,
+    },
+    200,
+  );
+});
 
 app.patch('/lessons/:id', auth, loadUser, async (c) => {
   const actor = c.var.currentUser;
