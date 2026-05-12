@@ -26,10 +26,10 @@ export type LessonDeleteTarget = LessonDetailTarget;
 
 type Props = {
   event: LessonDetailTarget | null;
-  isDeleting: boolean;
+  isDeleting?: boolean;
   error: string | null;
   onClose: () => void;
-  onDelete: () => void;
+  onDelete?: () => void;
   /** 渡したときだけ科目・授業種別の編集 UI を表示 */
   presetSubjects?: LessonPresetRow[];
   presetLessonTypes?: LessonPresetRow[];
@@ -41,7 +41,7 @@ type Props = {
 
 export default function LessonDeletePanel({
   event,
-  isDeleting,
+  isDeleting = false,
   error,
   onClose,
   onDelete,
@@ -66,7 +66,7 @@ export default function LessonDeletePanel({
   const lessonTypeVal = event.lessonTypeId ?? '_none';
 
   return (
-    <div className="fixed inset-x-0 bottom-0 z-50 border-t border-slate-200 bg-white/95 p-4 shadow-[0_-10px_30px_rgba(15,23,42,0.18)] backdrop-blur">
+    <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
       <div className="mx-auto flex w-full max-w-5xl flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
         <div className="min-w-0 flex-1 space-y-2">
           <p className="text-sm font-medium text-slate-900">コマの詳細</p>
@@ -144,18 +144,20 @@ export default function LessonDeletePanel({
           {presetsError && <p className="text-xs text-rose-600">{presetsError}</p>}
           {error && <p className="mt-1 text-xs text-rose-600">{error}</p>}
         </div>
-        <div className="flex shrink-0 gap-2 sm:pt-6">
+        <div className="flex shrink-0 gap-2">
           <Button type="button" variant="outline" onClick={onClose} disabled={isDeleting}>
             閉じる
           </Button>
-          <Button
-            type="button"
-            className="bg-rose-700 text-white hover:bg-rose-600"
-            onClick={onDelete}
-            disabled={isDeleting}
-          >
-            {isDeleting ? '削除中...' : '削除'}
-          </Button>
+          {onDelete && (
+            <Button
+              type="button"
+              className="bg-rose-700 text-white hover:bg-rose-600"
+              onClick={onDelete}
+              disabled={isDeleting}
+            >
+              {isDeleting ? '削除中...' : '削除'}
+            </Button>
+          )}
         </div>
       </div>
     </div>
