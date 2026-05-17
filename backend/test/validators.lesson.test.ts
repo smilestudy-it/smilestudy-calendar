@@ -7,7 +7,7 @@ import {
   validateCreateLessonInput,
   validateLessonRangeQuery,
   validatePatchLessonInput,
-} from './validators';
+} from '../validators';
 
 describe('lesson validators', () => {
   it('validateLessonRangeQuery requires from and to', () => {

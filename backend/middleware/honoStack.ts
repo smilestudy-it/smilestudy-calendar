@@ -4,8 +4,8 @@
 import { jwk } from 'hono/jwk';
 import type { Next } from 'hono';
 import { and, eq, isNull } from 'drizzle-orm';
-import { getDb } from '../../../db';
-import { users } from '../../../db/schema';
+import { getDb } from '../db';
+import { users } from '../db/schema';
 import type { AppUser, ApiContext } from '../apiTypes';
 import { jsonMessage } from '../lib/jsonMessage';
 

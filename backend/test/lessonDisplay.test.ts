@@ -2,7 +2,7 @@
  * （責務）lessonDisplay の日時ヘルパーのユニットテスト。
  */
 import { describe, expect, it } from 'vitest';
-import { utcDateFromLocalDateKeyAndHm } from './lessonDisplay';
+import { utcDateFromLocalDateKeyAndHm } from '../lessonDisplay';
 
 describe('utcDateFromLocalDateKeyAndHm', () => {
   it('maps local wall time to UTC using timezone offset (JST -540)', () => {

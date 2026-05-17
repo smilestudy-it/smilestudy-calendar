@@ -3,7 +3,7 @@
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { Column, SQL, StringChunk, is } from 'drizzle-orm';
-import { classrooms, lessons, students, users } from '../../db/schema';
+import { classrooms, lessons, students, users } from '../db/schema';
 
 type LessonRow = {
   id: string;
@@ -178,7 +178,7 @@ vi.mock('hono/jwk', () => {
   };
 });
 
-vi.mock('../../db', () => {
+vi.mock('../db', () => {
   const extractRequestedId = (predicate: unknown): string | null => {
     if (typeof predicate === 'string') {
       return predicate;
@@ -558,7 +558,7 @@ vi.mock('../../db', () => {
   return { getDb: () => db };
 });
 
-import { app } from './[[route]]';
+import { app } from '../worker';
 
 const env = {
   AUTH0_AUDIENCE: 'https://api.example.local',
