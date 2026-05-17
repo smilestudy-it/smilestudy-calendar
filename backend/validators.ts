@@ -169,12 +169,12 @@ function firstIssueMessage(error: z.ZodError): string {
 
 export function validateCreateClassroomInput(
   body: unknown,
-): { input?: CreateClassroomInput; error?: string } {
+): { input: CreateClassroomInput | null; error: string | null} {
   const result = classroomSchema.safeParse(body);
   if (!result.success) {
-    return { error: firstIssueMessage(result.error) };
+    return { input: null, error: firstIssueMessage(result.error) };
   }
-  return { input: result.data };
+  return { input: result.data, error: null };
 }
 
 export function validateCreateUserInput(

@@ -13,7 +13,6 @@ import {
   validateCreateStudentInput,
   validateCreateSubjectInput,
   validateCreateTimeSlotInput,
-  validateCreateUserInput,
   validateLessonRangeQuery,
   validatePatchLessonInput,
   validatePatchLessonTypeInput,
@@ -21,12 +20,9 @@ import {
   validatePatchTimeSlotInput,
 } from './validators';
 import type { ApiBindings as Bindings, AppVariables } from './apiTypes';
-import { logApiError } from './lib/logApiError';
 import {
   isD1ClassroomNameUniqueViolation,
-  isD1UsersEmailUniqueViolation,
   isD1ForeignKeyViolation,
-  CLASSROOM_NOT_ACTIVE_ERROR,
 } from './lib/sqliteConstraint';
 import { lessonTeacherDisplay, lessonStudentDisplay, hmToMinutes, utcDateFromLocalDateKeyAndHm } from './lessonDisplay';
 import { getActiveStudentAndClassroom } from './lib/studentRead';
@@ -36,16 +32,14 @@ import {
   loadUser,
   requireAdmin,
   requireManagerOrAbove,
-  requireStaffOrAbove,
   requireClassroomScope,
   denyUnlessClassroomScope,
   denyUnlessStaffLessonTeacherIsSelf,
 } from './middleware/honoStack';
+import usersApp from './routes/users';
 
 const getAuth0ManagementToken = auth0.getAuth0ManagementToken;
-const createAuth0User = auth0.createAuth0User;
 const deleteAuth0User = auth0.deleteAuth0User;
-const sendAuth0PasswordSetupEmail = auth0.sendAuth0PasswordSetupEmail;
 
 export const app = new Hono<{ Bindings: Bindings; Variables: AppVariables }>().basePath('/api');
 const rootApp = new Hono<{ Bindings: Bindings; Variables: AppVariables }>();
@@ -434,7 +428,7 @@ app.delete('/classrooms/:id', auth, loadUser, requireAdmin, async(c) =>{
       }
     }
   } catch (err) {
-    logApiError('DELETE /classrooms/:id', err);
+    console.log('DELETE /classrooms/:id', err);
     await rollbackPartialClassroomDelete();
     return c.json({ message: 'failed to delete classroom' }, 500);
   }
@@ -504,7 +498,7 @@ app.delete('/classrooms/:id', auth, loadUser, requireAdmin, async(c) =>{
       successfullyDeletedAuth0Ids.push(userId);
     }
   } catch (err) {
-    logApiError('DELETE /classrooms/:id (auth0)', err);
+    console.log('DELETE /classrooms/:id (auth0)', err);
     const successSet = new Set(successfullyDeletedAuth0Ids);
     const remainingIds = updatedUserIds.filter((uid) => !successSet.has(uid));
     const newlySucceeded: string[] = [];
@@ -514,7 +508,7 @@ app.delete('/classrooms/:id', auth, loadUser, requireAdmin, async(c) =>{
           newlySucceeded.push(userId);
         }
       } catch (retryErr) {
-        logApiError(`DELETE /classrooms/:id (auth0 retry ${userId})`, retryErr);
+        console.log(`DELETE /classrooms/:id (auth0 retry ${userId})`, retryErr);
       }
     }
     const finalAuth0Deleted = new Set([...successfullyDeletedAuth0Ids, ...newlySucceeded]);
@@ -522,7 +516,7 @@ app.delete('/classrooms/:id', auth, loadUser, requireAdmin, async(c) =>{
       return c.json({ success: true }, 200);
     }
     const userIdsToRestoreD1 = updatedUserIds.filter((uid) => !finalAuth0Deleted.has(uid));
-    logApiError(
+    console.log(
       'DELETE /classrooms/:id (auth0 partial)',
       new Error(
         `auth0 delete incomplete after retry; deletedInAuth0=[${[...finalAuth0Deleted].join(
@@ -541,296 +535,7 @@ app.delete('/classrooms/:id', auth, loadUser, requireAdmin, async(c) =>{
   return c.json({ success: true }, 200);
 });
 
-app.post('/users', auth, loadUser, requireManagerOrAbove, async (c) =>{
-  const actor = c.var.currentUser;
-  const body = await c.req.json<unknown>().catch(() => null);
-  const { input, error } = validateCreateUserInput(body);
-  if (!input) {
-    return c.json({ message: error ?? 'invalid request' }, 400);
-  }
-
-  if (actor.role === 'manager') {
-    if (
-      input.role === 'admin' ||
-      !actor.classroomId ||
-      !input.classroomId ||
-      actor.classroomId !== input.classroomId
-    ) {
-      return c.json({ message: 'forbidden' }, 403);
-    }
-  }
-
-  const db = getDb(c.env);
-  const [existingUser] = await db
-    .select({ id: users.id })
-    .from(users)
-    .where(and(eq(users.email, input.email), isNull(users.deletedAt)))
-    .limit(1);
-
-  if (existingUser) {
-    return c.json({ message: 'user already exists' }, 409);
-  }
-
-  if (input.classroomId) {
-    const [existingClassroom] = await db
-      .select({ id: classrooms.id })
-      .from(classrooms)
-      .where(and(eq(classrooms.id, input.classroomId), isNull(classrooms.deletedAt)))
-      .limit(1);
-
-    if (!existingClassroom) {
-      return c.json({ message: 'classroom not found' }, 404);
-    }
-  }
-
-  let managementToken = '';
-  try {
-    managementToken = await getAuth0ManagementToken(c.env);
-  } catch {
-    return c.json({ message: 'failed to create user' }, 502);
-  }
-
-  let auth0UserId = '';
-  let d1Inserted = false;
-  let passwordEmailSent = false;
-  const displayName = `${input.lastName} ${input.firstName}`.trim();
-
-  try {
-    const auth0Result = await createAuth0User(c.env, managementToken, input.email, displayName);
-    if (!auth0Result.ok) {
-      if (auth0Result.status === 409) {
-        return c.json({ message: 'user already exists' }, 409);
-      }
-      return c.json({ message: auth0Result.message }, 502);
-    }
-
-    auth0UserId = auth0Result.userId;
-
-    if (input.classroomId) {
-      const [classroomStillActive] = await db
-        .select({ id: classrooms.id })
-        .from(classrooms)
-        .where(and(eq(classrooms.id, input.classroomId), isNull(classrooms.deletedAt)))
-        .limit(1);
-
-      if (!classroomStillActive) {
-        throw new Error(CLASSROOM_NOT_ACTIVE_ERROR);
-      }
-    }
-
-    await db.insert(users).values({
-      id: auth0UserId,
-      firstName: input.firstName,
-      lastName: input.lastName,
-      email: input.email,
-      role: input.role,
-      classroomId: input.classroomId,
-      color: input.color,
-      deletedAt: null,
-    });
-    d1Inserted = true;
-
-    passwordEmailSent = await sendAuth0PasswordSetupEmail(c.env, input.email);
-    if (!passwordEmailSent) {
-      logApiError('POST /users (password email)', new Error('password setup email not accepted by Auth0'));
-    }
-  } catch (error) {
-    if (d1Inserted && auth0UserId) {
-      await db.delete(users).where(eq(users.id, auth0UserId)).catch(() => undefined);
-    }
-    if (managementToken && auth0UserId) {
-      const auth0RollbackDeleted = await deleteAuth0User(c.env, managementToken, auth0UserId);
-      if (!auth0RollbackDeleted) {
-        return c.json({ message: 'failed to roll back remote user' }, 500);
-      }
-    }
-    if (error instanceof Error && error.message === CLASSROOM_NOT_ACTIVE_ERROR) {
-      return c.json({ message: 'classroom not found' }, 404);
-    }
-    if (isD1UsersEmailUniqueViolation(error)) {
-      return c.json({ message: 'user already exists' }, 409);
-    }
-    return c.json({ message: 'failed to create user' }, 500);
-  }
-
-  return c.json(
-    {
-      id: auth0UserId,
-      firstName: input.firstName,
-      lastName: input.lastName,
-      email: input.email,
-      role: input.role,
-      classroomId: input.classroomId,
-      color: input.color,
-      passwordEmailSent,
-    },
-    201,
-  );
-});
-
-app.get('/users/admins', auth, loadUser, requireManagerOrAbove, async (c) => {
-  const db = getDb(c.env);
-  const rows = await db
-    .select({
-      id: users.id,
-      firstName: users.firstName,
-      lastName: users.lastName,
-      email: users.email,
-      role: users.role,
-      classroomId: users.classroomId,
-    })
-    .from(users)
-    .where(and(eq(users.role, 'admin'), isNull(users.deletedAt)));
-  return c.json(rows, 200);
-});
-
-app.get('/users/:classroomId', auth, loadUser, requireStaffOrAbove, requireClassroomScope((c) => c.req.param('classroomId') ?? null), async(c) =>{
-  const classroomId = c.req.param('classroomId');
-  if(!classroomId){
-    return c.json({ message: 'classroom id is required' }, 400);
-  }
-  const actor = c.var.currentUser;
-  const db = getDb(c.env);
-  const includeEmail = actor.role === 'admin';
-
-  const rows = includeEmail
-    ? await db
-        .select({
-          id: users.id,
-          firstName: users.firstName,
-          lastName: users.lastName,
-          email: users.email,
-          role: users.role,
-          classroomId: users.classroomId,
-          color: users.color,
-        })
-        .from(users)
-        .where(and(eq(users.classroomId, classroomId), isNull(users.deletedAt)))
-    : await db
-        .select({
-          id: users.id,
-          firstName: users.firstName,
-          lastName: users.lastName,
-          role: users.role,
-          classroomId: users.classroomId,
-          color: users.color,
-        })
-        .from(users)
-        .where(and(eq(users.classroomId, classroomId), isNull(users.deletedAt)));
-
-  const includeAdminsQuery =
-    (c.req.query('includeAdmins') === '1' || c.req.query('includeAdmins') === 'true') &&
-    (actor.role === 'admin' || actor.role === 'manager');
-  if (includeAdminsQuery) {
-    const admins = includeEmail
-      ? await db
-          .select({
-            id: users.id,
-            firstName: users.firstName,
-            lastName: users.lastName,
-            email: users.email,
-            role: users.role,
-            classroomId: users.classroomId,
-            color: users.color,
-          })
-          .from(users)
-          .where(and(eq(users.role, 'admin'), isNull(users.deletedAt)))
-      : await db
-          .select({
-            id: users.id,
-            firstName: users.firstName,
-            lastName: users.lastName,
-            role: users.role,
-            classroomId: users.classroomId,
-            color: users.color,
-          })
-          .from(users)
-          .where(and(eq(users.role, 'admin'), isNull(users.deletedAt)));
-    const seen = new Set(rows.map((r) => r.id));
-    for (const a of admins) {
-      if (!seen.has(a.id)) {
-        rows.push(a);
-        seen.add(a.id);
-      }
-    }
-  }
-
-  rows.sort((a, b) => {
-    const an = `${a.lastName ?? ''} ${a.firstName ?? ''}`.trim();
-    const bn = `${b.lastName ?? ''} ${b.firstName ?? ''}`.trim();
-    return an.localeCompare(bn, 'ja');
-  });
-
-  return c.json(rows, 200);
-});
-
-app.delete('/users/:id', auth, loadUser, requireManagerOrAbove, async(c) => {
-  const actor = c.var.currentUser;
-  const targetId = c.req.param('id');
-  if(!targetId){
-    return c.json({ message: 'id is required' }, 400);
-  } 
-
-  const db = getDb(c.env);
-
-  const [target] = await db
-    .select({ id: users.id, role: users.role, classroomId: users.classroomId, email: users.email })
-    .from(users)
-    .where(and(eq(users.id, targetId), isNull(users.deletedAt)))
-    .limit(1);
-
-  if(!target){
-    return c.json({ message: 'user not found' }, 404);
-  }
-
-  if (actor.id === targetId) {
-    return c.json({ message: 'cannot delete yourself' }, 403);
-  }
-
-  if(actor.role === 'manager' && (target.role === 'admin' || (!actor.classroomId || !target.classroomId || actor.classroomId !== target.classroomId))){
-    return c.json({ message: 'forbidden' }, 403);
-  }
-
-  let managementToken = '';
-  const deletedAt = new Date();
-
-  try {
-    managementToken = await getAuth0ManagementToken(c.env);
-  } catch {
-    return c.json({ message: 'failed to delete user' }, 502);
-  }
-
-  const result = await db
-    .update(users)
-    .set({ deletedAt })
-    .where(and(eq(users.id, targetId), isNull(users.deletedAt)));
-
-  if(result.meta.changes === 0){
-    return c.json({ message: 'user not found' }, 404);
-  }
-
-  const rollbackUserSoftDelete = async () => {
-    await db
-      .update(users)
-      .set({ deletedAt: null })
-      .where(eq(users.id, targetId))
-      .catch(() => undefined);
-  };
-
-  try {
-    const auth0Deleted = await deleteAuth0User(c.env, managementToken, targetId);
-    if (!auth0Deleted) {
-      await rollbackUserSoftDelete();
-      return c.json({ message: 'failed to delete user' }, 502);
-    }
-  } catch {
-    await rollbackUserSoftDelete();
-    return c.json({ message: 'failed to delete user' }, 502);
-  }
-  
-  return c.json({ success: true }, 200);
-});
-
+app.route('/users', usersApp);
 
 app.post('/students', auth, loadUser, requireManagerOrAbove, async (c) => {
   const actor = c.var.currentUser;
@@ -860,7 +565,7 @@ app.post('/students', auth, loadUser, requireManagerOrAbove, async (c) => {
       return c.json({ message: 'classroom not found' }, 404);
     }
   } catch (err) {
-    logApiError('POST /students', err);
+    console.log('POST /students', err);
     if (isD1ForeignKeyViolation(err)) {
       return c.json({ message: 'classroom not found' }, 404);
     }
@@ -941,7 +646,6 @@ app.get(
   '/classrooms/:classroomId/subjects',
   auth,
   loadUser,
-  requireStaffOrAbove,
   requireClassroomScope((c) => c.req.param('classroomId') ?? null),
   async (c) => {
     const classroomId = c.req.param('classroomId');
@@ -961,7 +665,6 @@ app.get(
   '/classrooms/:classroomId/lesson-types',
   auth,
   loadUser,
-  requireStaffOrAbove,
   requireClassroomScope((c) => c.req.param('classroomId') ?? null),
   async (c) => {
     const classroomId = c.req.param('classroomId');
@@ -981,7 +684,6 @@ app.get(
   '/classrooms/:classroomId/time-slots',
   auth,
   loadUser,
-  requireStaffOrAbove,
   requireClassroomScope((c) => c.req.param('classroomId') ?? null),
   async (c) => {
     const classroomId = c.req.param('classroomId');
@@ -1037,7 +739,7 @@ app.post('/subjects', auth, loadUser, requireManagerOrAbove, async (c) => {
         return { ok: true as const };
     })();
   } catch (err) {
-    logApiError('POST /subjects', err);
+    console.log('POST /subjects', err);
     if (isD1ForeignKeyViolation(err)) {
       return c.json({ message: 'classroom not found' }, 404);
     }
@@ -1086,7 +788,7 @@ app.post('/lesson-types', auth, loadUser, requireManagerOrAbove, async (c) => {
         return { ok: true as const };
     })();
   } catch (err) {
-    logApiError('POST /lesson-types', err);
+    console.log('POST /lesson-types', err);
     if (isD1ForeignKeyViolation(err)) {
       return c.json({ message: 'classroom not found' }, 404);
     }
@@ -1136,7 +838,7 @@ app.post('/time-slots', auth, loadUser, requireManagerOrAbove, async (c) => {
         return { ok: true as const };
     })();
   } catch (err) {
-    logApiError('POST /time-slots', err);
+    console.log('POST /time-slots', err);
     if (isD1ForeignKeyViolation(err)) {
       return c.json({ message: 'classroom not found' }, 404);
     }
@@ -1459,7 +1161,7 @@ type CreateLessonTxResult =
         | 'student_double_booking';
     };
 
-app.post('/lessons/bulk', auth, loadUser, requireStaffOrAbove, async (c) => {
+app.post('/lessons/bulk', auth, loadUser, async (c) => {
   const actor = c.var.currentUser;
   const body = await c.req.json<unknown>().catch(() => null);
   const { input, error } = validateBulkLessonsInput(body);
@@ -1748,7 +1450,7 @@ app.post('/lessons/bulk', auth, loadUser, requireStaffOrAbove, async (c) => {
         return { ok: true as const };
       })();
     } catch (err) {
-      logApiError('POST /lessons/bulk creates', err);
+      console.log('POST /lessons/bulk creates', err);
       if (isD1ForeignKeyViolation(err)) {
         createResults.push({ ok: false, message: 'invalid reference', ...withCreateRef(item) });
       } else {
@@ -1993,7 +1695,7 @@ app.patch('/lessons/:id', auth, loadUser, async (c) => {
       return { ok: true as const };
     })();
   } catch (err) {
-    logApiError('PATCH /lessons/:id', err);
+    console.log('PATCH /lessons/:id', err);
     if (isD1ForeignKeyViolation(err)) {
       return c.json({ message: 'invalid reference' }, 400);
     }
@@ -2070,7 +1772,7 @@ rootApp.get('*', async(c) =>{
   if(!c.env.ASSETS){
     return c.notFound();
   }
-  if(res.ok){
+  if(res.ok || res.status == 304){
     return res;
   }
 

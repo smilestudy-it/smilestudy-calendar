@@ -8,19 +8,11 @@ import { z } from 'zod';
 import type { SubmitHandler } from 'react-hook-form';
 import { useAuthedFetch } from '@/hooks/useAuthedFetch';
 import type { CurrentUser } from '../types/currentUser';
+import type { User } from '@/../../shared/type';
 
 type Classroom = {
   id: string;
   name: string;
-};
-
-type UserRow = {
-  id: string;
-  firstName: string;
-  lastName: string;
-  email: string;
-  role: 'admin' | 'manager' | 'staff';
-  classroomId: string | null;
 };
 
 type Props = {
@@ -55,8 +47,8 @@ export default function TeacherManagementPanel({ currentUser, getAccessTokenSile
   const canListAdmins = currentUser.role === 'admin' || currentUser.role === 'manager';
   const [classrooms, setClassrooms] = useState<Classroom[]>([]);
   const [selectedClassroomId, setSelectedClassroomId] = useState<string>(currentUser.classroomId ?? '');
-  const [users, setUsers] = useState<UserRow[]>([]);
-  const [adminUsers, setAdminUsers] = useState<UserRow[]>([]);
+  const [users, setUsers] = useState<User[]>([]);
+  const [adminUsers, setAdminUsers] = useState<User[]>([]);
   const [isLoadingUsers, setIsLoadingUsers] = useState(false);
   const [isLoadingAdmins, setIsLoadingAdmins] = useState(false);
   const [isLoadingClassrooms, setIsLoadingClassrooms] = useState(false);
@@ -146,7 +138,7 @@ export default function TeacherManagementPanel({ currentUser, getAccessTokenSile
         }
         return;
       }
-      const data = (await response.json()) as UserRow[];
+      const data = (await response.json()) as User[];
       if (requestId === latestLoadUsersRequestId.current) {
         setError(null);
         setUsers(data);
@@ -186,7 +178,7 @@ export default function TeacherManagementPanel({ currentUser, getAccessTokenSile
         }
         return;
       }
-      const data = (await response.json()) as UserRow[];
+      const data = (await response.json()) as User[];
       if (requestId === latestLoadAdminsRequestId.current) {
         setError(null);
         setAdminUsers(data);

@@ -30,7 +30,7 @@ export const users = sqliteTable(
     lastName: text('last_name').notNull().default(''),
     role: text('role').$type<'admin' | 'manager' | 'staff'>().default('staff').notNull(),
     classroomId: text('classroom_id').references(() => classrooms.id), // 所属教室（管理者はnullの場合あり）
-    color: text('color').default('#3b82f6'), // カレンダー表示色
+    color: text('color').default('#3b82f6').notNull(), // カレンダー表示色
     deletedAt: integer('deleted_at', { mode: 'timestamp' }),
   },
   (table) => [

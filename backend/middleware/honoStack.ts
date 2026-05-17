@@ -63,18 +63,6 @@ export const requireManagerOrAbove = async (c: ApiContext, next: Next) => {
   await next();
 };
 
-/** 講師・教室長・管理者 */
-export const requireStaffOrAbove = async (c: ApiContext, next: Next) => {
-  const currentUser = c.var.currentUser;
-  if (!currentUser) {
-    return jsonMessage(c, 500, 'user not loaded');
-  }
-  if (currentUser.role !== 'admin' && currentUser.role !== 'manager' && currentUser.role !== 'staff') {
-    return jsonMessage(c, 403, 'forbidden');
-  }
-  await next();
-};
-
 /**
  * 対象 classroomId へのアクセス可否
  */
