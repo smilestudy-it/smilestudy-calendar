@@ -2067,6 +2067,9 @@ rootApp.route('/', app);
 // frontend
 rootApp.get('*', async(c) =>{
   const res = await c.env.ASSETS.fetch(c.req.raw);
+  if(!c.env.ASSETS){
+    return c.notFound();
+  }
   if(res.ok){
     return res;
   }

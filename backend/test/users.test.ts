@@ -152,7 +152,7 @@ vi.mock('hono/jwk', () => {
   };
 });
 
-vi.mock('../../db', () => {
+vi.mock('../db', () => {
   const db = {
     select: (selection: Record<string, unknown>) => ({
       from: (table: unknown) => {

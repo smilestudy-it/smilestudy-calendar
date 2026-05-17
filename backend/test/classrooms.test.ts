@@ -75,7 +75,7 @@ vi.mock('hono/jwk', () => {
   };
 });
 
-vi.mock('../../db', () => {
+vi.mock('../db', () => {
   const extractRequestedId = (predicate: unknown): string | null => {
     if (typeof predicate === 'string') {
       return predicate;

@@ -44,7 +44,7 @@ const state: {
   lessonTypeRows: [],
 };
 
-vi.mock('../../db', () => {
+vi.mock('../db', () => {
   const walkPredicate = (predicate: unknown): { strings: string[]; dates: Date[] } => {
     const strings: string[] = [];
     const dates: Date[] = [];
