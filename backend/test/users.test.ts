@@ -2,7 +2,7 @@
  * （責務）ユーザ作成・削除・教室別一覧等の API の Vitest。
  */
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { classrooms, users } from '../../db/schema';
+import { classrooms, users } from '../db/schema';
 
 type Role = 'admin' | 'manager' | 'staff';
 type UserRow = {
@@ -324,7 +324,7 @@ const fetchMock = vi.fn(async (input: string | URL | Request) => {
 
 vi.stubGlobal('fetch', fetchMock);
 
-import { app } from './[[route]]';
+import { app } from '../worker';
 
 const env = {
   AUTH0_AUDIENCE: 'https://api.example.local',

@@ -2,7 +2,7 @@
  * （責務）未認証 GET /api/public/student-lessons の Vitest。
  */
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { classrooms, lessonTypes, lessons, students, subjects, users } from '../../db/schema';
+import { classrooms, lessonTypes, lessons, students, subjects, users } from '../db/schema';
 
 type StudentRow = { id: string; classroomId: string; name: string; deletedAt: Date | null };
 type ClassroomRow = { id: string; deletedAt: Date | null };
@@ -213,7 +213,7 @@ vi.mock('../../db', () => {
   return { getDb };
 });
 
-import { app } from './[[route]]';
+import { app } from '../worker';
 
 const env = {
   AUTH0_AUDIENCE: 'https://api.example.local',

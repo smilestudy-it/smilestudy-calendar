@@ -16,6 +16,7 @@ export type ApiBindings = Env & {
   AUTH0_M2M_CLIENT_SECRET: string;
   AUTH0_DB_CONNECTION: string;
   VITE_AUTH0_CLIENT_ID: string;
+  ASSETS: Fetcher
 };
 
 /**

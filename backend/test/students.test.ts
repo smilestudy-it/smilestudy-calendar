@@ -4,7 +4,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { SQL } from 'drizzle-orm';
 import { SQLiteSyncDialect } from 'drizzle-orm/sqlite-core';
-import { classrooms, students, users } from '../../db/schema';
+import { classrooms, students, users } from '../db/schema';
 
 const sqliteDialect = new SQLiteSyncDialect();
 
@@ -219,7 +219,7 @@ vi.mock('../../db', () => {
   return { getDb: () => db };
 });
 
-import { app } from './[[route]]';
+import { app } from '../worker';
 
 const env = {
   AUTH0_AUDIENCE: 'https://api.example.local',

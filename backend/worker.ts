@@ -3,10 +3,9 @@
  * ルート定義のさらに細かいファイル分割は段階的にここへ集約可能。
  */
 import { Hono } from 'hono';
-import { handle } from 'hono/cloudflare-pages';
 import { and, eq, gt, inArray, isNull, lt, ne, sql } from 'drizzle-orm';
-import { getDb } from '../../db';
-import { users, classrooms, students, subjects, lessonTypes, timeSlots, lessons } from '../../db/schema';
+import { getDb } from './db';
+import { users, classrooms, students, subjects, lessonTypes, timeSlots, lessons } from './db/schema';
 import {
   validateCreateClassroomInput,
   validateBulkLessonsInput,
@@ -30,7 +29,7 @@ import {
   CLASSROOM_NOT_ACTIVE_ERROR,
 } from './lib/sqliteConstraint';
 import { lessonTeacherDisplay, lessonStudentDisplay, hmToMinutes, utcDateFromLocalDateKeyAndHm } from './lessonDisplay';
-import { getActiveStudentAndClassroom } from './db/studentRead';
+import { getActiveStudentAndClassroom } from './lib/studentRead';
 import * as auth0 from './auth0Service';
 import {
   auth,
@@ -49,6 +48,7 @@ const deleteAuth0User = auth0.deleteAuth0User;
 const sendAuth0PasswordSetupEmail = auth0.sendAuth0PasswordSetupEmail;
 
 export const app = new Hono<{ Bindings: Bindings; Variables: AppVariables }>().basePath('/api');
+const rootApp = new Hono<{ Bindings: Bindings; Variables: AppVariables }>();
 
 let holidayMapPromise: Promise<Record<string, string>> | null = null;
 
@@ -2063,5 +2063,24 @@ app.get('/me', auth, async (c) => {
   return c.json(currentUser);
 });
 
+rootApp.route('/', app);
+// frontend
+rootApp.get('*', async(c) =>{
+  const res = await c.env.ASSETS.fetch(c.req.raw);
+  if(res.ok){
+    return res;
+  }
 
-export const onRequest = handle(app);
+  const path = new URL(c.req.url).pathname;
+  if(path.match(/\.[a-zA-Z0-9]+$/)){
+    return c.notFound();
+  }
+
+  const indexReq = new Request(new URL('/', c.req.url), c.req);
+  return c.env.ASSETS.fetch(indexReq);
+})
+
+
+export default {
+  fetch: rootApp.fetch
+}

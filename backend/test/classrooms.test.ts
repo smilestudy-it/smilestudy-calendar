@@ -2,7 +2,7 @@
  * （責務）教室 CRUD 等の API の Vitest。
  */
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { classrooms, lessonTypes, lessons, students, subjects, timeSlots, users } from '../../db/schema';
+import { classrooms, lessonTypes, lessons, students, subjects, timeSlots, users } from '../db/schema';
 
 type ClassroomRow = {
   id: string;
@@ -460,7 +460,7 @@ const fetchMock = vi.fn(async (input: string | URL | Request) => {
 
 vi.stubGlobal('fetch', fetchMock);
 
-import { app } from './[[route]]';
+import { app } from '../worker';
 
 const env = {
   AUTH0_AUDIENCE: 'https://api.example.local',

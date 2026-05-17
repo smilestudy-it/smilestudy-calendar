@@ -5,7 +5,7 @@
 	"type": "module",
 	"scripts": {
 		"dev": "vite",
-		"build": "tsc -b && vite build",
+		"build": "tsc -b && vite build && esbuild backend/worker.ts --bundle --outfile=dist/_worker.js --format=esm",
 		"lint": "eslint .",
 		"test": "vitest run",
 		"preview": "npm run build && vite preview",
@@ -41,6 +41,7 @@
 	},
 	"devDependencies": {
 		"@cloudflare/vite-plugin": "^1.30.0",
+		"@cloudflare/workers-types": "^4.20260517.1",
 		"@eslint/js": "^9.39.1",
 		"@tailwindcss/vite": "^4.2.2",
 		"@types/node": "^24.12.0",

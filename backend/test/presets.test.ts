@@ -2,7 +2,7 @@
  * （責務）教室プリセット系 API の Vitest。科目・授業種別・時間枠等。
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { classrooms, lessonTypes, subjects, timeSlots, users } from '../../db/schema';
+import { classrooms, lessonTypes, subjects, timeSlots, users } from '../db/schema';
 
 /** 教室削除時のプリセット連鎖ソフトデリートは `classrooms.test.ts` で検証（DELETE /classrooms 用モックは同ファイルに集約）。 */
 
@@ -286,7 +286,7 @@ vi.mock('../../db', () => {
   return { getDb: () => db };
 });
 
-import { app } from './[[route]]';
+import { app } from '../worker';
 
 const env = {
   AUTH0_AUDIENCE: 'https://api.example.local',
