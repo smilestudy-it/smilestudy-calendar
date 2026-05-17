@@ -14,10 +14,13 @@ export default defineConfig({
   plugins: [react(), tailwindcss()],
   resolve: {
     alias: {
-      '@': path.resolve(__dirname, './src'),
+      '@': path.resolve(__dirname, './frontend/src'),
     },
   },
+  root: './frontend',
   build: {
+    outDir: '../dist',
+    emptyOutDir: true,
     rollupOptions: {
       output: {
         manualChunks: {
