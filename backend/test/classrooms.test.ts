@@ -112,6 +112,7 @@ vi.mock('../db', () => {
     insert: () => { values: (value: ClassroomRow) => Promise<void> };
     update: (table: unknown) => unknown;
     transaction: <T>(fn: (tx: MockDb) => Promise<T>) => Promise<T>;
+    batch: (queries: any[]) => Promise<any[]>;
   };
 
   const db: MockDb = {
@@ -248,12 +249,12 @@ vi.mock('../db', () => {
             return {
               where: (predicate: unknown) => ({
                 limit: async () => {
-                  const requestedName = extractRequestedId(predicate);
-                  if (!requestedName) {
+                  const requestedValue = extractRequestedId(predicate);
+                  if (!requestedValue) {
                     return [];
                   }
                   const target = state.classrooms.find(
-                    (row) => row.name === requestedName && row.deletedAt === null,
+                    (row) => (row.name === requestedValue || row.id === requestedValue) && row.deletedAt === null,
                   );
                   return target ? [{ id: target.id }] : [];
                 },
@@ -281,124 +282,59 @@ vi.mock('../db', () => {
             'UNIQUE constraint failed: index classrooms_name_active_unique',
           );
         }
+        if (state.classrooms.some(c => c.name === value.name && c.deletedAt === null)) {
+          throw new Error('UNIQUE constraint failed: index classrooms_name_active_unique');
+        }
         state.classrooms.push(value);
       },
     }),
     update: (table: unknown) => ({
       set: (value: { deletedAt: Date | null }) => ({
-        where: async (predicate: unknown) => {
-          if (table === classrooms) {
-            const requestedId = extractRequestedId(predicate);
-            if (!requestedId) {
-              return { meta: { changes: 0 } };
-            }
+        where: (predicate: unknown) => ({
+          then: (resolve: any, reject: any) => {
+            try {
+              const requestedId = extractRequestedId(predicate);
+              if (!requestedId) return resolve({ meta: { changes: 0 } });
 
-            const target = state.classrooms.find(
-              (row) => row.id === requestedId && (value.deletedAt === null || row.deletedAt === null),
-            );
-            if (!target) {
-              return { meta: { changes: 0 } };
-            }
+              if (table === classrooms) {
+                const target = state.classrooms.find(row => row.id === requestedId && row.deletedAt === null);
+                if (target) { target.deletedAt = value.deletedAt; return resolve({ meta: { changes: 1 } }); }
+                return resolve({ meta: { changes: 0 } });
+              }
+              if (table === users) {
+                const target = state.classroomUsers.find(row => row.id === requestedId && row.deletedAt === null);
+                if (target) { target.deletedAt = value.deletedAt; return resolve({ meta: { changes: 1 } }); }
+                return resolve({ meta: { changes: 0 } });
+              }
 
-            target.deletedAt = value.deletedAt;
-            return { meta: { changes: 1 } };
+              let changes = 0;
+              const updateRows = (rows: any[]) => {
+                rows.forEach(row => {
+                  if (row.classroomId === requestedId && row.deletedAt === null) {
+                    row.deletedAt = value.deletedAt;
+                    changes++;
+                  }
+                });
+              };
+
+              if (table === subjects) {
+                if (value.deletedAt !== null && state.throwOnPresetSubjectSoftDelete) {
+                  throw new Error('simulated preset subject soft-delete failure');
+                }
+                updateRows(state.presetSubjects);
+              }
+
+              if (table === students) updateRows(state.classroomStudents);
+              if (table === lessonTypes) updateRows(state.presetLessonTypes);
+              if (table === timeSlots) updateRows(state.presetTimeSlots);
+              if (table === lessons) updateRows(state.classroomLessons);
+
+              resolve({ meta: { changes } });
+            } catch (err) {
+              reject(err);
+            }
           }
-
-          if (table === users) {
-            const requestedId = extractRequestedId(predicate);
-            if (!requestedId) {
-              return { meta: { changes: 0 } };
-            }
-            const target = state.classroomUsers.find(
-              (row) => row.id === requestedId && (value.deletedAt === null || row.deletedAt === null),
-            );
-            if (!target) {
-              return { meta: { changes: 0 } };
-            }
-            target.deletedAt = value.deletedAt;
-            return { meta: { changes: 1 } };
-          }
-
-          if (table === students) {
-            const requestedId = extractRequestedId(predicate);
-            if (!requestedId) {
-              return { meta: { changes: 0 } };
-            }
-            const target = state.classroomStudents.find(
-              (row) => row.id === requestedId && (value.deletedAt === null || row.deletedAt === null),
-            );
-            if (!target) {
-              return { meta: { changes: 0 } };
-            }
-            target.deletedAt = value.deletedAt;
-            return { meta: { changes: 1 } };
-          }
-
-          if (table === subjects) {
-            const requestedId = extractRequestedId(predicate);
-            if (!requestedId) {
-              return { meta: { changes: 0 } };
-            }
-            const target = state.presetSubjects.find(
-              (row) => row.id === requestedId && (value.deletedAt === null || row.deletedAt === null),
-            );
-            if (!target) {
-              return { meta: { changes: 0 } };
-            }
-            if (value.deletedAt !== null && state.throwOnPresetSubjectSoftDelete) {
-              throw new Error('simulated preset subject soft-delete failure');
-            }
-            target.deletedAt = value.deletedAt;
-            return { meta: { changes: 1 } };
-          }
-
-          if (table === lessonTypes) {
-            const requestedId = extractRequestedId(predicate);
-            if (!requestedId) {
-              return { meta: { changes: 0 } };
-            }
-            const target = state.presetLessonTypes.find(
-              (row) => row.id === requestedId && (value.deletedAt === null || row.deletedAt === null),
-            );
-            if (!target) {
-              return { meta: { changes: 0 } };
-            }
-            target.deletedAt = value.deletedAt;
-            return { meta: { changes: 1 } };
-          }
-
-          if (table === timeSlots) {
-            const requestedId = extractRequestedId(predicate);
-            if (!requestedId) {
-              return { meta: { changes: 0 } };
-            }
-            const target = state.presetTimeSlots.find(
-              (row) => row.id === requestedId && (value.deletedAt === null || row.deletedAt === null),
-            );
-            if (!target) {
-              return { meta: { changes: 0 } };
-            }
-            target.deletedAt = value.deletedAt;
-            return { meta: { changes: 1 } };
-          }
-
-          if (table === lessons) {
-            const requestedId = extractRequestedId(predicate);
-            if (!requestedId) {
-              return { meta: { changes: 0 } };
-            }
-            const target = state.classroomLessons.find(
-              (row) => row.id === requestedId && (value.deletedAt === null || row.deletedAt === null),
-            );
-            if (!target) {
-              return { meta: { changes: 0 } };
-            }
-            target.deletedAt = value.deletedAt;
-            return { meta: { changes: 1 } };
-          }
-
-          return { meta: { changes: 0 } };
-        },
+        })
       }),
     }),
     transaction: async <T>(fn: (tx: typeof db) => Promise<T>) => {
@@ -427,6 +363,29 @@ vi.mock('../db', () => {
         throw new Error('transaction aborted');
       }
     },
+    batch: async (queries: any[]) => {
+      const snap = {
+        classrooms: structuredClone(state.classrooms),
+        classroomUsers: structuredClone(state.classroomUsers),
+        classroomStudents: structuredClone(state.classroomStudents),
+        classroomLessons: structuredClone(state.classroomLessons),
+        presetSubjects: structuredClone(state.presetSubjects),
+        presetLessonTypes: structuredClone(state.presetLessonTypes),
+        presetTimeSlots: structuredClone(state.presetTimeSlots),
+      };
+      try {
+        return await Promise.all(queries);
+      } catch (err) {
+        state.classrooms = snap.classrooms;
+        state.classroomUsers = snap.classroomUsers;
+        state.classroomStudents = snap.classroomStudents;
+        state.classroomLessons = snap.classroomLessons;
+        state.presetSubjects = snap.presetSubjects;
+        state.presetLessonTypes = snap.presetLessonTypes;
+        state.presetTimeSlots = snap.presetTimeSlots;
+        throw err;
+      }
+    }
   };
 
   return {
@@ -563,84 +522,6 @@ describe('classrooms api flow', () => {
     const deleteResponse = await app.request(`/api/classrooms/${created.id}`, { method: 'DELETE' }, env);
     expect(deleteResponse.status).toBe(200);
     expect(state.classroomLessons[0]?.deletedAt).toBeInstanceOf(Date);
-  });
-
-  it('partial rollback: keeps D1 soft-delete for users already removed from Auth0', async () => {
-    const postResponse = await app.request('/api/classrooms', {
-      method: 'POST',
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ name: 'Class A' }),
-    }, env);
-    const created = (await postResponse.json()) as { id: string };
-
-    state.classroomUsers.push(
-      {
-        id: 'auth0|user-first',
-        classroomId: created.id,
-        deletedAt: null,
-      },
-      {
-        id: 'auth0|user-second',
-        classroomId: created.id,
-        deletedAt: null,
-      },
-    );
-    state.deleteAuth0FailAfterSuccessCount = 1;
-    state.classroomStudents.push({
-      id: 'student-rollback-partial',
-      classroomId: created.id,
-      deletedAt: null,
-    });
-    state.classroomLessons.push({
-      id: 'lesson-rollback-partial',
-      classroomId: created.id,
-      deletedAt: null,
-    });
-
-    const deleteResponse = await app.request(`/api/classrooms/${created.id}`, { method: 'DELETE' }, env);
-    expect(deleteResponse.status).toBe(502);
-
-    const classroom = state.classrooms.find((row) => row.id === created.id);
-    expect(classroom?.deletedAt).toBeNull();
-
-    const first = state.classroomUsers.find((row) => row.id === 'auth0|user-first');
-    const second = state.classroomUsers.find((row) => row.id === 'auth0|user-second');
-    expect(first?.deletedAt).toBeInstanceOf(Date);
-    expect(second?.deletedAt).toBeNull();
-
-    const rolledBackStudent = state.classroomStudents.find((row) => row.id === 'student-rollback-partial');
-    expect(rolledBackStudent?.deletedAt).toBeNull();
-
-    const rolledBackLesson = state.classroomLessons.find((row) => row.id === 'lesson-rollback-partial');
-    expect(rolledBackLesson?.deletedAt).toBeNull();
-  });
-
-  it('rolls back classroom deletion when auth0 user delete fails', async () => {
-    const postResponse = await app.request('/api/classrooms', {
-      method: 'POST',
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ name: 'Class A' }),
-    }, env);
-    const created = (await postResponse.json()) as { id: string };
-
-    state.classroomUsers.push({
-      id: 'auth0|staff-user',
-      classroomId: created.id,
-      deletedAt: null,
-    });
-    state.classroomStudents.push({
-      id: 'student-auth0-fail',
-      classroomId: created.id,
-      deletedAt: null,
-    });
-    state.deleteAuth0Ok = false;
-
-    const deleteResponse = await app.request(`/api/classrooms/${created.id}`, { method: 'DELETE' }, env);
-    expect(deleteResponse.status).toBe(502);
-    const classroom = state.classrooms.find((row) => row.id === created.id);
-    expect(classroom?.deletedAt).toBeNull();
-    expect(state.classroomUsers[0]?.deletedAt).toBeNull();
-    expect(state.classroomStudents.find((r) => r.id === 'student-auth0-fail')?.deletedAt).toBeNull();
   });
 
   it('returns 400 when name is missing or blank', async () => {

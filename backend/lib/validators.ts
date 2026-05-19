@@ -2,7 +2,7 @@
  * （責務）リクエスト body / クエリの zod 系バリデーション。各 POST/PATCH の入力検証。
  */
 import { z } from 'zod';
-import { isValidDateKey } from './lessonDisplay';
+import { isValidDateKey } from '../lessonDisplay';
 
 type HexColor = string & { readonly __brand: 'HexColor' };
 

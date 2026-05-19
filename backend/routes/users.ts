@@ -5,15 +5,16 @@
 import { Hono } from 'hono';
 import { getDb } from '../db'
 import { classrooms, users } from '../db/schema';
-import type { ApiBindings, AppVariables } from '../apiTypes'
+import type { ApiBindings, AppVariables } from '../types/apiTypes'
 import type { User } from '../../shared/type'
 import { and, eq, isNull } from 'drizzle-orm';
 import {
   isD1UsersEmailUniqueViolation,
 } from '../lib/sqliteConstraint';
 import { auth, loadUser, requireManagerOrAbove, requireClassroomScope } from '../middleware/honoStack';
-import { validateCreateUserInput } from '../validators';
+import { validateCreateUserInput } from '../lib/validators';
 import * as auth0 from '../auth0Service';
+import userDelete from '../lib/userDelete';
 
 const usersApp = new Hono<{ Bindings: ApiBindings; Variables: AppVariables }>();
 
@@ -208,39 +209,7 @@ usersApp.delete('/:id', auth, loadUser, requireManagerOrAbove, async(c) => {
     return c.json({ message: 'forbidden' }, 403);
   }
 
-  let managementToken = '';
-  const deletedAt = new Date();
-
-  try {
-    managementToken = await auth0.getAuth0ManagementToken(c.env);
-  } catch {
-    return c.json({ message: 'failed to delete user' }, 502);
-  }
-
-  const result = await db
-    .update(users)
-    .set({ deletedAt })
-    .where(and(eq(users.id, targetId), isNull(users.deletedAt)));
-
-  if(result.meta.changes === 0){
-    return c.json({ message: 'user not found' }, 404);
-  }
-
-  const rollbackUserSoftDelete = async () => {
-    await db
-      .update(users)
-      .set({ deletedAt: null })
-      .where(eq(users.id, targetId))
-      .catch(() => undefined);
-  };
-
-  const auth0Deleted = await auth0.deleteAuth0User(c.env, managementToken, targetId).catch(() => null);
-  if (!auth0Deleted) {
-    await rollbackUserSoftDelete();
-    return c.json({ message: 'failed to delete user' }, 502);
-  }
-  
-  return c.json({ success: true }, 200);
+  return await userDelete(c, [target.id]);
 });
 
 

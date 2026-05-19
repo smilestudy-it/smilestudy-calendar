@@ -6,7 +6,7 @@ import type { Next } from 'hono';
 import { and, eq, isNull } from 'drizzle-orm';
 import { getDb } from '../db';
 import { users } from '../db/schema';
-import type { AppUser, ApiContext } from '../apiTypes';
+import type { AppUser, ApiContext } from '../types/apiTypes';
 import { jsonMessage } from '../lib/jsonMessage';
 
 export const auth = async (c: ApiContext, next: Next) => {

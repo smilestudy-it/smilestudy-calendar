@@ -7,7 +7,6 @@ import { and, eq, gt, inArray, isNull, lt, ne, sql } from 'drizzle-orm';
 import { getDb } from './db';
 import { users, classrooms, students, subjects, lessonTypes, timeSlots, lessons } from './db/schema';
 import {
-  validateCreateClassroomInput,
   validateBulkLessonsInput,
   validateCreateLessonTypeInput,
   validateCreateStudentInput,
@@ -18,28 +17,23 @@ import {
   validatePatchLessonTypeInput,
   validatePatchSubjectInput,
   validatePatchTimeSlotInput,
-} from './validators';
-import type { ApiBindings as Bindings, AppVariables } from './apiTypes';
+} from './lib/validators';
+import type { ApiBindings as Bindings, AppVariables } from './types/apiTypes';
 import {
-  isD1ClassroomNameUniqueViolation,
   isD1ForeignKeyViolation,
 } from './lib/sqliteConstraint';
 import { lessonTeacherDisplay, lessonStudentDisplay, hmToMinutes, utcDateFromLocalDateKeyAndHm } from './lessonDisplay';
 import { getActiveStudentAndClassroom } from './lib/studentRead';
-import * as auth0 from './auth0Service';
 import {
   auth,
   loadUser,
-  requireAdmin,
   requireManagerOrAbove,
   requireClassroomScope,
   denyUnlessClassroomScope,
   denyUnlessStaffLessonTeacherIsSelf,
 } from './middleware/honoStack';
 import usersApp from './routes/users';
-
-const getAuth0ManagementToken = auth0.getAuth0ManagementToken;
-const deleteAuth0User = auth0.deleteAuth0User;
+import classroomsApp from './routes/classrooms';
 
 export const app = new Hono<{ Bindings: Bindings; Variables: AppVariables }>().basePath('/api');
 const rootApp = new Hono<{ Bindings: Bindings; Variables: AppVariables }>();
@@ -197,344 +191,7 @@ app.get('/public/holidays', async (c) => {
   return c.json(holidays, 200);
 });
 
-app.post('/classrooms', auth, loadUser, requireAdmin, async (c) => {
-  const body = await c.req.json<unknown>().catch(() => null);
-  const { input, error } = validateCreateClassroomInput(body);
-  if (!input) {
-    return c.json({ message: error ?? 'invalid request' }, 400);
-  }
-
-  const db = getDb(c.env);
-  const [existingClassroom] = await db
-    .select({ id: classrooms.id })
-    .from(classrooms)
-    .where(and(eq(classrooms.name, input.name), isNull(classrooms.deletedAt)))
-    .limit(1);
-
-  if (existingClassroom) {
-    return c.json({ message: 'classroom already exists' }, 409);
-  }
-
-  const id = crypto.randomUUID();
-
-  try {
-    await db.insert(classrooms).values({ id, name: input.name, deletedAt: null });
-  } catch (error) {
-    if (isD1ClassroomNameUniqueViolation(error)) {
-      return c.json({ message: 'classroom already exists' }, 409);
-    }
-    return c.json({ message: 'failed to create classroom' }, 500);
-  }
-
-  return c.json({ id, name: input.name }, 201);
-});
-
-app.get('/classrooms', auth, loadUser, requireAdmin, async(c) =>{
-  const db = getDb(c.env);
-
-  const rows = await db.select({id: classrooms.id, name: classrooms.name}).from(classrooms).where(isNull(classrooms.deletedAt));
-  return c.json(rows, 200);
-});
-
-app.delete('/classrooms/:id', auth, loadUser, requireAdmin, async(c) =>{
-  const id = c.req.param('id');
-  if(!id){
-    return c.json({ message: 'id is required' }, 400);
-  }
-  const db = getDb(c.env);
-  const deletedAt = new Date();
-
-  const classroomUsersPreview = await db
-    .select({ id: users.id })
-    .from(users)
-    .where(and(eq(users.classroomId, id), isNull(users.deletedAt)));
-
-  let managementToken = '';
-  if (classroomUsersPreview.length > 0) {
-    try {
-      managementToken = await getAuth0ManagementToken(c.env);
-    } catch {
-      return c.json({ message: 'failed to delete classroom' }, 502);
-    }
-  }
-
-  const updatedUserIds: string[] = [];
-  const updatedStudentIds: string[] = [];
-  const updatedSubjectIds: string[] = [];
-  const updatedLessonTypeIds: string[] = [];
-  const updatedTimeSlotIds: string[] = [];
-  const updatedLessonIds: string[] = [];
-  let classroomSoftDeleted = false;
-  let notFound = false;
-
-  const rollbackPartialClassroomDelete = async () => {
-    if (!classroomSoftDeleted) {
-      return;
-    }
-    for (const lessonId of updatedLessonIds) {
-      await db
-        .update(lessons)
-        .set({ deletedAt: null })
-        .where(eq(lessons.id, lessonId))
-        .catch(() => undefined);
-    }
-    for (const slotId of updatedTimeSlotIds) {
-      await db
-        .update(timeSlots)
-        .set({ deletedAt: null })
-        .where(eq(timeSlots.id, slotId))
-        .catch(() => undefined);
-    }
-    for (const ltId of updatedLessonTypeIds) {
-      await db
-        .update(lessonTypes)
-        .set({ deletedAt: null })
-        .where(eq(lessonTypes.id, ltId))
-        .catch(() => undefined);
-    }
-    for (const subId of updatedSubjectIds) {
-      await db
-        .update(subjects)
-        .set({ deletedAt: null })
-        .where(eq(subjects.id, subId))
-        .catch(() => undefined);
-    }
-    for (const studentId of updatedStudentIds) {
-      await db
-        .update(students)
-        .set({ deletedAt: null })
-        .where(eq(students.id, studentId))
-        .catch(() => undefined);
-    }
-    for (const userId of updatedUserIds) {
-      await db
-        .update(users)
-        .set({ deletedAt: null })
-        .where(eq(users.id, userId))
-        .catch(() => undefined);
-    }
-    await db
-      .update(classrooms)
-      .set({ deletedAt: null })
-      .where(eq(classrooms.id, id))
-      .catch(() => undefined);
-  };
-
-  try {
-    // Serialize classroom soft-delete + user/student/preset/lesson soft-deletes. D1 in this stack
-    // cannot use Drizzle db.transaction (SQL BEGIN rejected); sequence is not all-or-nothing on failure.
-    // Members are selected only after the classroom row is marked deleted so concurrent creates
-    // that re-check `classrooms.deleted_at` cannot commit into an "open" classroom.
-    const result = await db
-      .update(classrooms)
-      .set({ deletedAt })
-      .where(and(eq(classrooms.id, id), isNull(classrooms.deletedAt)));
-
-    if (result.meta.changes === 0) {
-      notFound = true;
-    } else {
-      classroomSoftDeleted = true;
-
-      const classroomUsers = await db
-        .select({ id: users.id })
-        .from(users)
-        .where(and(eq(users.classroomId, id), isNull(users.deletedAt)));
-
-      for (const classroomUser of classroomUsers) {
-        const userUpdateResult = await db
-          .update(users)
-          .set({ deletedAt })
-          .where(and(eq(users.id, classroomUser.id), isNull(users.deletedAt)));
-
-        if (userUpdateResult.meta.changes > 0) {
-          updatedUserIds.push(classroomUser.id);
-        }
-      }
-
-      const classroomStudents = await db
-        .select({ id: students.id })
-        .from(students)
-        .where(and(eq(students.classroomId, id), isNull(students.deletedAt)));
-
-      for (const row of classroomStudents) {
-        const studentUpdateResult = await db
-          .update(students)
-          .set({ deletedAt })
-          .where(and(eq(students.id, row.id), isNull(students.deletedAt)));
-
-        if (studentUpdateResult.meta.changes > 0) {
-          updatedStudentIds.push(row.id);
-        }
-      }
-
-      const classroomSubjects = await db
-        .select({ id: subjects.id })
-        .from(subjects)
-        .where(and(eq(subjects.classroomId, id), isNull(subjects.deletedAt)));
-
-      for (const row of classroomSubjects) {
-        const r = await db
-          .update(subjects)
-          .set({ deletedAt })
-          .where(and(eq(subjects.id, row.id), isNull(subjects.deletedAt)));
-        if (r.meta.changes > 0) {
-          updatedSubjectIds.push(row.id);
-        }
-      }
-
-      const classroomLessonTypes = await db
-        .select({ id: lessonTypes.id })
-        .from(lessonTypes)
-        .where(and(eq(lessonTypes.classroomId, id), isNull(lessonTypes.deletedAt)));
-
-      for (const row of classroomLessonTypes) {
-        const r = await db
-          .update(lessonTypes)
-          .set({ deletedAt })
-          .where(and(eq(lessonTypes.id, row.id), isNull(lessonTypes.deletedAt)));
-        if (r.meta.changes > 0) {
-          updatedLessonTypeIds.push(row.id);
-        }
-      }
-
-      const classroomTimeSlots = await db
-        .select({ id: timeSlots.id })
-        .from(timeSlots)
-        .where(and(eq(timeSlots.classroomId, id), isNull(timeSlots.deletedAt)));
-
-      for (const row of classroomTimeSlots) {
-        const r = await db
-          .update(timeSlots)
-          .set({ deletedAt })
-          .where(and(eq(timeSlots.id, row.id), isNull(timeSlots.deletedAt)));
-        if (r.meta.changes > 0) {
-          updatedTimeSlotIds.push(row.id);
-        }
-      }
-
-      const classroomLessons = await db
-        .select({ id: lessons.id })
-        .from(lessons)
-        .where(and(eq(lessons.classroomId, id), isNull(lessons.deletedAt)));
-
-      for (const row of classroomLessons) {
-        const r = await db
-          .update(lessons)
-          .set({ deletedAt })
-          .where(and(eq(lessons.id, row.id), isNull(lessons.deletedAt)));
-        if (r.meta.changes > 0) {
-          updatedLessonIds.push(row.id);
-        }
-      }
-    }
-  } catch (err) {
-    console.log('DELETE /classrooms/:id', err);
-    await rollbackPartialClassroomDelete();
-    return c.json({ message: 'failed to delete classroom' }, 500);
-  }
-
-  if (notFound) {
-    return c.json({ message: 'classroom not found' }, 404);
-  }
-
-  const rollbackClassroomChildSoftDeletes = async () => {
-    for (const lessonId of updatedLessonIds) {
-      await db
-        .update(lessons)
-        .set({ deletedAt: null })
-        .where(eq(lessons.id, lessonId))
-        .catch(() => undefined);
-    }
-    for (const studentId of updatedStudentIds) {
-      await db
-        .update(students)
-        .set({ deletedAt: null })
-        .where(eq(students.id, studentId))
-        .catch(() => undefined);
-    }
-    for (const presetId of updatedSubjectIds) {
-      await db
-        .update(subjects)
-        .set({ deletedAt: null })
-        .where(eq(subjects.id, presetId))
-        .catch(() => undefined);
-    }
-    for (const presetId of updatedLessonTypeIds) {
-      await db
-        .update(lessonTypes)
-        .set({ deletedAt: null })
-        .where(eq(lessonTypes.id, presetId))
-        .catch(() => undefined);
-    }
-    for (const presetId of updatedTimeSlotIds) {
-      await db
-        .update(timeSlots)
-        .set({ deletedAt: null })
-        .where(eq(timeSlots.id, presetId))
-        .catch(() => undefined);
-    }
-  };
-
-  if (updatedUserIds.length > 0 && !managementToken) {
-    try {
-      managementToken = await getAuth0ManagementToken(c.env);
-    } catch {
-      await db.update(classrooms).set({ deletedAt: null }).where(eq(classrooms.id, id)).catch(() => undefined);
-      for (const userId of updatedUserIds) {
-        await db.update(users).set({ deletedAt: null }).where(eq(users.id, userId)).catch(() => undefined);
-      }
-      await rollbackClassroomChildSoftDeletes();
-      return c.json({ message: 'failed to delete classroom' }, 502);
-    }
-  }
-
-  const successfullyDeletedAuth0Ids: string[] = [];
-  try {
-    for (const userId of updatedUserIds) {
-      const auth0Deleted = await deleteAuth0User(c.env, managementToken, userId);
-      if (!auth0Deleted) {
-        throw new Error('failed to delete auth0 user');
-      }
-      successfullyDeletedAuth0Ids.push(userId);
-    }
-  } catch (err) {
-    console.log('DELETE /classrooms/:id (auth0)', err);
-    const successSet = new Set(successfullyDeletedAuth0Ids);
-    const remainingIds = updatedUserIds.filter((uid) => !successSet.has(uid));
-    const newlySucceeded: string[] = [];
-    for (const userId of remainingIds) {
-      try {
-        if (await deleteAuth0User(c.env, managementToken, userId)) {
-          newlySucceeded.push(userId);
-        }
-      } catch (retryErr) {
-        console.log(`DELETE /classrooms/:id (auth0 retry ${userId})`, retryErr);
-      }
-    }
-    const finalAuth0Deleted = new Set([...successfullyDeletedAuth0Ids, ...newlySucceeded]);
-    if (finalAuth0Deleted.size === updatedUserIds.length) {
-      return c.json({ success: true }, 200);
-    }
-    const userIdsToRestoreD1 = updatedUserIds.filter((uid) => !finalAuth0Deleted.has(uid));
-    console.log(
-      'DELETE /classrooms/:id (auth0 partial)',
-      new Error(
-        `auth0 delete incomplete after retry; deletedInAuth0=[${[...finalAuth0Deleted].join(
-          ',',
-        )}]; restoreD1=[${userIdsToRestoreD1.join(',')}]`,
-      ),
-    );
-    await db.update(classrooms).set({ deletedAt: null }).where(eq(classrooms.id, id)).catch(() => undefined);
-    for (const userId of userIdsToRestoreD1) {
-      await db.update(users).set({ deletedAt: null }).where(eq(users.id, userId)).catch(() => undefined);
-    }
-    await rollbackClassroomChildSoftDeletes();
-    return c.json({ message: 'failed to delete classroom' }, 502);
-  }
-
-  return c.json({ success: true }, 200);
-});
-
+app.route('/classrooms', classroomsApp)
 app.route('/users', usersApp);
 
 app.post('/students', auth, loadUser, requireManagerOrAbove, async (c) => {

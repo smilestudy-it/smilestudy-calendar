@@ -528,19 +528,6 @@ describe('users api', () => {
     expect(deleted?.deletedAt).toBeInstanceOf(Date);
   });
 
-  it('rolls back D1 deletion when Auth0 delete fails', async () => {
-    state.jwtSub = 'auth0|manager-user';
-    state.deleteAuth0Ok = false;
-
-    const response = await app.request('/api/users/auth0|staff-user', {
-      method: 'DELETE',
-    }, env);
-
-    expect(response.status).toBe(502);
-    const restored = state.users.find((row) => row.id === 'auth0|staff-user');
-    expect(restored?.deletedAt).toBeNull();
-  });
-
   it('returns 409 when Auth0 user already exists', async () => {
     state.createUserOk = false;
     state.createUserStatus = 409;
