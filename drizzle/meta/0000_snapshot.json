@@ -1,7 +1,7 @@
 {
   "version": "6",
   "dialect": "sqlite",
-  "id": "26f018d9-7583-4966-8ce3-6586dbfcd8df",
+  "id": "68f7e76a-b72a-469b-976d-1e26b2af771a",
   "prevId": "00000000-0000-0000-0000-000000000000",
   "tables": {
     "classrooms": {
@@ -29,7 +29,16 @@
           "autoincrement": false
         }
       },
-      "indexes": {},
+      "indexes": {
+        "classrooms_name_active_unique": {
+          "name": "classrooms_name_active_unique",
+          "columns": [
+            "name"
+          ],
+          "isUnique": true,
+          "where": "\"classrooms\".\"deleted_at\" is null"
+        }
+      },
       "foreignKeys": {},
       "compositePrimaryKeys": {},
       "uniqueConstraints": {},
@@ -251,6 +260,13 @@
           "notNull": true,
           "autoincrement": false
         },
+        "email": {
+          "name": "email",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false
+        },
         "birth_year": {
           "name": "birth_year",
           "type": "integer",
@@ -421,18 +437,27 @@
           "notNull": true,
           "autoincrement": false
         },
-        "name": {
-          "name": "name",
+        "first_name": {
+          "name": "first_name",
           "type": "text",
           "primaryKey": false,
           "notNull": true,
-          "autoincrement": false
+          "autoincrement": false,
+          "default": "''"
+        },
+        "last_name": {
+          "name": "last_name",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "autoincrement": false,
+          "default": "''"
         },
         "role": {
           "name": "role",
           "type": "text",
           "primaryKey": false,
-          "notNull": false,
+          "notNull": true,
           "autoincrement": false,
           "default": "'staff'"
         },
@@ -447,7 +472,7 @@
           "name": "color",
           "type": "text",
           "primaryKey": false,
-          "notNull": false,
+          "notNull": true,
           "autoincrement": false,
           "default": "'#3b82f6'"
         },
@@ -460,12 +485,13 @@
         }
       },
       "indexes": {
-        "users_email_unique": {
-          "name": "users_email_unique",
+        "users_email_active_unique": {
+          "name": "users_email_active_unique",
           "columns": [
             "email"
           ],
-          "isUnique": true
+          "isUnique": true,
+          "where": "\"users\".\"deleted_at\" is null"
         }
       },
       "foreignKeys": {

@@ -1,1 +1,0 @@
-CREATE UNIQUE INDEX `classrooms_name_active_unique` ON `classrooms` (`name`) WHERE "classrooms"."deleted_at" is null;

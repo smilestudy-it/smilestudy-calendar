@@ -4,6 +4,7 @@ CREATE TABLE `classrooms` (
 	`deleted_at` integer
 );
 --> statement-breakpoint
+CREATE UNIQUE INDEX `classrooms_name_active_unique` ON `classrooms` (`name`) WHERE "classrooms"."deleted_at" is null;--> statement-breakpoint
 CREATE TABLE `lesson_types` (
 	`id` text PRIMARY KEY NOT NULL,
 	`classroom_id` text NOT NULL,
@@ -33,6 +34,7 @@ CREATE TABLE `lessons` (
 CREATE TABLE `students` (
 	`id` text PRIMARY KEY NOT NULL,
 	`name` text NOT NULL,
+	`email` text NOT NULL,
 	`birth_year` integer NOT NULL,
 	`classroom_id` text NOT NULL,
 	`deleted_at` integer,
@@ -59,12 +61,13 @@ CREATE TABLE `time_slots` (
 CREATE TABLE `users` (
 	`id` text PRIMARY KEY NOT NULL,
 	`email` text NOT NULL,
-	`name` text NOT NULL,
-	`role` text DEFAULT 'staff',
+	`first_name` text DEFAULT '' NOT NULL,
+	`last_name` text DEFAULT '' NOT NULL,
+	`role` text DEFAULT 'staff' NOT NULL,
 	`classroom_id` text,
-	`color` text DEFAULT '#3b82f6',
+	`color` text DEFAULT '#3b82f6' NOT NULL,
 	`deleted_at` integer,
 	FOREIGN KEY (`classroom_id`) REFERENCES `classrooms`(`id`) ON UPDATE no action ON DELETE no action
 );
 --> statement-breakpoint
-CREATE UNIQUE INDEX `users_email_unique` ON `users` (`email`);
+CREATE UNIQUE INDEX `users_email_active_unique` ON `users` (`email`) WHERE "users"."deleted_at" is null;

@@ -3,13 +3,12 @@
  * ルート定義のさらに細かいファイル分割は段階的にここへ集約可能。
  */
 import { Hono } from 'hono';
-import { and, eq, gt, inArray, isNull, lt, ne, sql } from 'drizzle-orm';
+import { and, eq, gt, inArray, isNull, lt, ne } from 'drizzle-orm';
 import { getDb } from './db';
 import { users, classrooms, students, subjects, lessonTypes, timeSlots, lessons } from './db/schema';
 import {
   validateBulkLessonsInput,
   validateCreateLessonTypeInput,
-  validateCreateStudentInput,
   validateCreateSubjectInput,
   validateCreateTimeSlotInput,
   validateLessonRangeQuery,
@@ -34,6 +33,7 @@ import {
 } from './middleware/honoStack';
 import usersApp from './routes/users';
 import classroomsApp from './routes/classrooms';
+import studentsApp from './routes/students';
 
 export const app = new Hono<{ Bindings: Bindings; Variables: AppVariables }>().basePath('/api');
 const rootApp = new Hono<{ Bindings: Bindings; Variables: AppVariables }>();
@@ -191,113 +191,10 @@ app.get('/public/holidays', async (c) => {
   return c.json(holidays, 200);
 });
 
-app.route('/classrooms', classroomsApp)
+app.route('/classrooms', classroomsApp);
 app.route('/users', usersApp);
+app.route('/students', studentsApp);
 
-app.post('/students', auth, loadUser, requireManagerOrAbove, async (c) => {
-  const actor = c.var.currentUser;
-  const body = await c.req.json<unknown>().catch(() => null);
-  const { input, error } = validateCreateStudentInput(body);
-  if (!input) {
-    return c.json({ message: error ?? 'invalid request' }, 400);
-  }
-
-  if (actor.role === 'manager' && actor.classroomId !== input.classroomId) {
-    return c.json({ message: 'forbidden' }, 403);
-  }
-
-  const db = getDb(c.env);
-  const id = crypto.randomUUID();
-
-  try {
-    const insertRun = await db.run(sql`
-      INSERT INTO ${students} (${sql.identifier('id')}, ${sql.identifier('name')}, ${sql.identifier('email')}, ${sql.identifier('birth_year')}, ${sql.identifier('classroom_id')}, ${sql.identifier('deleted_at')})
-      SELECT ${id}, ${input.name}, ${input.email}, ${input.birthYear}, ${input.classroomId}, NULL
-      WHERE EXISTS (
-        SELECT 1 FROM ${classrooms}
-        WHERE ${and(eq(classrooms.id, input.classroomId), isNull(classrooms.deletedAt))}
-      )
-    `);
-    if (insertRun.meta.changes !== 1) {
-      return c.json({ message: 'classroom not found' }, 404);
-    }
-  } catch (err) {
-    console.log('POST /students', err);
-    if (isD1ForeignKeyViolation(err)) {
-      return c.json({ message: 'classroom not found' }, 404);
-    }
-    return c.json({ message: 'failed to create student' }, 500);
-  }
-
-  return c.json(
-    {
-      id,
-      name: input.name,
-      email: input.email,
-      birthYear: input.birthYear,
-      classroomId: input.classroomId,
-    },
-    201,
-  );
-});
-
-app.delete('/students/:id', auth, loadUser, requireManagerOrAbove, async (c) => {
-  const actor = c.var.currentUser;
-  const targetId = c.req.param('id');
-  if (!targetId) {
-    return c.json({ message: 'id is required' }, 400);
-  }
-
-  const db = getDb(c.env);
-
-  const [target] = await db
-    .select({ id: students.id, classroomId: students.classroomId })
-    .from(students)
-    .where(and(eq(students.id, targetId), isNull(students.deletedAt)))
-    .limit(1);
-
-  if (!target) {
-    return c.json({ message: 'student not found' }, 404);
-  }
-
-  if (
-    actor.role === 'manager' &&
-    (!actor.classroomId || actor.classroomId !== target.classroomId)
-  ) {
-    return c.json({ message: 'forbidden' }, 403);
-  }
-
-  const deletedAt = new Date();
-  const result = await db
-    .update(students)
-    .set({ deletedAt })
-    .where(and(eq(students.id, targetId), isNull(students.deletedAt)));
-
-  if (result.meta.changes === 0) {
-    return c.json({ message: 'student not found' }, 404);
-  }
-
-  return c.json({ success: true }, 200);
-});
-
-app.get('/students/:classroomId', auth, loadUser, requireClassroomScope((c) => c.req.param('classroomId') ?? null), async (c) => {
-  const classroomId = c.req.param('classroomId');
-  if (!classroomId) {
-    return c.json({ message: 'classroom id is required' }, 400);
-  }
-  const db = getDb(c.env);
-
-  const rows = await db
-    .select({
-      id: students.id,
-      name: students.name,
-      email: students.email,
-      birthYear: students.birthYear,
-    })
-    .from(students)
-    .where(and(eq(students.classroomId, classroomId), isNull(students.deletedAt)));
-  return c.json(rows, 200);
-});
 
 app.get(
   '/classrooms/:classroomId/subjects',

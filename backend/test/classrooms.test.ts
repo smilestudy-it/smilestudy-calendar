@@ -107,12 +107,14 @@ vi.mock('../db', () => {
     return null;
   };
 
+  type BatchResult = { meta: { changes: number } };
+
   type MockDb = {
     select: (selection: Record<string, unknown>) => { from: (table: unknown) => unknown };
     insert: () => { values: (value: ClassroomRow) => Promise<void> };
     update: (table: unknown) => unknown;
     transaction: <T>(fn: (tx: MockDb) => Promise<T>) => Promise<T>;
-    batch: (queries: any[]) => Promise<any[]>;
+    batch: (queries: Promise<BatchResult>[]) => Promise<BatchResult[]>;
   };
 
   const db: MockDb = {
@@ -291,7 +293,7 @@ vi.mock('../db', () => {
     update: (table: unknown) => ({
       set: (value: { deletedAt: Date | null }) => ({
         where: (predicate: unknown) => ({
-          then: (resolve: any, reject: any) => {
+          then: (resolve: (value: {meta: {changes: number}}) => void, reject: (reason: Error) => void) => {
             try {
               const requestedId = extractRequestedId(predicate);
               if (!requestedId) return resolve({ meta: { changes: 0 } });
@@ -308,7 +310,7 @@ vi.mock('../db', () => {
               }
 
               let changes = 0;
-              const updateRows = (rows: any[]) => {
+              const updateRows = (rows: { classroomId: string; deletedAt: Date | null }[]) => {
                 rows.forEach(row => {
                   if (row.classroomId === requestedId && row.deletedAt === null) {
                     row.deletedAt = value.deletedAt;
@@ -331,7 +333,7 @@ vi.mock('../db', () => {
 
               resolve({ meta: { changes } });
             } catch (err) {
-              reject(err);
+              reject(err instanceof Error ? err : new Error(String(err)));
             }
           }
         })
@@ -363,7 +365,7 @@ vi.mock('../db', () => {
         throw new Error('transaction aborted');
       }
     },
-    batch: async (queries: any[]) => {
+    batch: async (queries: Promise<BatchResult>[]) => {
       const snap = {
         classrooms: structuredClone(state.classrooms),
         classroomUsers: structuredClone(state.classroomUsers),
