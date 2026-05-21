@@ -6,7 +6,7 @@ import { Hono } from 'hono';
 import { getDb } from '../db';
 import { classrooms, students } from '../db/schema';
 import type { ApiBindings, AppVariables } from '../types/apiTypes';
-import { and, eq, isNull } from 'drizzle-orm';
+import { and, eq, isNotNull, isNull } from 'drizzle-orm';
 import { validateCreateStudentInput } from '../lib/validators';
 import { auth, loadUser, requireManagerOrAbove, requireClassroomScope } from '../middleware/honoStack';
 
@@ -30,7 +30,7 @@ studentsApp.post('/', auth, loadUser, requireManagerOrAbove, async (c) => {
   const id = crypto.randomUUID();
 
   try{
-      const [classroom] = await db.select({id: classrooms.id}).from(classrooms).where(eq(classrooms.id, input.classroomId)).limit(1);
+      const [classroom] = await db.select({id: classrooms.id}).from(classrooms).where(and(eq(classrooms.id, input.classroomId), isNotNull(classrooms.deletedAt))).limit(1);
       if(!classroom){
         throw new Error('CLASSROOM_NOT_FOUND');
       }
