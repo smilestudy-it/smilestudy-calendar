@@ -17,7 +17,7 @@
 		{
 			"binding": "DB",
 			"database_name": "calendar-db",
-			"database_id": "75290388-ffe2-425a-a02d-263e044cfe86",
+			"database_id": "93608e4a-e309-4978-af10-bc8f6b2383a6",
 			"migrations_dir": "drizzle"
 		}
 	]

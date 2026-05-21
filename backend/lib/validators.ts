@@ -2,7 +2,7 @@
  * （責務）リクエスト body / クエリの zod 系バリデーション。各 POST/PATCH の入力検証。
  */
 import { z } from 'zod';
-import { isValidDateKey } from './lessonDisplay';
+import { isValidDateKey } from '../lessonDisplay';
 
 type HexColor = string & { readonly __brand: 'HexColor' };
 
@@ -169,12 +169,12 @@ function firstIssueMessage(error: z.ZodError): string {
 
 export function validateCreateClassroomInput(
   body: unknown,
-): { input?: CreateClassroomInput; error?: string } {
+): { input: CreateClassroomInput | null; error: string | null} {
   const result = classroomSchema.safeParse(body);
   if (!result.success) {
-    return { error: firstIssueMessage(result.error) };
+    return { input: null, error: firstIssueMessage(result.error) };
   }
-  return { input: result.data };
+  return { input: result.data, error: null };
 }
 
 export function validateCreateUserInput(

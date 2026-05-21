@@ -26,9 +26,3 @@ export function collectErrorTextParts(error: unknown, depth = 0): string[] {
     return [String(error)];
   }
 }
-
-export function logApiError(routeLabel: string, err: unknown): void {
-  const summary =
-    collectErrorTextParts(err).join(' ') || (err instanceof Error ? err.message : String(err));
-  console.error(`[api] ${routeLabel}: ${summary}`, err);
-}

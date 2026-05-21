@@ -6,7 +6,7 @@ import type { Next } from 'hono';
 import { and, eq, isNull } from 'drizzle-orm';
 import { getDb } from '../db';
 import { users } from '../db/schema';
-import type { AppUser, ApiContext } from '../apiTypes';
+import type { AppUser, ApiContext } from '../types/apiTypes';
 import { jsonMessage } from '../lib/jsonMessage';
 
 export const auth = async (c: ApiContext, next: Next) => {
@@ -58,18 +58,6 @@ export const requireManagerOrAbove = async (c: ApiContext, next: Next) => {
     return jsonMessage(c, 500, 'user not loaded');
   }
   if (currentUser.role !== 'admin' && currentUser.role !== 'manager') {
-    return jsonMessage(c, 403, 'forbidden');
-  }
-  await next();
-};
-
-/** 講師・教室長・管理者 */
-export const requireStaffOrAbove = async (c: ApiContext, next: Next) => {
-  const currentUser = c.var.currentUser;
-  if (!currentUser) {
-    return jsonMessage(c, 500, 'user not loaded');
-  }
-  if (currentUser.role !== 'admin' && currentUser.role !== 'manager' && currentUser.role !== 'staff') {
     return jsonMessage(c, 403, 'forbidden');
   }
   await next();
