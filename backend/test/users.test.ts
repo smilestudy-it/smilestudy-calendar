@@ -2,7 +2,9 @@
  * （責務）ユーザ作成・削除・教室別一覧等の API の Vitest。
  */
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+
 import { classrooms, users } from '../db/schema';
+import { app } from '../worker';
 
 type Role = 'admin' | 'manager' | 'staff';
 type UserRow = {
@@ -80,7 +82,11 @@ const extractRequestedValue = (predicate: unknown): string | null => {
   const classroomIds = new Set(state.classrooms.map((row) => row.id));
 
   for (const value of collectedStrings) {
-    if (userIds.has(value) || userEmails.has(value) || classroomIds.has(value)) {
+    if (
+      userIds.has(value) ||
+      userEmails.has(value) ||
+      classroomIds.has(value)
+    ) {
       return value;
     }
   }
@@ -92,7 +98,12 @@ const extractRequestedValue = (predicate: unknown): string | null => {
   return null;
 };
 
-const collectStringsDeep = (value: unknown, seen: Set<object>, out: Set<string>, depth = 0): void => {
+const collectStringsDeep = (
+  value: unknown,
+  seen: Set<object>,
+  out: Set<string>,
+  depth = 0,
+): void => {
   if (depth > 80) {
     return;
   }
@@ -144,7 +155,10 @@ const pickUser = (user: UserRow, selection: Record<string, unknown>) =>
 vi.mock('hono/jwk', () => {
   return {
     jwk: () => {
-      return async (c: { set: (key: string, value: unknown) => void }, next: () => Promise<void>) => {
+      return async (
+        c: { set: (key: string, value: unknown) => void },
+        next: () => Promise<void>,
+      ) => {
         c.set('jwtPayload', { sub: state.jwtSub });
         await next();
       };
@@ -161,7 +175,9 @@ vi.mock('../db', () => {
             where: (predicate: unknown) => ({
               limit: async () => {
                 const requestedId = extractRequestedValue(predicate);
-                const target = state.classrooms.find((row) => row.id === requestedId && row.deletedAt === null);
+                const target = state.classrooms.find(
+                  (row) => row.id === requestedId && row.deletedAt === null,
+                );
                 return target ? [{ id: target.id }] : [];
               },
             }),
@@ -175,14 +191,23 @@ vi.mock('../db', () => {
         }
 
         const keys = Object.keys(selection);
-        const isLoadUserQuery = keys.length === 3 && keys.includes('id') && keys.includes('role') && keys.includes('classroomId');
-        const isUserListQuery = keys.includes('id') && keys.includes('firstName') && keys.includes('lastName');
+        const isLoadUserQuery =
+          keys.length === 3 &&
+          keys.includes('id') &&
+          keys.includes('role') &&
+          keys.includes('classroomId');
+        const isUserListQuery =
+          keys.includes('id') &&
+          keys.includes('firstName') &&
+          keys.includes('lastName');
 
         if (isLoadUserQuery) {
           return {
             where: () => ({
               limit: async () => {
-                const target = state.users.find((row) => row.deletedAt === null && row.id === state.jwtSub);
+                const target = state.users.find(
+                  (row) => row.deletedAt === null && row.id === state.jwtSub,
+                );
                 if (!target) {
                   return [];
                 }
@@ -198,15 +223,22 @@ vi.mock('../db', () => {
               const requested = extractRequestedValue(predicate);
               const hasKnownClassroom =
                 requested &&
-                state.classrooms.some((row) => row.id === requested && row.deletedAt === null);
+                state.classrooms.some(
+                  (row) => row.id === requested && row.deletedAt === null,
+                );
               if (hasKnownClassroom) {
                 return state.users
-                  .filter((row) => row.deletedAt === null && row.classroomId === requested)
+                  .filter(
+                    (row) =>
+                      row.deletedAt === null && row.classroomId === requested,
+                  )
                   .map((row) => pickUser(row, selection));
               }
               if (predicateLooksLikeAdminRoleFilter(predicate)) {
                 return state.users
-                  .filter((row) => row.deletedAt === null && row.role === 'admin')
+                  .filter(
+                    (row) => row.deletedAt === null && row.role === 'admin',
+                  )
                   .map((row) => pickUser(row, selection));
               }
               return [];
@@ -219,7 +251,9 @@ vi.mock('../db', () => {
             limit: async () => {
               const requestedId = extractRequestedValue(predicate);
               const target = state.users.find(
-                (row) => row.deletedAt === null && (row.id === requestedId || row.email === requestedId),
+                (row) =>
+                  row.deletedAt === null &&
+                  (row.id === requestedId || row.email === requestedId),
               );
               if (!target) {
                 return [];
@@ -243,7 +277,11 @@ vi.mock('../db', () => {
         if (state.insertThrowGeneric) {
           throw new Error('simulated d1 insert');
         }
-        if (state.users.some((row) => row.email === value.email && row.deletedAt === null)) {
+        if (
+          state.users.some(
+            (row) => row.email === value.email && row.deletedAt === null,
+          )
+        ) {
           throw new Error('duplicate email');
         }
         state.users.push(value);
@@ -292,9 +330,13 @@ const fetchMock = vi.fn(async (input: string | URL | Request) => {
 
   if (url.includes('/oauth/token')) {
     if (!state.tokenOk) {
-      return new Response(JSON.stringify({ error: 'token_error' }), { status: 500 });
+      return new Response(JSON.stringify({ error: 'token_error' }), {
+        status: 500,
+      });
     }
-    return new Response(JSON.stringify({ access_token: 'm2m-token' }), { status: 200 });
+    return new Response(JSON.stringify({ access_token: 'm2m-token' }), {
+      status: 200,
+    });
   }
 
   if (url.includes('/api/v2/users/') && !url.endsWith('/api/v2/users')) {
@@ -307,9 +349,13 @@ const fetchMock = vi.fn(async (input: string | URL | Request) => {
 
   if (url.endsWith('/api/v2/users')) {
     if (!state.createUserOk) {
-      return new Response(JSON.stringify({ message: 'conflict' }), { status: state.createUserStatus });
+      return new Response(JSON.stringify({ message: 'conflict' }), {
+        status: state.createUserStatus,
+      });
     }
-    return new Response(JSON.stringify({ user_id: state.createUserId }), { status: 201 });
+    return new Response(JSON.stringify({ user_id: state.createUserId }), {
+      status: 201,
+    });
   }
 
   if (url.includes('/dbconnections/change_password')) {
@@ -323,8 +369,6 @@ const fetchMock = vi.fn(async (input: string | URL | Request) => {
 });
 
 vi.stubGlobal('fetch', fetchMock);
-
-import { app } from '../worker';
 
 const env = {
   AUTH0_AUDIENCE: 'https://api.example.local',
@@ -403,44 +447,60 @@ describe('users api', () => {
     state.insertSimulateUniqueViolation = true;
     state.createUserId = 'auth0|unique-race-user';
 
-    const response = await app.request('/api/users', {
-      method: 'POST',
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({
-        firstName: 'Race',
-        lastName: 'User',
-        email: 'race-unique@example.com',
-        role: 'staff',
-        classroomId: 'room-1',
-        color: '#123abc',
-      }),
-    }, env);
+    const response = await app.request(
+      '/api/users',
+      {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({
+          firstName: 'Race',
+          lastName: 'User',
+          email: 'race-unique@example.com',
+          role: 'staff',
+          classroomId: 'room-1',
+          color: '#123abc',
+        }),
+      },
+      env,
+    );
 
     expect(response.status).toBe(409);
-    expect(state.users.some((row) => row.id === 'auth0|unique-race-user')).toBe(false);
-    expect(state.deletedAuth0UserIds.some((id) => id.includes('auth0%7Cunique-race-user'))).toBe(
-      true,
+    expect(state.users.some((row) => row.id === 'auth0|unique-race-user')).toBe(
+      false,
     );
+    expect(
+      state.deletedAuth0UserIds.some((id) =>
+        id.includes('auth0%7Cunique-race-user'),
+      ),
+    ).toBe(true);
   });
 
   it('creates a user and sends password setup email', async () => {
-    const response = await app.request('/api/users', {
-      method: 'POST',
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({
-        firstName: 'New',
-        lastName: 'Staff',
-        email: 'new-staff@example.com',
-        role: 'staff',
-        classroomId: 'room-1',
-        color: '#123abc',
-      }),
-    }, env);
+    const response = await app.request(
+      '/api/users',
+      {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({
+          firstName: 'New',
+          lastName: 'Staff',
+          email: 'new-staff@example.com',
+          role: 'staff',
+          classroomId: 'room-1',
+          color: '#123abc',
+        }),
+      },
+      env,
+    );
 
     expect(response.status).toBe(201);
-    const createdBody = (await response.json()) as { passwordEmailSent?: boolean };
+    const createdBody = (await response.json()) as {
+      passwordEmailSent?: boolean;
+    };
     expect(createdBody.passwordEmailSent).toBe(true);
-    expect(state.users.some((row) => row.id === 'auth0|created-user')).toBe(true);
+    expect(state.users.some((row) => row.id === 'auth0|created-user')).toBe(
+      true,
+    );
     expect(fetchMock).toHaveBeenCalledWith(
       expect.stringContaining('/dbconnections/change_password'),
       expect.anything(),
@@ -450,17 +510,21 @@ describe('users api', () => {
   it('returns 403 when manager tries to create admin', async () => {
     state.jwtSub = 'auth0|manager-user';
 
-    const response = await app.request('/api/users', {
-      method: 'POST',
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({
-        firstName: 'New',
-        lastName: 'Admin',
-        email: 'new-admin@example.com',
-        role: 'admin',
-        color: '#123abc',
-      }),
-    }, env);
+    const response = await app.request(
+      '/api/users',
+      {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({
+          firstName: 'New',
+          lastName: 'Admin',
+          email: 'new-admin@example.com',
+          role: 'admin',
+          color: '#123abc',
+        }),
+      },
+      env,
+    );
 
     expect(response.status).toBe(403);
   });
@@ -469,23 +533,31 @@ describe('users api', () => {
     state.sendEmailOk = false;
     state.createUserId = 'auth0|rollback-user';
 
-    const response = await app.request('/api/users', {
-      method: 'POST',
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({
-        firstName: 'Rollback',
-        lastName: 'User',
-        email: 'rollback@example.com',
-        role: 'staff',
-        classroomId: 'room-1',
-        color: '#123abc',
-      }),
-    }, env);
+    const response = await app.request(
+      '/api/users',
+      {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({
+          firstName: 'Rollback',
+          lastName: 'User',
+          email: 'rollback@example.com',
+          role: 'staff',
+          classroomId: 'room-1',
+          color: '#123abc',
+        }),
+      },
+      env,
+    );
 
     expect(response.status).toBe(201);
-    const noMailBody = (await response.json()) as { passwordEmailSent?: boolean };
+    const noMailBody = (await response.json()) as {
+      passwordEmailSent?: boolean;
+    };
     expect(noMailBody.passwordEmailSent).toBe(false);
-    expect(state.users.some((row) => row.id === 'auth0|rollback-user')).toBe(true);
+    expect(state.users.some((row) => row.id === 'auth0|rollback-user')).toBe(
+      true,
+    );
     expect(state.deletedAuth0UserIds).toEqual([]);
   });
 
@@ -494,34 +566,46 @@ describe('users api', () => {
     state.deleteAuth0Ok = false;
     state.createUserId = 'auth0|rollback-auth0-fail';
 
-    const response = await app.request('/api/users', {
-      method: 'POST',
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({
-        firstName: 'Rollback',
-        lastName: 'Auth0Fail',
-        email: 'rollback-auth0-fail@example.com',
-        role: 'staff',
-        classroomId: 'room-1',
-        color: '#123abc',
-      }),
-    }, env);
+    const response = await app.request(
+      '/api/users',
+      {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({
+          firstName: 'Rollback',
+          lastName: 'Auth0Fail',
+          email: 'rollback-auth0-fail@example.com',
+          role: 'staff',
+          classroomId: 'room-1',
+          color: '#123abc',
+        }),
+      },
+      env,
+    );
 
     expect(response.status).toBe(500);
     const body = (await response.json()) as { message?: string };
     expect(body.message).toBe('failed to roll back remote user');
-    expect(state.users.some((row) => row.id === 'auth0|rollback-auth0-fail')).toBe(false);
-    expect(state.deletedAuth0UserIds.some((id) => id.includes('auth0%7Crollback-auth0-fail'))).toBe(
-      false,
-    );
+    expect(
+      state.users.some((row) => row.id === 'auth0|rollback-auth0-fail'),
+    ).toBe(false);
+    expect(
+      state.deletedAuth0UserIds.some((id) =>
+        id.includes('auth0%7Crollback-auth0-fail'),
+      ),
+    ).toBe(false);
   });
 
   it('deletes user when manager is in same classroom', async () => {
     state.jwtSub = 'auth0|manager-user';
 
-    const response = await app.request('/api/users/auth0|staff-user', {
-      method: 'DELETE',
-    }, env);
+    const response = await app.request(
+      '/api/users/auth0|staff-user',
+      {
+        method: 'DELETE',
+      },
+      env,
+    );
 
     expect(response.status).toBe(200);
     const deleted = state.users.find((row) => row.id === 'auth0|staff-user');
@@ -532,18 +616,22 @@ describe('users api', () => {
     state.createUserOk = false;
     state.createUserStatus = 409;
 
-    const response = await app.request('/api/users', {
-      method: 'POST',
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({
-        firstName: 'Conflict',
-        lastName: 'User',
-        email: 'conflict@example.com',
-        role: 'staff',
-        classroomId: 'room-1',
-        color: '#123abc',
-      }),
-    }, env);
+    const response = await app.request(
+      '/api/users',
+      {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({
+          firstName: 'Conflict',
+          lastName: 'User',
+          email: 'conflict@example.com',
+          role: 'staff',
+          classroomId: 'room-1',
+          color: '#123abc',
+        }),
+      },
+      env,
+    );
 
     expect(response.status).toBe(409);
   });
@@ -551,35 +639,43 @@ describe('users api', () => {
   it('returns 502 when management token fetch fails on create', async () => {
     state.tokenOk = false;
 
-    const response = await app.request('/api/users', {
-      method: 'POST',
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({
-        firstName: 'Token',
-        lastName: 'FailUser',
-        email: 'token-fail@example.com',
-        role: 'staff',
-        classroomId: 'room-1',
-        color: '#123abc',
-      }),
-    }, env);
+    const response = await app.request(
+      '/api/users',
+      {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({
+          firstName: 'Token',
+          lastName: 'FailUser',
+          email: 'token-fail@example.com',
+          role: 'staff',
+          classroomId: 'room-1',
+          color: '#123abc',
+        }),
+      },
+      env,
+    );
 
     expect(response.status).toBe(502);
   });
 
   it('returns 404 when classroom does not exist on create', async () => {
-    const response = await app.request('/api/users', {
-      method: 'POST',
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({
-        firstName: 'NoClassroom',
-        lastName: 'User',
-        email: 'noclassroom@example.com',
-        role: 'staff',
-        classroomId: 'room-not-found',
-        color: '#123abc',
-      }),
-    }, env);
+    const response = await app.request(
+      '/api/users',
+      {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({
+          firstName: 'NoClassroom',
+          lastName: 'User',
+          email: 'noclassroom@example.com',
+          role: 'staff',
+          classroomId: 'room-not-found',
+          color: '#123abc',
+        }),
+      },
+      env,
+    );
 
     expect(response.status).toBe(404);
     expect(fetchMock).not.toHaveBeenCalledWith(
@@ -591,9 +687,13 @@ describe('users api', () => {
   it('lists users for manager in own classroom', async () => {
     state.jwtSub = 'auth0|manager-user';
 
-    const response = await app.request('/api/users/room-1', {
-      method: 'GET',
-    }, env);
+    const response = await app.request(
+      '/api/users/room-1',
+      {
+        method: 'GET',
+      },
+      env,
+    );
 
     expect(response.status).toBe(200);
     const payload = (await response.json()) as Array<{
@@ -605,15 +705,23 @@ describe('users api', () => {
     expect(payload.map((row) => row.id)).toContain('auth0|staff-user');
     expect(payload[0]?.firstName).toBeDefined();
     expect(payload[0]?.lastName).toBeDefined();
-    expect(payload.every((row) => typeof row.color === 'string' && row.color.length > 0)).toBe(true);
+    expect(
+      payload.every(
+        (row) => typeof row.color === 'string' && row.color.length > 0,
+      ),
+    ).toBe(true);
   });
 
   it('returns 403 when manager requests another classroom users', async () => {
     state.jwtSub = 'auth0|manager-user';
 
-    const response = await app.request('/api/users/room-2', {
-      method: 'GET',
-    }, env);
+    const response = await app.request(
+      '/api/users/room-2',
+      {
+        method: 'GET',
+      },
+      env,
+    );
 
     expect(response.status).toBe(403);
   });
@@ -621,9 +729,13 @@ describe('users api', () => {
   it('returns 403 when manager deletes admin user', async () => {
     state.jwtSub = 'auth0|manager-user';
 
-    const response = await app.request('/api/users/auth0|admin-user', {
-      method: 'DELETE',
-    }, env);
+    const response = await app.request(
+      '/api/users/auth0|admin-user',
+      {
+        method: 'DELETE',
+      },
+      env,
+    );
 
     expect(response.status).toBe(403);
   });
@@ -631,31 +743,53 @@ describe('users api', () => {
   it('lists admin users for admin', async () => {
     state.jwtSub = 'auth0|admin-user';
 
-    const response = await app.request('/api/users/admins', { method: 'GET' }, env);
+    const response = await app.request(
+      '/api/users/admins',
+      { method: 'GET' },
+      env,
+    );
 
     expect(response.status).toBe(200);
-    const payload = (await response.json()) as Array<{ id: string; role: string }>;
+    const payload = (await response.json()) as Array<{
+      id: string;
+      role: string;
+    }>;
     expect(payload.every((row) => row.role === 'admin')).toBe(true);
-    expect(payload.map((row) => row.id).sort()).toEqual(['auth0|admin-user', 'auth0|other-admin'].sort());
+    expect(payload.map((row) => row.id).sort()).toEqual(
+      ['auth0|admin-user', 'auth0|other-admin'].sort(),
+    );
   });
 
   it('lists admin users for manager', async () => {
     state.jwtSub = 'auth0|manager-user';
 
-    const response = await app.request('/api/users/admins', { method: 'GET' }, env);
+    const response = await app.request(
+      '/api/users/admins',
+      { method: 'GET' },
+      env,
+    );
 
     expect(response.status).toBe(200);
-    const payload = (await response.json()) as Array<{ id: string; role: string }>;
+    const payload = (await response.json()) as Array<{
+      id: string;
+      role: string;
+    }>;
     expect(payload.every((row) => row.role === 'admin')).toBe(true);
-    expect(payload.map((row) => row.id).sort()).toEqual(['auth0|admin-user', 'auth0|other-admin'].sort());
+    expect(payload.map((row) => row.id).sort()).toEqual(
+      ['auth0|admin-user', 'auth0|other-admin'].sort(),
+    );
   });
 
   it('returns 403 when deleting own account', async () => {
     state.jwtSub = 'auth0|admin-user';
 
-    const response = await app.request('/api/users/auth0|admin-user', {
-      method: 'DELETE',
-    }, env);
+    const response = await app.request(
+      '/api/users/auth0|admin-user',
+      {
+        method: 'DELETE',
+      },
+      env,
+    );
 
     expect(response.status).toBe(403);
   });
@@ -663,9 +797,13 @@ describe('users api', () => {
   it('allows admin to delete another admin', async () => {
     state.jwtSub = 'auth0|admin-user';
 
-    const response = await app.request('/api/users/auth0|other-admin', {
-      method: 'DELETE',
-    }, env);
+    const response = await app.request(
+      '/api/users/auth0|other-admin',
+      {
+        method: 'DELETE',
+      },
+      env,
+    );
 
     expect(response.status).toBe(200);
     const deleted = state.users.find((row) => row.id === 'auth0|other-admin');

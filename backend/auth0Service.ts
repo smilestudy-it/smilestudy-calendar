@@ -1,14 +1,20 @@
 /**
  * （責務）Auth0 Management API および change_password 等、サーバー専用の Auth0 呼び出し。
  */
-import type { ApiBindings, Auth0ErrorResponse, Auth0UserResponse } from './types/apiTypes';
+import type {
+  ApiBindings,
+  Auth0ErrorResponse,
+  Auth0UserResponse,
+} from './types/apiTypes';
 
 const AUTH0_FETCH_TIMEOUT_MS = 10_000;
 
 /**
  * M2M クライアント用トークン（User Management 等の Auth0 管理 API 呼び出し）
  */
-export async function getAuth0ManagementToken(env: ApiBindings): Promise<string> {
+export async function getAuth0ManagementToken(
+  env: ApiBindings,
+): Promise<string> {
   const signal = AbortSignal.timeout(AUTH0_FETCH_TIMEOUT_MS);
   let response: Response;
   try {
@@ -27,7 +33,9 @@ export async function getAuth0ManagementToken(env: ApiBindings): Promise<string>
     });
   } catch (e) {
     throw new Error(
-      e instanceof Error ? e.message : 'failed to get auth0 management token (network/timeout)',
+      e instanceof Error
+        ? e.message
+        : 'failed to get auth0 management token (network/timeout)',
     );
   }
 
@@ -77,7 +85,9 @@ export async function createAuth0User(
   }
 
   if (!response.ok) {
-    const body = (await response.json().catch(() => ({}))) as Auth0ErrorResponse;
+    const body = (await response
+      .json()
+      .catch(() => ({}))) as Auth0ErrorResponse;
     return {
       ok: false as const,
       status: response.status,
@@ -92,18 +102,25 @@ export async function createAuth0User(
   };
 }
 
-export async function deleteAuth0User(env: ApiBindings, token: string, userId: string) {
+export async function deleteAuth0User(
+  env: ApiBindings,
+  token: string,
+  userId: string,
+) {
   const encodedUserId = encodeURIComponent(userId);
   const signal = AbortSignal.timeout(AUTH0_FETCH_TIMEOUT_MS);
   let response: Response;
   try {
-    response = await fetch(`https://${env.VITE_AUTH0_DOMAIN}/api/v2/users/${encodedUserId}`, {
-      method: 'DELETE',
-      signal,
-      headers: {
-        authorization: `Bearer ${token}`,
+    response = await fetch(
+      `https://${env.VITE_AUTH0_DOMAIN}/api/v2/users/${encodedUserId}`,
+      {
+        method: 'DELETE',
+        signal,
+        headers: {
+          authorization: `Bearer ${token}`,
+        },
       },
-    });
+    );
   } catch {
     return false;
   }
@@ -111,22 +128,28 @@ export async function deleteAuth0User(env: ApiBindings, token: string, userId: s
   return response.ok;
 }
 
-export async function sendAuth0PasswordSetupEmail(env: ApiBindings, email: string) {
+export async function sendAuth0PasswordSetupEmail(
+  env: ApiBindings,
+  email: string,
+) {
   const signal = AbortSignal.timeout(AUTH0_FETCH_TIMEOUT_MS);
   let response: Response;
   try {
-    response = await fetch(`https://${env.VITE_AUTH0_DOMAIN}/dbconnections/change_password`, {
-      method: 'POST',
-      signal,
-      headers: {
-        'content-type': 'application/json',
+    response = await fetch(
+      `https://${env.VITE_AUTH0_DOMAIN}/dbconnections/change_password`,
+      {
+        method: 'POST',
+        signal,
+        headers: {
+          'content-type': 'application/json',
+        },
+        body: JSON.stringify({
+          client_id: env.VITE_AUTH0_CLIENT_ID,
+          email,
+          connection: env.AUTH0_DB_CONNECTION,
+        }),
       },
-      body: JSON.stringify({
-        client_id: env.VITE_AUTH0_CLIENT_ID,
-        email,
-        connection: env.AUTH0_DB_CONNECTION,
-      }),
-    });
+    );
   } catch {
     return false;
   }

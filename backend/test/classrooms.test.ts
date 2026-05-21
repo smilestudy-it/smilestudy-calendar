@@ -2,7 +2,17 @@
  * （責務）教室 CRUD 等の API の Vitest。
  */
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { classrooms, lessonTypes, lessons, students, subjects, timeSlots, users } from '../db/schema';
+
+import {
+  classrooms,
+  lessonTypes,
+  lessons,
+  students,
+  subjects,
+  timeSlots,
+  users,
+} from '../db/schema';
+import { app } from '../worker';
 
 type ClassroomRow = {
   id: string;
@@ -22,10 +32,26 @@ type ClassroomStudentRow = {
   deletedAt: Date | null;
 };
 
-type PresetSubjectRow = { id: string; classroomId: string; deletedAt: Date | null };
-type PresetLessonTypeRow = { id: string; classroomId: string; deletedAt: Date | null };
-type PresetTimeSlotRow = { id: string; classroomId: string; deletedAt: Date | null };
-type ClassroomLessonRow = { id: string; classroomId: string; deletedAt: Date | null };
+type PresetSubjectRow = {
+  id: string;
+  classroomId: string;
+  deletedAt: Date | null;
+};
+type PresetLessonTypeRow = {
+  id: string;
+  classroomId: string;
+  deletedAt: Date | null;
+};
+type PresetTimeSlotRow = {
+  id: string;
+  classroomId: string;
+  deletedAt: Date | null;
+};
+type ClassroomLessonRow = {
+  id: string;
+  classroomId: string;
+  deletedAt: Date | null;
+};
 
 const state: {
   classrooms: ClassroomRow[];
@@ -67,7 +93,10 @@ const state: {
 vi.mock('hono/jwk', () => {
   return {
     jwk: () => {
-      return async (c: { set: (key: string, value: unknown) => void }, next: () => Promise<void>) => {
+      return async (
+        c: { set: (key: string, value: unknown) => void },
+        next: () => Promise<void>,
+      ) => {
         c.set('jwtPayload', { sub: state.jwtSub });
         await next();
       };
@@ -110,7 +139,9 @@ vi.mock('../db', () => {
   type BatchResult = { meta: { changes: number } };
 
   type MockDb = {
-    select: (selection: Record<string, unknown>) => { from: (table: unknown) => unknown };
+    select: (selection: Record<string, unknown>) => {
+      from: (table: unknown) => unknown;
+    };
     insert: () => { values: (value: ClassroomRow) => Promise<void> };
     update: (table: unknown) => unknown;
     transaction: <T>(fn: (tx: MockDb) => Promise<T>) => Promise<T>;
@@ -122,16 +153,25 @@ vi.mock('../db', () => {
       from: (table: unknown) => {
         if (table === users) {
           const keys = Object.keys(selection);
-          if (keys.length === 3 && keys.includes('id') && keys.includes('role') && keys.includes('classroomId')) {
+          if (
+            keys.length === 3 &&
+            keys.includes('id') &&
+            keys.includes('role') &&
+            keys.includes('classroomId')
+          ) {
             return {
               where: () => ({
-                limit: async () => (state.userRole
-                  ? [{
-                    id: state.jwtSub ?? 'auth0|current-user',
-                    role: state.userRole,
-                    classroomId: state.userRole === 'admin' ? null : 'room-1',
-                  }]
-                  : []),
+                limit: async () =>
+                  state.userRole
+                    ? [
+                        {
+                          id: state.jwtSub ?? 'auth0|current-user',
+                          role: state.userRole,
+                          classroomId:
+                            state.userRole === 'admin' ? null : 'room-1',
+                        },
+                      ]
+                    : [],
               }),
             };
           }
@@ -139,7 +179,8 @@ vi.mock('../db', () => {
           if (keys.length === 1 && keys.includes('role')) {
             return {
               where: () => ({
-                limit: async () => (state.userRole ? [{ role: state.userRole }] : []),
+                limit: async () =>
+                  state.userRole ? [{ role: state.userRole }] : [],
               }),
             };
           }
@@ -149,7 +190,10 @@ vi.mock('../db', () => {
               where: async (predicate: unknown) => {
                 const classroomId = extractRequestedId(predicate);
                 return state.classroomUsers
-                  .filter((row) => row.classroomId === classroomId && row.deletedAt === null)
+                  .filter(
+                    (row) =>
+                      row.classroomId === classroomId && row.deletedAt === null,
+                  )
                   .map((row) => ({ id: row.id }));
               },
             };
@@ -167,7 +211,10 @@ vi.mock('../db', () => {
               where: async (predicate: unknown) => {
                 const classroomId = extractRequestedId(predicate);
                 return state.classroomStudents
-                  .filter((row) => row.classroomId === classroomId && row.deletedAt === null)
+                  .filter(
+                    (row) =>
+                      row.classroomId === classroomId && row.deletedAt === null,
+                  )
                   .map((row) => ({ id: row.id }));
               },
             };
@@ -184,7 +231,10 @@ vi.mock('../db', () => {
               where: async (predicate: unknown) => {
                 const classroomId = extractRequestedId(predicate);
                 return state.presetSubjects
-                  .filter((row) => row.classroomId === classroomId && row.deletedAt === null)
+                  .filter(
+                    (row) =>
+                      row.classroomId === classroomId && row.deletedAt === null,
+                  )
                   .map((row) => ({ id: row.id }));
               },
             };
@@ -201,7 +251,10 @@ vi.mock('../db', () => {
               where: async (predicate: unknown) => {
                 const classroomId = extractRequestedId(predicate);
                 return state.presetLessonTypes
-                  .filter((row) => row.classroomId === classroomId && row.deletedAt === null)
+                  .filter(
+                    (row) =>
+                      row.classroomId === classroomId && row.deletedAt === null,
+                  )
                   .map((row) => ({ id: row.id }));
               },
             };
@@ -218,7 +271,10 @@ vi.mock('../db', () => {
               where: async (predicate: unknown) => {
                 const classroomId = extractRequestedId(predicate);
                 return state.presetTimeSlots
-                  .filter((row) => row.classroomId === classroomId && row.deletedAt === null)
+                  .filter(
+                    (row) =>
+                      row.classroomId === classroomId && row.deletedAt === null,
+                  )
                   .map((row) => ({ id: row.id }));
               },
             };
@@ -235,7 +291,10 @@ vi.mock('../db', () => {
               where: async (predicate: unknown) => {
                 const classroomId = extractRequestedId(predicate);
                 return state.classroomLessons
-                  .filter((row) => row.classroomId === classroomId && row.deletedAt === null)
+                  .filter(
+                    (row) =>
+                      row.classroomId === classroomId && row.deletedAt === null,
+                  )
                   .map((row) => ({ id: row.id }));
               },
             };
@@ -256,7 +315,10 @@ vi.mock('../db', () => {
                     return [];
                   }
                   const target = state.classrooms.find(
-                    (row) => (row.name === requestedValue || row.id === requestedValue) && row.deletedAt === null,
+                    (row) =>
+                      (row.name === requestedValue ||
+                        row.id === requestedValue) &&
+                      row.deletedAt === null,
                   );
                   return target ? [{ id: target.id }] : [];
                 },
@@ -284,8 +346,14 @@ vi.mock('../db', () => {
             'UNIQUE constraint failed: index classrooms_name_active_unique',
           );
         }
-        if (state.classrooms.some(c => c.name === value.name && c.deletedAt === null)) {
-          throw new Error('UNIQUE constraint failed: index classrooms_name_active_unique');
+        if (
+          state.classrooms.some(
+            (c) => c.name === value.name && c.deletedAt === null,
+          )
+        ) {
+          throw new Error(
+            'UNIQUE constraint failed: index classrooms_name_active_unique',
+          );
         }
         state.classrooms.push(value);
       },
@@ -293,26 +361,44 @@ vi.mock('../db', () => {
     update: (table: unknown) => ({
       set: (value: { deletedAt: Date | null }) => ({
         where: (predicate: unknown) => ({
-          then: (resolve: (value: {meta: {changes: number}}) => void, reject: (reason: Error) => void) => {
+          then: (
+            resolve: (value: { meta: { changes: number } }) => void,
+            reject: (reason: Error) => void,
+          ) => {
             try {
               const requestedId = extractRequestedId(predicate);
               if (!requestedId) return resolve({ meta: { changes: 0 } });
 
               if (table === classrooms) {
-                const target = state.classrooms.find(row => row.id === requestedId && row.deletedAt === null);
-                if (target) { target.deletedAt = value.deletedAt; return resolve({ meta: { changes: 1 } }); }
+                const target = state.classrooms.find(
+                  (row) => row.id === requestedId && row.deletedAt === null,
+                );
+                if (target) {
+                  target.deletedAt = value.deletedAt;
+                  return resolve({ meta: { changes: 1 } });
+                }
                 return resolve({ meta: { changes: 0 } });
               }
               if (table === users) {
-                const target = state.classroomUsers.find(row => row.id === requestedId && row.deletedAt === null);
-                if (target) { target.deletedAt = value.deletedAt; return resolve({ meta: { changes: 1 } }); }
+                const target = state.classroomUsers.find(
+                  (row) => row.id === requestedId && row.deletedAt === null,
+                );
+                if (target) {
+                  target.deletedAt = value.deletedAt;
+                  return resolve({ meta: { changes: 1 } });
+                }
                 return resolve({ meta: { changes: 0 } });
               }
 
               let changes = 0;
-              const updateRows = (rows: { classroomId: string; deletedAt: Date | null }[]) => {
-                rows.forEach(row => {
-                  if (row.classroomId === requestedId && row.deletedAt === null) {
+              const updateRows = (
+                rows: { classroomId: string; deletedAt: Date | null }[],
+              ) => {
+                rows.forEach((row) => {
+                  if (
+                    row.classroomId === requestedId &&
+                    row.deletedAt === null
+                  ) {
                     row.deletedAt = value.deletedAt;
                     changes++;
                   }
@@ -320,8 +406,13 @@ vi.mock('../db', () => {
               };
 
               if (table === subjects) {
-                if (value.deletedAt !== null && state.throwOnPresetSubjectSoftDelete) {
-                  throw new Error('simulated preset subject soft-delete failure');
+                if (
+                  value.deletedAt !== null &&
+                  state.throwOnPresetSubjectSoftDelete
+                ) {
+                  throw new Error(
+                    'simulated preset subject soft-delete failure',
+                  );
                 }
                 updateRows(state.presetSubjects);
               }
@@ -335,8 +426,8 @@ vi.mock('../db', () => {
             } catch (err) {
               reject(err instanceof Error ? err : new Error(String(err)));
             }
-          }
-        })
+          },
+        }),
       }),
     }),
     transaction: async <T>(fn: (tx: typeof db) => Promise<T>) => {
@@ -387,7 +478,7 @@ vi.mock('../db', () => {
         state.presetTimeSlots = snap.presetTimeSlots;
         throw err;
       }
-    }
+    },
   };
 
   return {
@@ -399,7 +490,9 @@ const fetchMock = vi.fn(async (input: string | URL | Request) => {
   const url = typeof input === 'string' ? input : input.toString();
 
   if (url.includes('/oauth/token')) {
-    return new Response(JSON.stringify({ access_token: 'm2m-token' }), { status: 200 });
+    return new Response(JSON.stringify({ access_token: 'm2m-token' }), {
+      status: 200,
+    });
   }
 
   if (url.includes('/api/v2/users/') && !url.endsWith('/api/v2/users')) {
@@ -420,8 +513,6 @@ const fetchMock = vi.fn(async (input: string | URL | Request) => {
 });
 
 vi.stubGlobal('fetch', fetchMock);
-
-import { app } from '../worker';
 
 const env = {
   AUTH0_AUDIENCE: 'https://api.example.local',
@@ -456,37 +547,63 @@ describe('classrooms api flow', () => {
   });
 
   it('POST -> GET -> DELETE -> GET works', async () => {
-    const postResponse = await app.request('/api/classrooms', {
-      method: 'POST',
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ name: 'Class A' }),
-    }, env);
+    const postResponse = await app.request(
+      '/api/classrooms',
+      {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ name: 'Class A' }),
+      },
+      env,
+    );
     expect(postResponse.status).toBe(201);
 
     const created = (await postResponse.json()) as { id: string; name: string };
     expect(created.name).toBe('Class A');
 
-    const getBeforeDelete = await app.request('/api/classrooms', { method: 'GET' }, env);
+    const getBeforeDelete = await app.request(
+      '/api/classrooms',
+      { method: 'GET' },
+      env,
+    );
     expect(getBeforeDelete.status).toBe(200);
-    const listBeforeDelete = (await getBeforeDelete.json()) as Array<{ id: string; name: string }>;
+    const listBeforeDelete = (await getBeforeDelete.json()) as Array<{
+      id: string;
+      name: string;
+    }>;
     expect(listBeforeDelete).toHaveLength(1);
     expect(listBeforeDelete[0]?.id).toBe(created.id);
 
-    const deleteResponse = await app.request(`/api/classrooms/${created.id}`, { method: 'DELETE' }, env);
+    const deleteResponse = await app.request(
+      `/api/classrooms/${created.id}`,
+      { method: 'DELETE' },
+      env,
+    );
     expect(deleteResponse.status).toBe(200);
 
-    const getAfterDelete = await app.request('/api/classrooms', { method: 'GET' }, env);
+    const getAfterDelete = await app.request(
+      '/api/classrooms',
+      { method: 'GET' },
+      env,
+    );
     expect(getAfterDelete.status).toBe(200);
-    const listAfterDelete = (await getAfterDelete.json()) as Array<{ id: string; name: string }>;
+    const listAfterDelete = (await getAfterDelete.json()) as Array<{
+      id: string;
+      name: string;
+    }>;
     expect(listAfterDelete).toHaveLength(0);
   });
 
   it('deletes classroom users and students together with classroom', async () => {
-    const postResponse = await app.request('/api/classrooms', {
-      method: 'POST',
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ name: 'Class A' }),
-    }, env);
+    const postResponse = await app.request(
+      '/api/classrooms',
+      {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ name: 'Class A' }),
+      },
+      env,
+    );
     const created = (await postResponse.json()) as { id: string };
 
     state.classroomUsers.push({
@@ -500,19 +617,29 @@ describe('classrooms api flow', () => {
       deletedAt: null,
     });
 
-    const deleteResponse = await app.request(`/api/classrooms/${created.id}`, { method: 'DELETE' }, env);
+    const deleteResponse = await app.request(
+      `/api/classrooms/${created.id}`,
+      { method: 'DELETE' },
+      env,
+    );
     expect(deleteResponse.status).toBe(200);
     expect(state.classroomUsers[0]?.deletedAt).toBeInstanceOf(Date);
     expect(state.classroomStudents[0]?.deletedAt).toBeInstanceOf(Date);
-    expect(state.deletedAuth0UserIds.some((id) => id.includes('auth0%7Cstaff-user'))).toBe(true);
+    expect(
+      state.deletedAuth0UserIds.some((id) => id.includes('auth0%7Cstaff-user')),
+    ).toBe(true);
   });
 
   it('soft-deletes lessons when deleting classroom', async () => {
-    const postResponse = await app.request('/api/classrooms', {
-      method: 'POST',
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ name: 'Class With Lessons' }),
-    }, env);
+    const postResponse = await app.request(
+      '/api/classrooms',
+      {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ name: 'Class With Lessons' }),
+      },
+      env,
+    );
     const created = (await postResponse.json()) as { id: string };
 
     state.classroomLessons.push({
@@ -521,155 +648,253 @@ describe('classrooms api flow', () => {
       deletedAt: null,
     });
 
-    const deleteResponse = await app.request(`/api/classrooms/${created.id}`, { method: 'DELETE' }, env);
+    const deleteResponse = await app.request(
+      `/api/classrooms/${created.id}`,
+      { method: 'DELETE' },
+      env,
+    );
     expect(deleteResponse.status).toBe(200);
     expect(state.classroomLessons[0]?.deletedAt).toBeInstanceOf(Date);
   });
 
   it('returns 400 when name is missing or blank', async () => {
-    const missingName = await app.request('/api/classrooms', {
-      method: 'POST',
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({}),
-    }, env);
+    const missingName = await app.request(
+      '/api/classrooms',
+      {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({}),
+      },
+      env,
+    );
     expect(missingName.status).toBe(400);
 
-    const blankName = await app.request('/api/classrooms', {
-      method: 'POST',
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ name: '   ' }),
-    }, env);
+    const blankName = await app.request(
+      '/api/classrooms',
+      {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ name: '   ' }),
+      },
+      env,
+    );
     expect(blankName.status).toBe(400);
   });
 
   it('returns 400 when name is too long', async () => {
     const tooLongName = 'a'.repeat(101);
-    const response = await app.request('/api/classrooms', {
-      method: 'POST',
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ name: tooLongName }),
-    }, env);
+    const response = await app.request(
+      '/api/classrooms',
+      {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ name: tooLongName }),
+      },
+      env,
+    );
     expect(response.status).toBe(400);
   });
 
   it('returns 409 when creating classroom with duplicate name', async () => {
-    const first = await app.request('/api/classrooms', {
-      method: 'POST',
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ name: 'Class Duplicate' }),
-    }, env);
+    const first = await app.request(
+      '/api/classrooms',
+      {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ name: 'Class Duplicate' }),
+      },
+      env,
+    );
     expect(first.status).toBe(201);
 
-    const second = await app.request('/api/classrooms', {
-      method: 'POST',
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ name: 'Class Duplicate' }),
-    }, env);
+    const second = await app.request(
+      '/api/classrooms',
+      {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ name: 'Class Duplicate' }),
+      },
+      env,
+    );
     expect(second.status).toBe(409);
   });
 
   it('returns 409 when D1 insert violates classrooms_name_active_unique (race)', async () => {
     state.insertSimulateClassroomUniqueViolation = true;
 
-    const response = await app.request('/api/classrooms', {
-      method: 'POST',
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ name: 'Race Classroom' }),
-    }, env);
+    const response = await app.request(
+      '/api/classrooms',
+      {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ name: 'Race Classroom' }),
+      },
+      env,
+    );
 
     expect(response.status).toBe(409);
     const body = (await response.json()) as { message?: string };
     expect(body.message).toBe('classroom already exists');
-    expect(state.classrooms.some((row) => row.name === 'Race Classroom')).toBe(false);
+    expect(state.classrooms.some((row) => row.name === 'Race Classroom')).toBe(
+      false,
+    );
   });
 
   it('returns 404 when deleting a non-existing classroom', async () => {
-    const response = await app.request('/api/classrooms/non-existing-id', {
-      method: 'DELETE',
-    }, env);
+    const response = await app.request(
+      '/api/classrooms/non-existing-id',
+      {
+        method: 'DELETE',
+      },
+      env,
+    );
     expect(response.status).toBe(404);
   });
 
   it('returns 404 when deleting the same classroom twice', async () => {
-    const create = await app.request('/api/classrooms', {
-      method: 'POST',
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ name: 'Class B' }),
-    }, env);
+    const create = await app.request(
+      '/api/classrooms',
+      {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ name: 'Class B' }),
+      },
+      env,
+    );
     const created = (await create.json()) as { id: string };
 
-    const firstDelete = await app.request(`/api/classrooms/${created.id}`, {
-      method: 'DELETE',
-    }, env);
+    const firstDelete = await app.request(
+      `/api/classrooms/${created.id}`,
+      {
+        method: 'DELETE',
+      },
+      env,
+    );
     expect(firstDelete.status).toBe(200);
 
-    const secondDelete = await app.request(`/api/classrooms/${created.id}`, {
-      method: 'DELETE',
-    }, env);
+    const secondDelete = await app.request(
+      `/api/classrooms/${created.id}`,
+      {
+        method: 'DELETE',
+      },
+      env,
+    );
     expect(secondDelete.status).toBe(404);
   });
 
   it('soft-deletes preset subjects, lesson types, and time slots when deleting classroom', async () => {
-    const postResponse = await app.request('/api/classrooms', {
-      method: 'POST',
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ name: 'Class With Presets' }),
-    }, env);
+    const postResponse = await app.request(
+      '/api/classrooms',
+      {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ name: 'Class With Presets' }),
+      },
+      env,
+    );
     const created = (await postResponse.json()) as { id: string };
 
-    state.presetSubjects.push({ id: 'ps-1', classroomId: created.id, deletedAt: null });
-    state.presetLessonTypes.push({ id: 'plt-1', classroomId: created.id, deletedAt: null });
-    state.presetTimeSlots.push({ id: 'pts-1', classroomId: created.id, deletedAt: null });
+    state.presetSubjects.push({
+      id: 'ps-1',
+      classroomId: created.id,
+      deletedAt: null,
+    });
+    state.presetLessonTypes.push({
+      id: 'plt-1',
+      classroomId: created.id,
+      deletedAt: null,
+    });
+    state.presetTimeSlots.push({
+      id: 'pts-1',
+      classroomId: created.id,
+      deletedAt: null,
+    });
 
-    const deleteResponse = await app.request(`/api/classrooms/${created.id}`, { method: 'DELETE' }, env);
+    const deleteResponse = await app.request(
+      `/api/classrooms/${created.id}`,
+      { method: 'DELETE' },
+      env,
+    );
     expect(deleteResponse.status).toBe(200);
-    expect(state.classrooms.find((r) => r.id === created.id)?.deletedAt).toBeInstanceOf(Date);
+    expect(
+      state.classrooms.find((r) => r.id === created.id)?.deletedAt,
+    ).toBeInstanceOf(Date);
     expect(state.presetSubjects[0]?.deletedAt).toBeInstanceOf(Date);
     expect(state.presetLessonTypes[0]?.deletedAt).toBeInstanceOf(Date);
     expect(state.presetTimeSlots[0]?.deletedAt).toBeInstanceOf(Date);
   });
 
   it('returns 500 when preset subject soft-delete fails; compensating rollback restores classroom and members', async () => {
-    const postResponse = await app.request('/api/classrooms', {
-      method: 'POST',
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ name: 'Class Preset Tx Fail' }),
-    }, env);
+    const postResponse = await app.request(
+      '/api/classrooms',
+      {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ name: 'Class Preset Tx Fail' }),
+      },
+      env,
+    );
     const created = (await postResponse.json()) as { id: string };
 
-    state.presetSubjects.push({ id: 'ps-fail', classroomId: created.id, deletedAt: null });
+    state.presetSubjects.push({
+      id: 'ps-fail',
+      classroomId: created.id,
+      deletedAt: null,
+    });
     state.throwOnPresetSubjectSoftDelete = true;
 
-    const deleteResponse = await app.request(`/api/classrooms/${created.id}`, { method: 'DELETE' }, env);
+    const deleteResponse = await app.request(
+      `/api/classrooms/${created.id}`,
+      { method: 'DELETE' },
+      env,
+    );
     expect(deleteResponse.status).toBe(500);
 
-    expect(state.classrooms.find((r) => r.id === created.id)?.deletedAt).toBeNull();
+    expect(
+      state.classrooms.find((r) => r.id === created.id)?.deletedAt,
+    ).toBeNull();
     expect(state.presetSubjects[0]?.deletedAt).toBeNull();
   });
 
   it('returns 403 for manager and staff users', async () => {
     state.userRole = 'manager';
-    const managerGet = await app.request('/api/classrooms', { method: 'GET' }, env);
+    const managerGet = await app.request(
+      '/api/classrooms',
+      { method: 'GET' },
+      env,
+    );
     expect(managerGet.status).toBe(403);
 
     state.userRole = 'staff';
-    const staffPost = await app.request('/api/classrooms', {
-      method: 'POST',
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ name: 'Class C' }),
-    }, env);
+    const staffPost = await app.request(
+      '/api/classrooms',
+      {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ name: 'Class C' }),
+      },
+      env,
+    );
     expect(staffPost.status).toBe(403);
   });
 
   it('returns 404 when user does not exist', async () => {
     state.userRole = null;
-    const response = await app.request('/api/classrooms', { method: 'GET' }, env);
+    const response = await app.request(
+      '/api/classrooms',
+      { method: 'GET' },
+      env,
+    );
     expect(response.status).toBe(404);
   });
 
   it('returns 401 when token payload does not include sub', async () => {
     state.jwtSub = null;
-    const response = await app.request('/api/classrooms', { method: 'GET' }, env);
+    const response = await app.request(
+      '/api/classrooms',
+      { method: 'GET' },
+      env,
+    );
     expect(response.status).toBe(401);
   });
 });

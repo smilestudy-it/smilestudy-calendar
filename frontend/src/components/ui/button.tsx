@@ -2,8 +2,10 @@
  * （責務）shadcn 互換の Button コンポーネント（variant 付き）。
  */
 import * as React from 'react';
+
 import { Slot } from '@radix-ui/react-slot';
-import { cva, type VariantProps } from 'class-variance-authority';
+import { type VariantProps, cva } from 'class-variance-authority';
+
 import { cn } from '@/lib/utils';
 
 const buttonVariants = cva(
@@ -12,7 +14,8 @@ const buttonVariants = cva(
     variants: {
       variant: {
         default: 'bg-indigo-700 text-white hover:bg-indigo-600',
-        outline: 'border border-slate-600 bg-slate-200 text-slate-900 hover:bg-slate-300',
+        outline:
+          'border border-slate-600 bg-slate-200 text-slate-900 hover:bg-slate-300',
         ghost: 'text-slate-800 hover:bg-slate-300',
         secondary: 'bg-slate-300 text-slate-900 hover:bg-slate-400',
       },
@@ -30,7 +33,8 @@ const buttonVariants = cva(
 );
 
 export interface ButtonProps
-  extends React.ButtonHTMLAttributes<HTMLButtonElement>,
+  extends
+    React.ButtonHTMLAttributes<HTMLButtonElement>,
     VariantProps<typeof buttonVariants> {
   asChild?: boolean;
 }

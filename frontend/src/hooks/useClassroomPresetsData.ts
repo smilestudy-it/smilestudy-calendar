@@ -2,6 +2,7 @@
  * （責務）1 教室の subject / lesson-type / time-slot を並列取得するフック用ロジック。
  */
 import { useCallback } from 'react';
+
 import type { AuthedFetch } from '@/hooks/useAuthedFetch';
 import type {
   LessonTypeListItem,
@@ -17,12 +18,26 @@ export function useClassroomPresetsData(authedFetch: AuthedFetch) {
   return useCallback(
     async (classroomId: string, signal?: AbortSignal) => {
       const [sRes, lRes, tRes] = await Promise.all([
-        authedFetch(`/api/classrooms/${encodeURIComponent(classroomId)}/subjects`, { signal }),
-        authedFetch(`/api/classrooms/${encodeURIComponent(classroomId)}/lesson-types`, { signal }),
-        authedFetch(`/api/classrooms/${encodeURIComponent(classroomId)}/time-slots`, { signal }),
+        authedFetch(
+          `/api/classrooms/${encodeURIComponent(classroomId)}/subjects`,
+          { signal },
+        ),
+        authedFetch(
+          `/api/classrooms/${encodeURIComponent(classroomId)}/lesson-types`,
+          { signal },
+        ),
+        authedFetch(
+          `/api/classrooms/${encodeURIComponent(classroomId)}/time-slots`,
+          { signal },
+        ),
       ]);
       if (!sRes.ok || !lRes.ok || !tRes.ok) {
-        return { ok: false as const, subjects: [] as SubjectListItem[], lessonTypes: [] as LessonTypeListItem[], timeSlots: [] as TimeSlotListItem[] };
+        return {
+          ok: false as const,
+          subjects: [] as SubjectListItem[],
+          lessonTypes: [] as LessonTypeListItem[],
+          timeSlots: [] as TimeSlotListItem[],
+        };
       }
       const [subjects, lessonTypes, timeSlots] = await Promise.all([
         sRes.json() as Promise<SubjectListItem[]>,

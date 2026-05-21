@@ -13,8 +13,15 @@ export default function PresetsSettingsPage({
   currentUser,
   getAccessTokenSilently,
 }: Props) {
-  if (!currentUser || (currentUser.role !== 'admin' && currentUser.role !== 'manager')) {
-    return <p className="text-sm text-slate-700">教室長以上が授業プリセット設定を利用できます。</p>;
+  if (
+    !currentUser ||
+    (currentUser.role !== 'admin' && currentUser.role !== 'manager')
+  ) {
+    return (
+      <p className="text-sm text-slate-700">
+        教室長以上が授業プリセット設定を利用できます。
+      </p>
+    );
   }
 
   return (

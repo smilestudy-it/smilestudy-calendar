@@ -2,6 +2,7 @@
  * （責務）週編集ページの一括操作バー（登録・削除）。
  */
 import { useState } from 'react';
+
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import {
@@ -68,8 +69,14 @@ export default function LessonBulkActionPanel({
   const [subjectId, setSubjectId] = useState('');
   const [lessonTypeId, setLessonTypeId] = useState('');
 
-  const canCreate = selectedCount > 0 && emptySlotCount === selectedCount && occupiedSlotCount === 0;
-  const canDelete = selectedCount > 0 && occupiedSlotCount === selectedCount && emptySlotCount === 0;
+  const canCreate =
+    selectedCount > 0 &&
+    emptySlotCount === selectedCount &&
+    occupiedSlotCount === 0;
+  const canDelete =
+    selectedCount > 0 &&
+    occupiedSlotCount === selectedCount &&
+    emptySlotCount === 0;
 
   if (selectedCount === 0) {
     return null;
@@ -80,9 +87,16 @@ export default function LessonBulkActionPanel({
       <div className="flex flex-col gap-3">
         <div className="flex flex-wrap items-center justify-between gap-2">
           <p className="text-sm font-medium text-slate-900">
-            選択中: {selectedCount} 枠（空き {emptySlotCount} / 登録済み {occupiedSlotCount}）
+            選択中: {selectedCount} 枠（空き {emptySlotCount} / 登録済み{' '}
+            {occupiedSlotCount}）
           </p>
-          <Button type="button" variant="outline" size="sm" onClick={onClearSelection} disabled={isSubmitting}>
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            onClick={onClearSelection}
+            disabled={isSubmitting}
+          >
             選択をクリア
           </Button>
         </div>
@@ -109,9 +123,14 @@ export default function LessonBulkActionPanel({
                       t.role === 'admin' || t.role === 'manager'
                         ? ROLE_LABEL_JA[t.role as 'admin' | 'manager']
                         : null;
-                    const staffLocked = actorRole === 'staff' && t.id !== actorUserId;
+                    const staffLocked =
+                      actorRole === 'staff' && t.id !== actorUserId;
                     return (
-                      <SelectItem key={t.id} value={t.id} disabled={staffLocked}>
+                      <SelectItem
+                        key={t.id}
+                        value={t.id}
+                        disabled={staffLocked}
+                      >
                         {t.lastName} {t.firstName}
                         {roleLabel ? `（${roleLabel}）` : ''}
                       </SelectItem>
@@ -137,7 +156,10 @@ export default function LessonBulkActionPanel({
             </div>
             <div className="grid gap-1.5">
               <Label className="text-xs">科目（任意）</Label>
-              <Select value={subjectId || '_none'} onValueChange={(v) => setSubjectId(v === '_none' ? '' : v)}>
+              <Select
+                value={subjectId || '_none'}
+                onValueChange={(v) => setSubjectId(v === '_none' ? '' : v)}
+              >
                 <SelectTrigger className="h-9 text-sm">
                   <SelectValue placeholder="なし" />
                 </SelectTrigger>

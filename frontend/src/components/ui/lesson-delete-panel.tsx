@@ -1,4 +1,5 @@
 import dayjs from 'dayjs';
+
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import {
@@ -35,7 +36,10 @@ type Props = {
   presetLessonTypes?: LessonPresetRow[];
   isSavingPresets?: boolean;
   presetsError?: string | null;
-  onPresetChange?: (next: { subjectId: string | null; lessonTypeId: string | null }) => void;
+  onPresetChange?: (next: {
+    subjectId: string | null;
+    lessonTypeId: string | null;
+  }) => void;
   onSavePresets?: () => void;
 };
 
@@ -72,8 +76,8 @@ export default function LessonDeletePanel({
           <p className="text-sm font-medium text-slate-900">コマの詳細</p>
           <p className="text-sm text-slate-800">{event.title}</p>
           <p className="text-xs text-slate-600">
-            {event.start ? dayjs(event.start).format('YYYY/MM/DD HH:mm') : '-'} –{' '}
-            {event.end ? dayjs(event.end).format('HH:mm') : '-'}
+            {event.start ? dayjs(event.start).format('YYYY/MM/DD HH:mm') : '-'}{' '}
+            – {event.end ? dayjs(event.end).format('HH:mm') : '-'}
           </p>
 
           {showPresets && (
@@ -141,11 +145,18 @@ export default function LessonDeletePanel({
             </div>
           )}
 
-          {presetsError && <p className="text-xs text-rose-600">{presetsError}</p>}
+          {presetsError && (
+            <p className="text-xs text-rose-600">{presetsError}</p>
+          )}
           {error && <p className="mt-1 text-xs text-rose-600">{error}</p>}
         </div>
         <div className="flex shrink-0 gap-2">
-          <Button type="button" variant="outline" onClick={onClose} disabled={isDeleting}>
+          <Button
+            type="button"
+            variant="outline"
+            onClick={onClose}
+            disabled={isDeleting}
+          >
             閉じる
           </Button>
           {onDelete && (

@@ -2,13 +2,31 @@
  * （責務）教室プリセット系 API の Vitest。科目・授業種別・時間枠等。
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { classrooms, lessonTypes, subjects, timeSlots, users } from '../db/schema';
+
+import {
+  classrooms,
+  lessonTypes,
+  subjects,
+  timeSlots,
+  users,
+} from '../db/schema';
+import { app } from '../worker';
 
 /** 教室削除時のプリセット連鎖ソフトデリートは `classrooms.test.ts` で検証（DELETE /classrooms 用モックは同ファイルに集約）。 */
 
 type ClassroomRow = { id: string; deletedAt: Date | null };
-type SubjectRow = { id: string; name: string; classroomId: string; deletedAt: Date | null };
-type LessonTypeRow = { id: string; name: string; classroomId: string; deletedAt: Date | null };
+type SubjectRow = {
+  id: string;
+  name: string;
+  classroomId: string;
+  deletedAt: Date | null;
+};
+type LessonTypeRow = {
+  id: string;
+  name: string;
+  classroomId: string;
+  deletedAt: Date | null;
+};
 type TimeSlotRow = {
   id: string;
   classroomId: string;
@@ -36,7 +54,10 @@ const state: {
 vi.mock('hono/jwk', () => {
   return {
     jwk: () => {
-      return async (c: { set: (key: string, value: unknown) => void }, next: () => Promise<void>) => {
+      return async (
+        c: { set: (key: string, value: unknown) => void },
+        next: () => Promise<void>,
+      ) => {
         c.set('jwtPayload', { sub: state.jwtSub });
         await next();
       };
@@ -90,7 +111,12 @@ vi.mock('../db', () => {
 
         if (table === users) {
           const keys = Object.keys(selection);
-          if (keys.length === 3 && keys.includes('id') && keys.includes('role') && keys.includes('classroomId')) {
+          if (
+            keys.length === 3 &&
+            keys.includes('id') &&
+            keys.includes('role') &&
+            keys.includes('classroomId')
+          ) {
             return {
               where: () => ({
                 limit: async () =>
@@ -99,7 +125,8 @@ vi.mock('../db', () => {
                         {
                           id: state.jwtSub,
                           role: state.userRole,
-                          classroomId: state.userRole === 'admin' ? null : 'room-1',
+                          classroomId:
+                            state.userRole === 'admin' ? null : 'room-1',
                         },
                       ]
                     : [],
@@ -116,7 +143,10 @@ vi.mock('../db', () => {
               where: async (predicate: unknown) => {
                 const classroomId = extractRequestedId(predicate);
                 return state.subjectRows
-                  .filter((r) => r.classroomId === classroomId && r.deletedAt === null)
+                  .filter(
+                    (r) =>
+                      r.classroomId === classroomId && r.deletedAt === null,
+                  )
                   .map((r) => ({ id: r.id, name: r.name }));
               },
             };
@@ -128,7 +158,9 @@ vi.mock('../db', () => {
                 const row = state.subjectRows.find(
                   (r) => r.id === targetId && r.deletedAt === null,
                 );
-                return row ? [{ id: row.id, classroomId: row.classroomId }] : [];
+                return row
+                  ? [{ id: row.id, classroomId: row.classroomId }]
+                  : [];
               },
             }),
           };
@@ -141,7 +173,10 @@ vi.mock('../db', () => {
               where: async (predicate: unknown) => {
                 const classroomId = extractRequestedId(predicate);
                 return state.lessonTypeRows
-                  .filter((r) => r.classroomId === classroomId && r.deletedAt === null)
+                  .filter(
+                    (r) =>
+                      r.classroomId === classroomId && r.deletedAt === null,
+                  )
                   .map((r) => ({ id: r.id, name: r.name }));
               },
             };
@@ -153,7 +188,9 @@ vi.mock('../db', () => {
                 const row = state.lessonTypeRows.find(
                   (r) => r.id === targetId && r.deletedAt === null,
                 );
-                return row ? [{ id: row.id, classroomId: row.classroomId }] : [];
+                return row
+                  ? [{ id: row.id, classroomId: row.classroomId }]
+                  : [];
               },
             }),
           };
@@ -188,7 +225,10 @@ vi.mock('../db', () => {
               where: async (predicate: unknown) => {
                 const classroomId = extractRequestedId(predicate);
                 return state.timeSlotRows
-                  .filter((r) => r.classroomId === classroomId && r.deletedAt === null)
+                  .filter(
+                    (r) =>
+                      r.classroomId === classroomId && r.deletedAt === null,
+                  )
                   .map((r) => ({
                     id: r.id,
                     startTime: r.startTime,
@@ -280,13 +320,13 @@ vi.mock('../db', () => {
 
   const db = {
     ...dbCore,
-    transaction: async <T>(callback: (tx: typeof dbCore) => Promise<T>): Promise<T> => callback(dbCore),
+    transaction: async <T>(
+      callback: (tx: typeof dbCore) => Promise<T>,
+    ): Promise<T> => callback(dbCore),
   };
 
   return { getDb: () => db };
 });
-
-import { app } from '../worker';
 
 const env = {
   AUTH0_AUDIENCE: 'https://api.example.local',
@@ -322,7 +362,9 @@ describe('presets api', () => {
         deletedAt: new Date(),
       },
     ];
-    state.lessonTypeRows = [{ id: 'lt-1', name: '通常', classroomId: 'room-1', deletedAt: null }];
+    state.lessonTypeRows = [
+      { id: 'lt-1', name: '通常', classroomId: 'room-1', deletedAt: null },
+    ];
     state.timeSlotRows = [
       {
         id: 'ts-1',
@@ -343,7 +385,11 @@ describe('presets api', () => {
 
   describe('GET lists', () => {
     it('lists active subjects for classroom', async () => {
-      const res = await app.request('/api/classrooms/room-1/subjects', { method: 'GET' }, env);
+      const res = await app.request(
+        '/api/classrooms/room-1/subjects',
+        { method: 'GET' },
+        env,
+      );
       expect(res.status).toBe(200);
       const rows = (await res.json()) as Array<{ id: string; name: string }>;
       expect(rows.map((r) => r.id)).toContain('sub-1');
@@ -353,14 +399,22 @@ describe('presets api', () => {
     it('returns 403 when manager requests another classroom subjects', async () => {
       state.userRole = 'manager';
       state.jwtSub = 'auth0|manager-user';
-      const res = await app.request('/api/classrooms/room-2/subjects', { method: 'GET' }, env);
+      const res = await app.request(
+        '/api/classrooms/room-2/subjects',
+        { method: 'GET' },
+        env,
+      );
       expect(res.status).toBe(403);
     });
 
     it('allows staff for their classroom', async () => {
       state.userRole = 'staff';
       state.jwtSub = 'auth0|staff-user';
-      const res = await app.request('/api/classrooms/room-1/subjects', { method: 'GET' }, env);
+      const res = await app.request(
+        '/api/classrooms/room-1/subjects',
+        { method: 'GET' },
+        env,
+      );
       expect(res.status).toBe(200);
     });
   });
@@ -423,15 +477,23 @@ describe('presets api', () => {
         env,
       );
       expect(res.status).toBe(200);
-      expect(state.subjectRows.find((r) => r.id === 'sub-1')?.name).toBe('英語A');
+      expect(state.subjectRows.find((r) => r.id === 'sub-1')?.name).toBe(
+        '英語A',
+      );
     });
   });
 
   describe('DELETE /subjects/:id', () => {
     it('soft-deletes subject', async () => {
-      const res = await app.request('/api/subjects/sub-1', { method: 'DELETE' }, env);
+      const res = await app.request(
+        '/api/subjects/sub-1',
+        { method: 'DELETE' },
+        env,
+      );
       expect(res.status).toBe(200);
-      expect(state.subjectRows.find((r) => r.id === 'sub-1')?.deletedAt).toBeInstanceOf(Date);
+      expect(
+        state.subjectRows.find((r) => r.id === 'sub-1')?.deletedAt,
+      ).toBeInstanceOf(Date);
     });
   });
 
@@ -447,7 +509,11 @@ describe('presets api', () => {
         env,
       );
       expect(post.status).toBe(201);
-      const get = await app.request('/api/classrooms/room-1/lesson-types', { method: 'GET' }, env);
+      const get = await app.request(
+        '/api/classrooms/room-1/lesson-types',
+        { method: 'GET' },
+        env,
+      );
       expect(get.status).toBe(200);
       const rows = (await get.json()) as Array<{ name: string }>;
       expect(rows.some((r) => r.name === '振替')).toBe(true);
@@ -504,7 +570,9 @@ describe('presets api', () => {
         env,
       );
       expect(res.status).toBe(201);
-      expect(state.timeSlotRows.some((r) => r.startTime === '09:00')).toBe(true);
+      expect(state.timeSlotRows.some((r) => r.startTime === '09:00')).toBe(
+        true,
+      );
     });
 
     it('POST accepts HH:mm:ss and stores HH:mm', async () => {
@@ -523,7 +591,9 @@ describe('presets api', () => {
       );
       expect(res.status).toBe(201);
       expect(
-        state.timeSlotRows.some((r) => r.startTime === '09:00' && r.endTime === '10:30'),
+        state.timeSlotRows.some(
+          (r) => r.startTime === '09:00' && r.endTime === '10:30',
+        ),
       ).toBe(true);
     });
 
@@ -538,7 +608,9 @@ describe('presets api', () => {
         env,
       );
       expect(res.status).toBe(200);
-      expect(state.timeSlotRows.find((r) => r.id === 'ts-1')?.endTime).toBe('19:00');
+      expect(state.timeSlotRows.find((r) => r.id === 'ts-1')?.endTime).toBe(
+        '19:00',
+      );
     });
   });
 });

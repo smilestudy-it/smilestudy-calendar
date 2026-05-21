@@ -19,7 +19,9 @@ export function combineLocalDateAndHm(date: Date, hm: string): Date {
   const trimmed = hm.trim();
   const match = HM_STRICT.exec(trimmed);
   if (!match) {
-    throw new Error(`Invalid time "${hm}": expected H:mm or HH:mm with minutes 00–59`);
+    throw new Error(
+      `Invalid time "${hm}": expected H:mm or HH:mm with minutes 00–59`,
+    );
   }
   const hour = Number(match[1]);
   const minute = Number(match[2]);
@@ -29,5 +31,10 @@ export function combineLocalDateAndHm(date: Date, hm: string): Date {
   if (!Number.isInteger(minute) || minute < 0 || minute > 59) {
     throw new Error(`Invalid time "${hm}": minute must be 0–59`);
   }
-  return dayjs(date).hour(hour).minute(minute).second(0).millisecond(0).toDate();
+  return dayjs(date)
+    .hour(hour)
+    .minute(minute)
+    .second(0)
+    .millisecond(0)
+    .toDate();
 }

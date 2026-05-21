@@ -2,6 +2,7 @@
  * （責務）lessonDisplay の日時ヘルパーのユニットテスト。
  */
 import { describe, expect, it } from 'vitest';
+
 import { utcDateFromLocalDateKeyAndHm } from '../lessonDisplay';
 
 describe('utcDateFromLocalDateKeyAndHm', () => {

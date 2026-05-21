@@ -2,14 +2,21 @@
  * （責務）週スロットグリッドでのコマ一括編集。POST /api/lessons/bulk を使用。
  */
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import dayjs from 'dayjs';
-import customParseFormat from 'dayjs/plugin/customParseFormat';
-import 'dayjs/locale/ja';
 import { Link, useSearchParams } from 'react-router-dom';
+
+import dayjs from 'dayjs';
+import 'dayjs/locale/ja';
+import customParseFormat from 'dayjs/plugin/customParseFormat';
+
 import LessonBulkActionPanel from '@/components/LessonBulkActionPanel';
-import WeekLessonSlotGrid, { type TimeSlotRow, type WeekGridLesson } from '@/components/WeekLessonSlotGrid';
-import LessonDeletePanel, { type LessonDetailTarget } from '@/components/ui/lesson-delete-panel';
+import WeekLessonSlotGrid, {
+  type TimeSlotRow,
+  type WeekGridLesson,
+} from '@/components/WeekLessonSlotGrid';
 import { Button } from '@/components/ui/button';
+import LessonDeletePanel, {
+  type LessonDetailTarget,
+} from '@/components/ui/lesson-delete-panel';
 import { useAuthedFetch } from '@/hooks/useAuthedFetch';
 import { useSelectedClassroom } from '@/hooks/useSelectedClassroom';
 import { startOfWeekSunday } from '@/lib/calendarTime';
@@ -44,11 +51,17 @@ function hmToMinutes(hm: string): number {
   return h * 60 + m;
 }
 
-export default function CalendarBulkEditPage({ currentUser, getAccessTokenSilently }: Props) {
+export default function CalendarBulkEditPage({
+  currentUser,
+  getAccessTokenSilently,
+}: Props) {
   const { activeClassroom } = useSelectedClassroom();
   const [searchParams, setSearchParams] = useSearchParams();
   const weekParam = searchParams.get('week');
-  const initialWeek = weekParam && dayjs(weekParam, 'YYYY-MM-DD', true).isValid() ? dayjs(weekParam).toDate() : new Date();
+  const initialWeek =
+    weekParam && dayjs(weekParam, 'YYYY-MM-DD', true).isValid()
+      ? dayjs(weekParam).toDate()
+      : new Date();
   const [weekAnchor, setWeekAnchor] = useState(initialWeek);
   const [lessons, setLessons] = useState<WeekGridLesson[]>([]);
   const [timeSlots, setTimeSlots] = useState<TimeSlotRow[]>([]);
@@ -59,8 +72,12 @@ export default function CalendarBulkEditPage({ currentUser, getAccessTokenSilent
   const [listError, setListError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [reloadTick, setReloadTick] = useState(0);
-  const [selectedKeys, setSelectedKeys] = useState<Set<string>>(() => new Set());
-  const [detailEvent, setDetailEvent] = useState<LessonDetailTarget | null>(null);
+  const [selectedKeys, setSelectedKeys] = useState<Set<string>>(
+    () => new Set(),
+  );
+  const [detailEvent, setDetailEvent] = useState<LessonDetailTarget | null>(
+    null,
+  );
   const [isDeletingLesson, setIsDeletingLesson] = useState(false);
   const [deleteError, setDeleteError] = useState<string | null>(null);
   const [isSavingPresets, setIsSavingPresets] = useState(false);
@@ -71,8 +88,14 @@ export default function CalendarBulkEditPage({ currentUser, getAccessTokenSilent
   const authedFetch = useAuthedFetch(getAccessTokenSilently);
 
   const weekStart = useMemo(() => startOfWeekSunday(weekAnchor), [weekAnchor]);
-  const weekFromIso = useMemo(() => weekStart.toDate().toISOString(), [weekStart]);
-  const weekToIso = useMemo(() => weekStart.add(7, 'day').toDate().toISOString(), [weekStart]);
+  const weekFromIso = useMemo(
+    () => weekStart.toDate().toISOString(),
+    [weekStart],
+  );
+  const weekToIso = useMemo(
+    () => weekStart.add(7, 'day').toDate().toISOString(),
+    [weekStart],
+  );
 
   const weekDays = useMemo(() => {
     const out: Date[] = [];
@@ -83,7 +106,10 @@ export default function CalendarBulkEditPage({ currentUser, getAccessTokenSilent
   }, [weekStart]);
 
   const sortedSlots = useMemo(
-    () => [...timeSlots].sort((a, b) => hmToMinutes(a.startTime) - hmToMinutes(b.startTime)),
+    () =>
+      [...timeSlots].sort(
+        (a, b) => hmToMinutes(a.startTime) - hmToMinutes(b.startTime),
+      ),
     [timeSlots],
   );
 
@@ -92,7 +118,9 @@ export default function CalendarBulkEditPage({ currentUser, getAccessTokenSilent
     if (!activeClassroom) {
       return map;
     }
-    const slotIdByHmRange = new Map(sortedSlots.map((slot) => [`${slot.startTime}-${slot.endTime}`, slot.id]));
+    const slotIdByHmRange = new Map(
+      sortedSlots.map((slot) => [`${slot.startTime}-${slot.endTime}`, slot.id]),
+    );
     const lessonIndex = new Map<string, WeekGridLesson>();
     for (const lesson of lessons) {
       if (lesson.classroomId !== activeClassroom.id) {
@@ -100,11 +128,16 @@ export default function CalendarBulkEditPage({ currentUser, getAccessTokenSilent
       }
       const startLocal = dayjs(new Date(lesson.startAt));
       const endLocal = dayjs(new Date(lesson.endAt));
-      const slotId = slotIdByHmRange.get(`${startLocal.format('HH:mm')}-${endLocal.format('HH:mm')}`);
+      const slotId = slotIdByHmRange.get(
+        `${startLocal.format('HH:mm')}-${endLocal.format('HH:mm')}`,
+      );
       if (!slotId) {
         continue;
       }
-      lessonIndex.set(weekSlotCellKey(startLocal.format('YYYY-MM-DD'), slotId), lesson);
+      lessonIndex.set(
+        weekSlotCellKey(startLocal.format('YYYY-MM-DD'), slotId),
+        lesson,
+      );
     }
     for (const day of weekDays) {
       const dk = dayjs(day).format('YYYY-MM-DD');
@@ -141,12 +174,24 @@ export default function CalendarBulkEditPage({ currentUser, getAccessTokenSilent
         const qs = new URLSearchParams({ from: weekFromIso, to: weekToIso });
         const userQs = new URLSearchParams({ includeAdmins: '1' });
         const [lRes, tsRes, uRes, sRes, subRes, ltRes] = await Promise.all([
-          authedFetch(`/api/classrooms/${encodeURIComponent(activeClassroom.id)}/lessons?${qs}`),
-          authedFetch(`/api/classrooms/${encodeURIComponent(activeClassroom.id)}/time-slots`),
-          authedFetch(`/api/users/${encodeURIComponent(activeClassroom.id)}?${userQs}`),
-          authedFetch(`/api/students/${encodeURIComponent(activeClassroom.id)}`),
-          authedFetch(`/api/classrooms/${encodeURIComponent(activeClassroom.id)}/subjects`),
-          authedFetch(`/api/classrooms/${encodeURIComponent(activeClassroom.id)}/lesson-types`),
+          authedFetch(
+            `/api/classrooms/${encodeURIComponent(activeClassroom.id)}/lessons?${qs}`,
+          ),
+          authedFetch(
+            `/api/classrooms/${encodeURIComponent(activeClassroom.id)}/time-slots`,
+          ),
+          authedFetch(
+            `/api/users/${encodeURIComponent(activeClassroom.id)}?${userQs}`,
+          ),
+          authedFetch(
+            `/api/students/${encodeURIComponent(activeClassroom.id)}`,
+          ),
+          authedFetch(
+            `/api/classrooms/${encodeURIComponent(activeClassroom.id)}/subjects`,
+          ),
+          authedFetch(
+            `/api/classrooms/${encodeURIComponent(activeClassroom.id)}/lesson-types`,
+          ),
         ]);
         if (disposed) {
           return;
@@ -159,14 +204,23 @@ export default function CalendarBulkEditPage({ currentUser, getAccessTokenSilent
           setListError('時間枠の取得に失敗しました。');
           return;
         }
-        const [lessonsJson, tsJson, uJson, sJson, subJson, ltJson] = await Promise.all([
-          lRes.json() as Promise<WeekGridLesson[]>,
-          tsRes.json() as Promise<TimeSlotRow[]>,
-          uRes.ok ? (uRes.json() as Promise<TeacherRow[]>) : Promise.resolve([]),
-          sRes.ok ? (sRes.json() as Promise<StudentRow[]>) : Promise.resolve([]),
-          subRes.ok ? (subRes.json() as Promise<PresetRow[]>) : Promise.resolve([]),
-          ltRes.ok ? (ltRes.json() as Promise<PresetRow[]>) : Promise.resolve([]),
-        ]);
+        const [lessonsJson, tsJson, uJson, sJson, subJson, ltJson] =
+          await Promise.all([
+            lRes.json() as Promise<WeekGridLesson[]>,
+            tsRes.json() as Promise<TimeSlotRow[]>,
+            uRes.ok
+              ? (uRes.json() as Promise<TeacherRow[]>)
+              : Promise.resolve([]),
+            sRes.ok
+              ? (sRes.json() as Promise<StudentRow[]>)
+              : Promise.resolve([]),
+            subRes.ok
+              ? (subRes.json() as Promise<PresetRow[]>)
+              : Promise.resolve([]),
+            ltRes.ok
+              ? (ltRes.json() as Promise<PresetRow[]>)
+              : Promise.resolve([]),
+          ]);
         if (disposed) {
           return;
         }
@@ -241,7 +295,8 @@ export default function CalendarBulkEditPage({ currentUser, getAccessTokenSilent
         lesson.teacherDisplay ||
         `${teacher?.lastName ?? ''} ${teacher?.firstName ?? ''}`.trim() ||
         lesson.teacherId;
-      const studentName = lesson.studentDisplay || student?.name || lesson.studentId;
+      const studentName =
+        lesson.studentDisplay || student?.name || lesson.studentId;
       setDetailEvent({
         id: lesson.id,
         title: `${teacherName} – ${studentName}`,
@@ -266,11 +321,20 @@ export default function CalendarBulkEditPage({ currentUser, getAccessTokenSilent
       const res = await authedFetch('/api/lessons/bulk', {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ classroomId: activeClassroom.id, deleteIds: [detailEvent.id] }),
+        body: JSON.stringify({
+          classroomId: activeClassroom.id,
+          deleteIds: [detailEvent.id],
+        }),
       });
       if (!res.ok) {
-        const body = (await res.json().catch(() => ({}))) as { message?: string };
-        setDeleteError(body.message ? `削除に失敗しました（${body.message}）` : '削除に失敗しました。');
+        const body = (await res.json().catch(() => ({}))) as {
+          message?: string;
+        };
+        setDeleteError(
+          body.message
+            ? `削除に失敗しました（${body.message}）`
+            : '削除に失敗しました。',
+        );
         return;
       }
       setDetailEvent(null);
@@ -289,17 +353,26 @@ export default function CalendarBulkEditPage({ currentUser, getAccessTokenSilent
     setPresetsError(null);
     setIsSavingPresets(true);
     try {
-      const res = await authedFetch(`/api/lessons/${encodeURIComponent(detailEvent.id)}`, {
-        method: 'PATCH',
-        headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({
-          subjectId: detailEvent.subjectId ?? null,
-          lessonTypeId: detailEvent.lessonTypeId ?? null,
-        }),
-      });
+      const res = await authedFetch(
+        `/api/lessons/${encodeURIComponent(detailEvent.id)}`,
+        {
+          method: 'PATCH',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({
+            subjectId: detailEvent.subjectId ?? null,
+            lessonTypeId: detailEvent.lessonTypeId ?? null,
+          }),
+        },
+      );
       if (!res.ok) {
-        const body = (await res.json().catch(() => ({}))) as { message?: string };
-        setPresetsError(body.message ? `保存に失敗しました（${body.message}）` : '保存に失敗しました。');
+        const body = (await res.json().catch(() => ({}))) as {
+          message?: string;
+        };
+        setPresetsError(
+          body.message
+            ? `保存に失敗しました（${body.message}）`
+            : '保存に失敗しました。',
+        );
         return;
       }
       setReloadTick((v) => v + 1);
@@ -328,10 +401,15 @@ export default function CalendarBulkEditPage({ currentUser, getAccessTokenSilent
         creates?: Array<{ ok: boolean; message?: string }>;
       };
       if (!res.ok) {
-        setBulkError(json.message ? `失敗（${json.message}）` : '一括処理に失敗しました。');
+        setBulkError(
+          json.message ? `失敗（${json.message}）` : '一括処理に失敗しました。',
+        );
         return;
       }
-      const fails = [...readBulkFailures(json.deletes ?? []), ...readBulkFailures(json.creates ?? [])];
+      const fails = [
+        ...readBulkFailures(json.deletes ?? []),
+        ...readBulkFailures(json.creates ?? []),
+      ];
       if (fails.length > 0) {
         setBulkError(`一部失敗: ${fails.slice(0, 3).join(' / ')}`);
       }
@@ -383,7 +461,11 @@ export default function CalendarBulkEditPage({ currentUser, getAccessTokenSilent
       setBulkError('有効な枠がありません。');
       return;
     }
-    await runBulk({ classroomId: activeClassroom.id, creates, createsTimezoneOffsetMinutes: tzOff });
+    await runBulk({
+      classroomId: activeClassroom.id,
+      creates,
+      createsTimezoneOffsetMinutes: tzOff,
+    });
   };
 
   const handleBulkDelete = async () => {
@@ -415,7 +497,9 @@ export default function CalendarBulkEditPage({ currentUser, getAccessTokenSilent
   };
 
   if (!currentUser) {
-    return <p className="text-sm text-slate-700">この画面にアクセスできません。</p>;
+    return (
+      <p className="text-sm text-slate-700">この画面にアクセスできません。</p>
+    );
   }
 
   return (
@@ -423,7 +507,9 @@ export default function CalendarBulkEditPage({ currentUser, getAccessTokenSilent
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h2 className="text-lg font-semibold md:text-xl">週コマ編集</h2>
-          <p className="text-sm text-slate-500">教室: {activeClassroom?.name || '未選択'}</p>
+          <p className="text-sm text-slate-500">
+            教室: {activeClassroom?.name || '未選択'}
+          </p>
         </div>
         <div className="flex flex-wrap gap-2">
           <Button type="button" variant="outline" size="sm" asChild>
@@ -432,7 +518,9 @@ export default function CalendarBulkEditPage({ currentUser, getAccessTokenSilent
         </div>
       </div>
 
-      {!activeClassroom && <p className="text-sm text-amber-700">教室を選択してください。</p>}
+      {!activeClassroom && (
+        <p className="text-sm text-amber-700">教室を選択してください。</p>
+      )}
       {listError && <p className="text-sm text-rose-600">{listError}</p>}
 
       {activeClassroom && (
@@ -442,13 +530,28 @@ export default function CalendarBulkEditPage({ currentUser, getAccessTokenSilent
               {weekStart.format('YYYY/M/D')} 週（日曜始まり）
             </p>
             <div className="flex gap-2">
-              <Button type="button" variant="outline" size="sm" onClick={() => shiftWeek(-1)}>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => shiftWeek(-1)}
+              >
                 前の週
               </Button>
-              <Button type="button" variant="outline" size="sm" onClick={() => shiftWeek(0)}>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => shiftWeek(0)}
+              >
                 今週
               </Button>
-              <Button type="button" variant="outline" size="sm" onClick={() => shiftWeek(1)}>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => shiftWeek(1)}
+              >
                 次の週
               </Button>
             </div>
@@ -457,7 +560,9 @@ export default function CalendarBulkEditPage({ currentUser, getAccessTokenSilent
           {isLoading ? (
             <p className="text-sm text-slate-500">読み込み中...</p>
           ) : timeSlots.length === 0 ? (
-            <p className="text-sm text-amber-700">時間枠が未設定です。プリセット設定で時間枠を追加してください。</p>
+            <p className="text-sm text-amber-700">
+              時間枠が未設定です。プリセット設定で時間枠を追加してください。
+            </p>
           ) : (
             <WeekLessonSlotGrid
               weekAnchor={weekAnchor}
@@ -512,7 +617,6 @@ export default function CalendarBulkEditPage({ currentUser, getAccessTokenSilent
           />
         </>
       )}
-
     </section>
   );
 }

@@ -2,7 +2,9 @@
  * （責務）週（日曜始まり）× 教室プリセット時間枠のグリッド。クリックでトグル、ドラッグで複数セルを選択追加。
  */
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+
 import dayjs from 'dayjs';
+
 import { combineLocalDateAndHm, startOfWeekSunday } from '@/lib/calendarTime';
 import { weekSlotCellKey } from '@/lib/weekSlotCell';
 
@@ -45,13 +47,21 @@ function hmToMinutes(hm: string): number {
   return h * 60 + m;
 }
 
-function lessonInCell(lesson: WeekGridLesson, day: Date, slot: TimeSlotRow, classroomId: string): boolean {
+function lessonInCell(
+  lesson: WeekGridLesson,
+  day: Date,
+  slot: TimeSlotRow,
+  classroomId: string,
+): boolean {
   if (lesson.classroomId !== classroomId) {
     return false;
   }
   const start = combineLocalDateAndHm(day, slot.startTime);
   const end = combineLocalDateAndHm(day, slot.endTime);
-  return new Date(lesson.startAt).getTime() === start.getTime() && new Date(lesson.endAt).getTime() === end.getTime();
+  return (
+    new Date(lesson.startAt).getTime() === start.getTime() &&
+    new Date(lesson.endAt).getTime() === end.getTime()
+  );
 }
 
 export default function WeekLessonSlotGrid({
@@ -74,7 +84,10 @@ export default function WeekLessonSlotGrid({
   }, [weekStart]);
 
   const sortedSlots = useMemo(
-    () => [...timeSlots].sort((a, b) => hmToMinutes(a.startTime) - hmToMinutes(b.startTime)),
+    () =>
+      [...timeSlots].sort(
+        (a, b) => hmToMinutes(a.startTime) - hmToMinutes(b.startTime),
+      ),
     [timeSlots],
   );
 
@@ -84,7 +97,9 @@ export default function WeekLessonSlotGrid({
       const dk = dateKeyLocal(day);
       for (const slot of sortedSlots) {
         const key = weekSlotCellKey(dk, slot.id);
-        const found = lessons.find((l) => lessonInCell(l, day, slot, classroomId));
+        const found = lessons.find((l) =>
+          lessonInCell(l, day, slot, classroomId),
+        );
         if (found) {
           map.set(key, found);
         }
@@ -153,16 +168,24 @@ export default function WeekLessonSlotGrid({
               時間枠
             </th>
             {days.map((d, idx) => (
-              <th key={dateKeyLocal(d)} className="min-w-[88px] border-r border-slate-100 px-1 py-2 text-center text-xs font-medium text-slate-700 last:border-r-0">
+              <th
+                key={dateKeyLocal(d)}
+                className="min-w-[88px] border-r border-slate-100 px-1 py-2 text-center text-xs font-medium text-slate-700 last:border-r-0"
+              >
                 <div>{WEEKDAY_LABELS[idx]}</div>
-                <div className="font-normal text-slate-500">{dayjs(d).format('M/D')}</div>
+                <div className="font-normal text-slate-500">
+                  {dayjs(d).format('M/D')}
+                </div>
               </th>
             ))}
           </tr>
         </thead>
         <tbody>
           {sortedSlots.map((slot) => (
-            <tr key={slot.id} className="border-b border-slate-100 last:border-b-0">
+            <tr
+              key={slot.id}
+              className="border-b border-slate-100 last:border-b-0"
+            >
               <td className="sticky left-0 z-10 border-r border-slate-200 bg-slate-50/90 px-2 py-1.5 text-xs text-slate-600">
                 {slot.startTime}–{slot.endTime}
               </td>
@@ -176,7 +199,9 @@ export default function WeekLessonSlotGrid({
                   <td
                     key={key}
                     className={`border-r border-slate-100 p-0 align-top last:border-r-0 ${
-                      selected ? 'bg-indigo-100 ring-1 ring-inset ring-indigo-300' : ''
+                      selected
+                        ? 'bg-indigo-100 ring-1 ring-indigo-300 ring-inset'
+                        : ''
                     } ${painted ? 'bg-indigo-50' : ''}`}
                   >
                     <div className="flex min-h-[52px] w-full flex-col">
@@ -191,8 +216,12 @@ export default function WeekLessonSlotGrid({
                       >
                         {lesson ? (
                           <>
-                            <span className="truncate font-medium text-slate-900">{lesson.teacherDisplay}</span>
-                            <span className="truncate text-slate-600">{lesson.studentDisplay}</span>
+                            <span className="truncate font-medium text-slate-900">
+                              {lesson.teacherDisplay}
+                            </span>
+                            <span className="truncate text-slate-600">
+                              {lesson.studentDisplay}
+                            </span>
                           </>
                         ) : (
                           <span className="text-slate-400">空き</span>

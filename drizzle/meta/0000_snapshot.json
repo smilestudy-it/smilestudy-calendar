@@ -32,9 +32,7 @@
       "indexes": {
         "classrooms_name_active_unique": {
           "name": "classrooms_name_active_unique",
-          "columns": [
-            "name"
-          ],
+          "columns": ["name"],
           "isUnique": true,
           "where": "\"classrooms\".\"deleted_at\" is null"
         }
@@ -82,12 +80,8 @@
           "name": "lesson_types_classroom_id_classrooms_id_fk",
           "tableFrom": "lesson_types",
           "tableTo": "classrooms",
-          "columnsFrom": [
-            "classroom_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["classroom_id"],
+          "columnsTo": ["id"],
           "onDelete": "no action",
           "onUpdate": "no action"
         }
@@ -177,12 +171,8 @@
           "name": "lessons_teacher_id_users_id_fk",
           "tableFrom": "lessons",
           "tableTo": "users",
-          "columnsFrom": [
-            "teacher_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["teacher_id"],
+          "columnsTo": ["id"],
           "onDelete": "no action",
           "onUpdate": "no action"
         },
@@ -190,12 +180,8 @@
           "name": "lessons_student_id_students_id_fk",
           "tableFrom": "lessons",
           "tableTo": "students",
-          "columnsFrom": [
-            "student_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["student_id"],
+          "columnsTo": ["id"],
           "onDelete": "no action",
           "onUpdate": "no action"
         },
@@ -203,12 +189,8 @@
           "name": "lessons_classroom_id_classrooms_id_fk",
           "tableFrom": "lessons",
           "tableTo": "classrooms",
-          "columnsFrom": [
-            "classroom_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["classroom_id"],
+          "columnsTo": ["id"],
           "onDelete": "no action",
           "onUpdate": "no action"
         },
@@ -216,12 +198,8 @@
           "name": "lessons_subject_id_subjects_id_fk",
           "tableFrom": "lessons",
           "tableTo": "subjects",
-          "columnsFrom": [
-            "subject_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["subject_id"],
+          "columnsTo": ["id"],
           "onDelete": "no action",
           "onUpdate": "no action"
         },
@@ -229,12 +207,8 @@
           "name": "lessons_lesson_type_id_lesson_types_id_fk",
           "tableFrom": "lessons",
           "tableTo": "lesson_types",
-          "columnsFrom": [
-            "lesson_type_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["lesson_type_id"],
+          "columnsTo": ["id"],
           "onDelete": "no action",
           "onUpdate": "no action"
         }
@@ -295,12 +269,8 @@
           "name": "students_classroom_id_classrooms_id_fk",
           "tableFrom": "students",
           "tableTo": "classrooms",
-          "columnsFrom": [
-            "classroom_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["classroom_id"],
+          "columnsTo": ["id"],
           "onDelete": "no action",
           "onUpdate": "no action"
         }
@@ -347,12 +317,8 @@
           "name": "subjects_classroom_id_classrooms_id_fk",
           "tableFrom": "subjects",
           "tableTo": "classrooms",
-          "columnsFrom": [
-            "classroom_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["classroom_id"],
+          "columnsTo": ["id"],
           "onDelete": "no action",
           "onUpdate": "no action"
         }
@@ -406,12 +372,8 @@
           "name": "time_slots_classroom_id_classrooms_id_fk",
           "tableFrom": "time_slots",
           "tableTo": "classrooms",
-          "columnsFrom": [
-            "classroom_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["classroom_id"],
+          "columnsTo": ["id"],
           "onDelete": "no action",
           "onUpdate": "no action"
         }
@@ -487,9 +449,7 @@
       "indexes": {
         "users_email_active_unique": {
           "name": "users_email_active_unique",
-          "columns": [
-            "email"
-          ],
+          "columns": ["email"],
           "isUnique": true,
           "where": "\"users\".\"deleted_at\" is null"
         }
@@ -499,12 +459,8 @@
           "name": "users_classroom_id_classrooms_id_fk",
           "tableFrom": "users",
           "tableTo": "classrooms",
-          "columnsFrom": [
-            "classroom_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["classroom_id"],
+          "columnsTo": ["id"],
           "onDelete": "no action",
           "onUpdate": "no action"
         }

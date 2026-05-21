@@ -1,8 +1,8 @@
 /**
  * （責務）ロールの日本語表示ラベルと、ナビ表示可否向けの軽い判定ヘルパ。
  */
-import type { AppRole } from '@/types/role';
 import type { CurrentUser } from '@/types/currentUser';
+import type { AppRole } from '@/types/role';
 
 /**
  * 画面表示用: 管理画面で API が返す role 値（英語）に対応する日本語ラベル
@@ -21,7 +21,9 @@ const PRESET_SETTINGS_ROLES: readonly AppRole[] = ['admin', 'manager'];
  * カレンダー画面（週表示）へ遷移できるか。講師・教室長・管理者。
  * シェル表示用の `role` 文字列（`'-'` 等）も想定。
  */
-export function canAccessCalendar(role: CurrentUser['role'] | string | undefined): boolean {
+export function canAccessCalendar(
+  role: CurrentUser['role'] | string | undefined,
+): boolean {
   if (role == null || role === '') {
     return false;
   }
@@ -31,7 +33,9 @@ export function canAccessCalendar(role: CurrentUser['role'] | string | undefined
 /**
  * 授業プリセット設定画面へ遷移できるか。教室長以上。
  */
-export function canAccessPresetsSettings(role: CurrentUser['role'] | string | undefined): boolean {
+export function canAccessPresetsSettings(
+  role: CurrentUser['role'] | string | undefined,
+): boolean {
   if (role == null || role === '') {
     return false;
   }

@@ -2,6 +2,7 @@
  * （責務）共有用 API 等で、論理削除前の生徒＋有効教室の行をまとめて取得。
  */
 import { and, eq, isNull } from 'drizzle-orm';
+
 import type { getDb } from '../db';
 import { classrooms, students } from '../db/schema';
 
@@ -18,7 +19,11 @@ export async function getActiveStudentAndClassroom(
   classroom: { id: string } | null;
 } | null> {
   const [studentRow] = await db
-    .select({ id: students.id, classroomId: students.classroomId, name: students.name })
+    .select({
+      id: students.id,
+      classroomId: students.classroomId,
+      name: students.name,
+    })
     .from(students)
     .where(and(eq(students.id, studentId), isNull(students.deletedAt)))
     .limit(1);
@@ -28,7 +33,12 @@ export async function getActiveStudentAndClassroom(
   const [classroomRow] = await db
     .select({ id: classrooms.id })
     .from(classrooms)
-    .where(and(eq(classrooms.id, studentRow.classroomId), isNull(classrooms.deletedAt)))
+    .where(
+      and(
+        eq(classrooms.id, studentRow.classroomId),
+        isNull(classrooms.deletedAt),
+      ),
+    )
     .limit(1);
   return { student: studentRow, classroom: classroomRow ?? null };
 }

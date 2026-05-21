@@ -2,6 +2,7 @@
  * （責務）`/api/me` を呼び、ログイン中ユーザの CurrentUser を state で保持。
  */
 import { useEffect, useState } from 'react';
+
 import type { CurrentUser } from '../types/currentUser';
 
 type UseCurrentUserParams = {
@@ -9,7 +10,10 @@ type UseCurrentUserParams = {
   getAccessTokenSilently: () => Promise<string>;
 };
 
-export function useCurrentUser({ isAuthenticated, getAccessTokenSilently }: UseCurrentUserParams) {
+export function useCurrentUser({
+  isAuthenticated,
+  getAccessTokenSilently,
+}: UseCurrentUserParams) {
   const [currentUser, setCurrentUser] = useState<CurrentUser | null>(null);
   const [isLoadingCurrentUser, setIsLoadingCurrentUser] = useState(false);
   const [currentUserError, setCurrentUserError] = useState<string | null>(null);

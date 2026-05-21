@@ -1,13 +1,13 @@
 /**
  * （責務）Vite ビルド設定。React（SWC）・Tailwind エイリアス等。
  */
-import path from 'node:path'
-import { fileURLToPath } from 'node:url'
-import { defineConfig } from 'vitest/config'
-import react from '@vitejs/plugin-react-swc'
-import tailwindcss from '@tailwindcss/vite'
+import tailwindcss from '@tailwindcss/vite';
+import react from '@vitejs/plugin-react-swc';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
+import { defineConfig } from 'vitest/config';
 
-const __dirname = path.dirname(fileURLToPath(import.meta.url))
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 // https://vite.dev/config/
 export default defineConfig({
@@ -26,12 +26,24 @@ export default defineConfig({
       output: {
         manualChunks: {
           vendor: ['react', 'react-dom', 'react-router-dom'],
-          ui: ['@radix-ui/react-dialog', '@radix-ui/react-label', '@radix-ui/react-popover', '@radix-ui/react-select', '@radix-ui/react-slot'],
-          utils: ['dayjs', 'date-fns', 'dayjs/locale/ja', 'react-day-picker', 'lucide-react'],
+          ui: [
+            '@radix-ui/react-dialog',
+            '@radix-ui/react-label',
+            '@radix-ui/react-popover',
+            '@radix-ui/react-select',
+            '@radix-ui/react-slot',
+          ],
+          utils: [
+            'dayjs',
+            'date-fns',
+            'dayjs/locale/ja',
+            'react-day-picker',
+            'lucide-react',
+          ],
           auth: ['@auth0/auth0-react'],
           form: ['react-hook-form', '@hookform/resolvers', 'zod'],
         },
       },
     },
-  }
-})
+  },
+});

@@ -2,6 +2,7 @@
  * （責務）教室ごとの時間枠の追加・開始終了編集・無効化 UI。
  */
 import type { TimeSlotListItem } from '@/types/api';
+
 import PresetSection from './PresetSection';
 
 type SlotDraft = { start: string; end: string };
@@ -14,7 +15,9 @@ type Props = {
   onNewSlotEndChange: (v: string) => void;
   onAdd: (e: React.FormEvent) => void;
   draftSlots: Record<string, SlotDraft>;
-  setDraftSlots: React.Dispatch<React.SetStateAction<Record<string, SlotDraft>>>;
+  setDraftSlots: React.Dispatch<
+    React.SetStateAction<Record<string, SlotDraft>>
+  >;
   onPatch: (id: string) => void;
   onDisable: (id: string) => void;
 };
@@ -38,7 +41,10 @@ export default function TimeSlotsBlock({
     <PresetSection title="時間枠">
       <form onSubmit={onAdd} className="flex flex-wrap items-end gap-2">
         <div>
-          <label htmlFor="new-slot-start" className="mb-1 block text-xs text-slate-500">
+          <label
+            htmlFor="new-slot-start"
+            className="mb-1 block text-xs text-slate-500"
+          >
             開始
           </label>
           <input
@@ -50,7 +56,10 @@ export default function TimeSlotsBlock({
           />
         </div>
         <div>
-          <label htmlFor="new-slot-end" className="mb-1 block text-xs text-slate-500">
+          <label
+            htmlFor="new-slot-end"
+            className="mb-1 block text-xs text-slate-500"
+          >
             終了
           </label>
           <input
@@ -70,7 +79,10 @@ export default function TimeSlotsBlock({
       </form>
       <ul className="mt-4 space-y-2">
         {timeSlots.map((row) => {
-          const d = draftSlots[row.id] ?? { start: row.startTime, end: row.endTime };
+          const d = draftSlots[row.id] ?? {
+            start: row.startTime,
+            end: row.endTime,
+          };
           return (
             <li
               key={row.id}
@@ -78,7 +90,9 @@ export default function TimeSlotsBlock({
             >
               <div className="flex flex-wrap gap-2">
                 <div>
-                  <span className="mb-1 block text-xs text-slate-500">開始</span>
+                  <span className="mb-1 block text-xs text-slate-500">
+                    開始
+                  </span>
                   <input
                     type="time"
                     aria-label={`時間枠開始 ${row.id}`}
@@ -93,7 +107,9 @@ export default function TimeSlotsBlock({
                   />
                 </div>
                 <div>
-                  <span className="mb-1 block text-xs text-slate-500">終了</span>
+                  <span className="mb-1 block text-xs text-slate-500">
+                    終了
+                  </span>
                   <input
                     type="time"
                     aria-label={`時間枠終了 ${row.id}`}
@@ -127,7 +143,9 @@ export default function TimeSlotsBlock({
             </li>
           );
         })}
-        {timeSlots.length === 0 && <li className="text-sm text-slate-500">時間枠がまだありません。</li>}
+        {timeSlots.length === 0 && (
+          <li className="text-sm text-slate-500">時間枠がまだありません。</li>
+        )}
       </ul>
     </PresetSection>
   );

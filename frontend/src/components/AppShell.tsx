@@ -2,17 +2,21 @@
  * （責務）管理画面の共通シェル。ナビ・教室切替・ユーザ情報枠と子 route の描画。
  */
 import {
+  type Dispatch,
+  type ReactNode,
+  type SetStateAction,
+  createContext,
   useCallback,
   useEffect,
   useMemo,
   useRef,
   useState,
-  createContext,
-  type Dispatch,
-  type ReactNode,
-  type SetStateAction,
 } from 'react';
 import { NavLink } from 'react-router-dom';
+
+import { useAuthedFetch } from '@/hooks/useAuthedFetch';
+import type { CurrentUser } from '@/types/currentUser';
+
 import LogoutButton from './ui/LogoutButton';
 import { Label } from './ui/label';
 import {
@@ -22,8 +26,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from './ui/select';
-import { useAuthedFetch } from '@/hooks/useAuthedFetch';
-import type { CurrentUser } from '@/types/currentUser';
 
 type Classroom = { id: string; name: string };
 
@@ -38,7 +40,8 @@ type SelectedClassroomContextState = {
   refreshClassrooms: () => Promise<void>;
 };
 
-const SelectedClassroomContext = createContext<SelectedClassroomContextState | null>(null);
+const SelectedClassroomContext =
+  createContext<SelectedClassroomContextState | null>(null);
 
 export { SelectedClassroomContext };
 
@@ -72,11 +75,13 @@ export default function AppShell({
   const isAdmin = currentUser?.role === 'admin';
   const loadAdminClassroomsSeqRef = useRef(0);
 
-  const activeClassroom : Classroom | undefined = useMemo(() => {
+  const activeClassroom: Classroom | undefined = useMemo(() => {
     if (isAdmin) {
-      return classrooms.find((v : Classroom) => v.id === selectedClassroomId);
-    }else{
-      return classrooms.find((v : Classroom) => v.id === currentUser?.classroomId);
+      return classrooms.find((v: Classroom) => v.id === selectedClassroomId);
+    } else {
+      return classrooms.find(
+        (v: Classroom) => v.id === currentUser?.classroomId,
+      );
     }
   }, [isAdmin, selectedClassroomId, currentUser?.classroomId, classrooms]);
 
@@ -108,7 +113,7 @@ export default function AppShell({
         }
         setClassrooms(data);
         if (mode === 'initial') {
-          setSelectedClassroomId((prev) => (prev ? prev : data[0]?.id ?? ''));
+          setSelectedClassroomId((prev) => (prev ? prev : (data[0]?.id ?? '')));
         } else {
           setSelectedClassroomId((prev) => {
             if (prev && data.some((c) => c.id === prev)) {
@@ -159,8 +164,16 @@ export default function AppShell({
       { label: 'ホーム', to: '/' },
       { label: 'カレンダー', to: '/calendar' },
       { label: '生徒管理', to: '/students' },
-      { label: '講師管理', to: '/teachers', allowedRoles: ['admin', 'manager'] },
-      { label: 'プリセット', to: '/settings/presets', allowedRoles: ['admin', 'manager'] },
+      {
+        label: '講師管理',
+        to: '/teachers',
+        allowedRoles: ['admin', 'manager'],
+      },
+      {
+        label: 'プリセット',
+        to: '/settings/presets',
+        allowedRoles: ['admin', 'manager'],
+      },
       { label: '教室管理', to: '/classroom', allowedRoles: ['admin'] },
     ];
 
@@ -174,7 +187,9 @@ export default function AppShell({
 
   const navLinkClass = ({ isActive }: { isActive: boolean }) =>
     `block rounded-xl px-4 py-3 text-sm font-medium transition-colors ${
-      isActive ? 'bg-slate-200 text-slate-900' : 'text-slate-700 hover:bg-slate-200 hover:text-slate-900'
+      isActive
+        ? 'bg-slate-200 text-slate-900'
+        : 'text-slate-700 hover:bg-slate-200 hover:text-slate-900'
     }`;
 
   return (
@@ -193,7 +208,7 @@ export default function AppShell({
         {/* Drawer Menu */}
         <div
           className={`fixed inset-0 z-50 transition-opacity duration-300 ${
-            isMenuOpen ? 'opacity-100' : 'opacity-0 pointer-events-none'
+            isMenuOpen ? 'opacity-100' : 'pointer-events-none opacity-0'
           }`}
         >
           {/* Backdrop */}
@@ -204,13 +219,13 @@ export default function AppShell({
 
           {/* Drawer */}
           <div
-            className={`absolute left-0 top-0 h-full w-80 bg-slate-100 border-r border-slate-200 transform transition-transform duration-300 ${
+            className={`absolute top-0 left-0 h-full w-80 transform border-r border-slate-200 bg-slate-100 transition-transform duration-300 ${
               isMenuOpen ? 'translate-x-0' : '-translate-x-full'
             }`}
           >
             <div className="flex h-full min-h-0 flex-col overflow-y-auto overscroll-contain">
               {/* Header */}
-              <div className="flex items-center justify-between p-6 border-b border-slate-200">
+              <div className="flex items-center justify-between border-b border-slate-200 p-6">
                 <h2 className="text-lg font-semibold">メニュー</h2>
                 <button
                   type="button"
@@ -218,24 +233,34 @@ export default function AppShell({
                   onClick={() => setIsMenuOpen(false)}
                   aria-label="メニューを閉じる"
                 >
-                  <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                  <svg
+                    className="h-5 w-5"
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M6 18L18 6M6 6l12 12"
+                    />
                   </svg>
                 </button>
               </div>
 
               {/* User Info */}
-              <div className="p-6 border-b border-slate-200 space-y-2">
+              <div className="space-y-2 border-b border-slate-200 p-6">
                 <div className="text-sm text-slate-500">
                   {userName && <div>{userName}</div>}
                   {userEmail && <div>{userEmail}</div>}
                 </div>
                 <div className="flex items-center gap-2">
-                  <span className="rounded-full border border-slate-200 bg-slate-100 px-2 py-1 text-xs uppercase tracking-[0.2em] text-slate-700">
+                  <span className="rounded-full border border-slate-200 bg-slate-100 px-2 py-1 text-xs tracking-[0.2em] text-slate-700 uppercase">
                     {role}
                   </span>
                   {activeClassroom && (
-                    <span className="rounded-full border border-slate-200 bg-slate-100 px-2 py-1 text-xs uppercase tracking-[0.2em] text-slate-700">
+                    <span className="rounded-full border border-slate-200 bg-slate-100 px-2 py-1 text-xs tracking-[0.2em] text-slate-700 uppercase">
                       教室: {activeClassroom.name}
                     </span>
                   )}
@@ -244,8 +269,11 @@ export default function AppShell({
 
               {/* Admin Classroom Selection */}
               {isAdmin && (
-                <div className="p-6 border-b border-slate-200">
-                  <Label htmlFor="drawer-classroom" className="text-slate-700 mb-2 block">
+                <div className="border-b border-slate-200 p-6">
+                  <Label
+                    htmlFor="drawer-classroom"
+                    className="mb-2 block text-slate-700"
+                  >
                     教室切替
                   </Label>
                   <Select
@@ -254,7 +282,11 @@ export default function AppShell({
                     disabled={isLoadingClassrooms}
                   >
                     <SelectTrigger>
-                      <SelectValue placeholder={isLoadingClassrooms ? '読み込み中...' : '教室を選択'} />
+                      <SelectValue
+                        placeholder={
+                          isLoadingClassrooms ? '読み込み中...' : '教室を選択'
+                        }
+                      />
                     </SelectTrigger>
                     <SelectContent>
                       {classrooms.map((classroom) => (
@@ -265,7 +297,9 @@ export default function AppShell({
                     </SelectContent>
                   </Select>
                   {classroomsError && (
-                    <p className="mt-2 text-sm text-rose-600">{classroomsError}</p>
+                    <p className="mt-2 text-sm text-rose-600">
+                      {classroomsError}
+                    </p>
                   )}
                 </div>
               )}
@@ -289,7 +323,7 @@ export default function AppShell({
               </nav>
 
               {/* Logout */}
-              <div className="p-6 border-t border-slate-200">
+              <div className="border-t border-slate-200 p-6">
                 <LogoutButton />
               </div>
             </div>
@@ -304,7 +338,9 @@ export default function AppShell({
                 <button
                   type="button"
                   className="inline-flex h-10 w-10 flex-col justify-center gap-1.5 rounded-lg border border-slate-400 bg-slate-400 px-2"
-                  aria-label={isMenuOpen ? 'メニューを閉じる' : 'メニューを開く'}
+                  aria-label={
+                    isMenuOpen ? 'メニューを閉じる' : 'メニューを開く'
+                  }
                   aria-expanded={isMenuOpen}
                   onClick={() => setIsMenuOpen((prev) => !prev)}
                 >
@@ -313,11 +349,15 @@ export default function AppShell({
                   <span className="h-0.5 w-full rounded bg-slate-200" />
                 </button>
               </div>
-              <h1 className="text-xl font-semibold tracking-tight md:text-2xl">Smile Study Calendar(α版)</h1>
+              <h1 className="text-xl font-semibold tracking-tight md:text-2xl">
+                Smile Study Calendar(α版)
+              </h1>
             </div>
 
             {isLoadingCurrentUser ? (
-              <p className="text-sm text-slate-500">ユーザー情報を読み込み中...</p>
+              <p className="text-sm text-slate-500">
+                ユーザー情報を読み込み中...
+              </p>
             ) : currentUserError ? (
               <p className="text-sm text-rose-600">{currentUserError}</p>
             ) : (

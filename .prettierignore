@@ -1,0 +1,14 @@
+# パッケージとビルド出力
+node_modules/
+dist/
+build/
+
+# Cloudflare & Drizzleの自動生成ファイル
+.wrangler/
+.drizzle/
+migrations/
+
+# その他フォーマット不要なもの
+*.md
+.env
+package-lock.json

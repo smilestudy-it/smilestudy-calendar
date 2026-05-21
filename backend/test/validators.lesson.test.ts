@@ -2,6 +2,7 @@
  * （責務）授業/レッスン関連バリデーション（validators）のユニットテスト。
  */
 import { describe, expect, it } from 'vitest';
+
 import {
   validateBulkLessonsInput,
   validateCreateLessonInput,
@@ -12,16 +13,24 @@ import {
 describe('lesson validators', () => {
   it('validateLessonRangeQuery requires from and to', () => {
     expect(validateLessonRangeQuery({}).error).toBeDefined();
-    expect(validateLessonRangeQuery({ from: '2025-01-01', to: '' }).error).toBeDefined();
+    expect(
+      validateLessonRangeQuery({ from: '2025-01-01', to: '' }).error,
+    ).toBeDefined();
   });
 
   it('validateLessonRangeQuery rejects from >= to', () => {
-    const r = validateLessonRangeQuery({ from: '2025-02-01', to: '2025-01-01' });
+    const r = validateLessonRangeQuery({
+      from: '2025-02-01',
+      to: '2025-01-01',
+    });
     expect(r.error).toBeDefined();
   });
 
   it('validateLessonRangeQuery returns dates', () => {
-    const r = validateLessonRangeQuery({ from: '2025-01-01T00:00:00.000Z', to: '2025-02-01T00:00:00.000Z' });
+    const r = validateLessonRangeQuery({
+      from: '2025-01-01T00:00:00.000Z',
+      to: '2025-02-01T00:00:00.000Z',
+    });
     expect(r.error).toBeUndefined();
     expect(r.from?.getTime()).toBeLessThan(r.to!.getTime());
   });

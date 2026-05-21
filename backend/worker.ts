@@ -2,10 +2,27 @@
  * （責務）Hono API の集約: `/api` 下の全ルート登録と `onRequest` 提供。Pages Functions は [[route].ts] から export。
  * ルート定義のさらに細かいファイル分割は段階的にここへ集約可能。
  */
-import { Hono } from 'hono';
 import { and, eq, gt, inArray, isNull, lt, ne } from 'drizzle-orm';
+import { Hono } from 'hono';
+
 import { getDb } from './db';
-import { users, classrooms, students, subjects, lessonTypes, timeSlots, lessons } from './db/schema';
+import {
+  classrooms,
+  lessonTypes,
+  lessons,
+  students,
+  subjects,
+  timeSlots,
+  users,
+} from './db/schema';
+import {
+  hmToMinutes,
+  lessonStudentDisplay,
+  lessonTeacherDisplay,
+  utcDateFromLocalDateKeyAndHm,
+} from './lessonDisplay';
+import { isD1ForeignKeyViolation } from './lib/sqliteConstraint';
+import { getActiveStudentAndClassroom } from './lib/studentRead';
 import {
   validateBulkLessonsInput,
   validateCreateLessonTypeInput,
@@ -17,25 +34,23 @@ import {
   validatePatchSubjectInput,
   validatePatchTimeSlotInput,
 } from './lib/validators';
-import type { ApiBindings as Bindings, AppVariables } from './types/apiTypes';
-import {
-  isD1ForeignKeyViolation,
-} from './lib/sqliteConstraint';
-import { lessonTeacherDisplay, lessonStudentDisplay, hmToMinutes, utcDateFromLocalDateKeyAndHm } from './lessonDisplay';
-import { getActiveStudentAndClassroom } from './lib/studentRead';
 import {
   auth,
-  loadUser,
-  requireManagerOrAbove,
-  requireClassroomScope,
   denyUnlessClassroomScope,
   denyUnlessStaffLessonTeacherIsSelf,
+  loadUser,
+  requireClassroomScope,
+  requireManagerOrAbove,
 } from './middleware/honoStack';
-import usersApp from './routes/users';
 import classroomsApp from './routes/classrooms';
 import studentsApp from './routes/students';
+import usersApp from './routes/users';
+import type { AppVariables, ApiBindings as Bindings } from './types/apiTypes';
 
-export const app = new Hono<{ Bindings: Bindings; Variables: AppVariables }>().basePath('/api');
+export const app = new Hono<{
+  Bindings: Bindings;
+  Variables: AppVariables;
+}>().basePath('/api');
 const rootApp = new Hono<{ Bindings: Bindings; Variables: AppVariables }>();
 
 let holidayMapPromise: Promise<Record<string, string>> | null = null;
@@ -44,7 +59,9 @@ async function getHolidayMap(): Promise<Record<string, string>> {
   if (!holidayMapPromise) {
     holidayMapPromise = (async () => {
       try {
-        const res = await fetch('https://holidays-jp.github.io/api/v1/date.json');
+        const res = await fetch(
+          'https://holidays-jp.github.io/api/v1/date.json',
+        );
         if (!res.ok) {
           holidayMapPromise = null;
           return {};
@@ -119,11 +136,23 @@ app.get('/public/student-lessons', async (c) => {
           .where(and(inArray(users.id, teacherIds), isNull(users.deletedAt)))
       : [];
   const teacherById = new Map(activeTeachers.map((t) => [t.id, t]));
-  const visibleLessons = lessonRows.filter((row) => teacherById.has(row.teacherId));
+  const visibleLessons = lessonRows.filter((row) =>
+    teacherById.has(row.teacherId),
+  );
 
-  const subjectIds = [...new Set(visibleLessons.map((r) => r.subjectId).filter((x): x is string => x != null))];
+  const subjectIds = [
+    ...new Set(
+      visibleLessons
+        .map((r) => r.subjectId)
+        .filter((x): x is string => x != null),
+    ),
+  ];
   const lessonTypeIds = [
-    ...new Set(visibleLessons.map((r) => r.lessonTypeId).filter((x): x is string => x != null)),
+    ...new Set(
+      visibleLessons
+        .map((r) => r.lessonTypeId)
+        .filter((x): x is string => x != null),
+    ),
   ];
 
   const subjectById = new Map<string, string>();
@@ -167,8 +196,12 @@ app.get('/public/student-lessons', async (c) => {
     status: row.status,
     teacherDisplay: lessonTeacherDisplay(teacherById.get(row.teacherId)),
     teacherColor: teacherById.get(row.teacherId)?.color ?? null,
-    subjectName: row.subjectId ? (subjectById.get(row.subjectId) ?? null) : null,
-    lessonTypeName: row.lessonTypeId ? (lessonTypeById.get(row.lessonTypeId) ?? null) : null,
+    subjectName: row.subjectId
+      ? (subjectById.get(row.subjectId) ?? null)
+      : null,
+    lessonTypeName: row.lessonTypeId
+      ? (lessonTypeById.get(row.lessonTypeId) ?? null)
+      : null,
   }));
 
   return c.json({ studentName: studentRow.name, lessons: rows }, 200);
@@ -178,8 +211,16 @@ app.get('/public/student-lessons', async (c) => {
 app.get('/public/holidays', async (c) => {
   const year = Number(c.req.query('year') ?? '');
   const month = Number(c.req.query('month') ?? '');
-  if (!Number.isInteger(year) || !Number.isInteger(month) || month < 1 || month > 12) {
-    return c.json({ message: 'year and month query parameters are required' }, 400);
+  if (
+    !Number.isInteger(year) ||
+    !Number.isInteger(month) ||
+    month < 1 ||
+    month > 12
+  ) {
+    return c.json(
+      { message: 'year and month query parameters are required' },
+      400,
+    );
   }
 
   const monthPrefix = `${year}-${String(month).padStart(2, '0')}-`;
@@ -195,7 +236,6 @@ app.route('/classrooms', classroomsApp);
 app.route('/users', usersApp);
 app.route('/students', studentsApp);
 
-
 app.get(
   '/classrooms/:classroomId/subjects',
   auth,
@@ -210,7 +250,9 @@ app.get(
     const rows = await db
       .select({ id: subjects.id, name: subjects.name })
       .from(subjects)
-      .where(and(eq(subjects.classroomId, classroomId), isNull(subjects.deletedAt)));
+      .where(
+        and(eq(subjects.classroomId, classroomId), isNull(subjects.deletedAt)),
+      );
     return c.json(rows, 200);
   },
 );
@@ -229,7 +271,12 @@ app.get(
     const rows = await db
       .select({ id: lessonTypes.id, name: lessonTypes.name })
       .from(lessonTypes)
-      .where(and(eq(lessonTypes.classroomId, classroomId), isNull(lessonTypes.deletedAt)));
+      .where(
+        and(
+          eq(lessonTypes.classroomId, classroomId),
+          isNull(lessonTypes.deletedAt),
+        ),
+      );
     return c.json(rows, 200);
   },
 );
@@ -252,7 +299,12 @@ app.get(
         endTime: timeSlots.endTime,
       })
       .from(timeSlots)
-      .where(and(eq(timeSlots.classroomId, classroomId), isNull(timeSlots.deletedAt)));
+      .where(
+        and(
+          eq(timeSlots.classroomId, classroomId),
+          isNull(timeSlots.deletedAt),
+        ),
+      );
     return c.json(rows, 200);
   },
 );
@@ -270,27 +322,34 @@ app.post('/subjects', auth, loadUser, requireManagerOrAbove, async (c) => {
   const db = getDb(c.env);
   const newId = crypto.randomUUID();
 
-  type CreateSubjectTxResult = { ok: true } | { ok: false; reason: 'classroom_not_found' };
+  type CreateSubjectTxResult =
+    | { ok: true }
+    | { ok: false; reason: 'classroom_not_found' };
 
   // POST /lesson-types and POST /time-slots use the same non-transactional check-then-insert pattern (D1).
   let txResult: CreateSubjectTxResult;
   try {
     txResult = await (async () => {
-        const [activeClassroom] = await db
-          .select({ id: classrooms.id })
-          .from(classrooms)
-          .where(and(eq(classrooms.id, input.classroomId), isNull(classrooms.deletedAt)))
-          .limit(1);
-        if (!activeClassroom) {
-          return { ok: false as const, reason: 'classroom_not_found' as const };
-        }
-        await db.insert(subjects).values({
-          id: newId,
-          name: input.name,
-          classroomId: input.classroomId,
-          deletedAt: null,
-        });
-        return { ok: true as const };
+      const [activeClassroom] = await db
+        .select({ id: classrooms.id })
+        .from(classrooms)
+        .where(
+          and(
+            eq(classrooms.id, input.classroomId),
+            isNull(classrooms.deletedAt),
+          ),
+        )
+        .limit(1);
+      if (!activeClassroom) {
+        return { ok: false as const, reason: 'classroom_not_found' as const };
+      }
+      await db.insert(subjects).values({
+        id: newId,
+        name: input.name,
+        classroomId: input.classroomId,
+        deletedAt: null,
+      });
+      return { ok: true as const };
     })();
   } catch (err) {
     console.log('POST /subjects', err);
@@ -304,7 +363,10 @@ app.post('/subjects', auth, loadUser, requireManagerOrAbove, async (c) => {
     return c.json({ message: 'classroom not found' }, 404);
   }
 
-  return c.json({ id: newId, name: input.name, classroomId: input.classroomId }, 201);
+  return c.json(
+    { id: newId, name: input.name, classroomId: input.classroomId },
+    201,
+  );
 });
 
 app.post('/lesson-types', auth, loadUser, requireManagerOrAbove, async (c) => {
@@ -320,26 +382,33 @@ app.post('/lesson-types', auth, loadUser, requireManagerOrAbove, async (c) => {
   const db = getDb(c.env);
   const newId = crypto.randomUUID();
 
-  type CreateLessonTypeTxResult = { ok: true } | { ok: false; reason: 'classroom_not_found' };
+  type CreateLessonTypeTxResult =
+    | { ok: true }
+    | { ok: false; reason: 'classroom_not_found' };
 
   let txResult: CreateLessonTypeTxResult;
   try {
     txResult = await (async () => {
-        const [activeClassroom] = await db
-          .select({ id: classrooms.id })
-          .from(classrooms)
-          .where(and(eq(classrooms.id, input.classroomId), isNull(classrooms.deletedAt)))
-          .limit(1);
-        if (!activeClassroom) {
-          return { ok: false as const, reason: 'classroom_not_found' as const };
-        }
-        await db.insert(lessonTypes).values({
-          id: newId,
-          name: input.name,
-          classroomId: input.classroomId,
-          deletedAt: null,
-        });
-        return { ok: true as const };
+      const [activeClassroom] = await db
+        .select({ id: classrooms.id })
+        .from(classrooms)
+        .where(
+          and(
+            eq(classrooms.id, input.classroomId),
+            isNull(classrooms.deletedAt),
+          ),
+        )
+        .limit(1);
+      if (!activeClassroom) {
+        return { ok: false as const, reason: 'classroom_not_found' as const };
+      }
+      await db.insert(lessonTypes).values({
+        id: newId,
+        name: input.name,
+        classroomId: input.classroomId,
+        deletedAt: null,
+      });
+      return { ok: true as const };
     })();
   } catch (err) {
     console.log('POST /lesson-types', err);
@@ -353,7 +422,10 @@ app.post('/lesson-types', auth, loadUser, requireManagerOrAbove, async (c) => {
     return c.json({ message: 'classroom not found' }, 404);
   }
 
-  return c.json({ id: newId, name: input.name, classroomId: input.classroomId }, 201);
+  return c.json(
+    { id: newId, name: input.name, classroomId: input.classroomId },
+    201,
+  );
 });
 
 app.post('/time-slots', auth, loadUser, requireManagerOrAbove, async (c) => {
@@ -369,27 +441,34 @@ app.post('/time-slots', auth, loadUser, requireManagerOrAbove, async (c) => {
   const db = getDb(c.env);
   const newId = crypto.randomUUID();
 
-  type CreateTimeSlotTxResult = { ok: true } | { ok: false; reason: 'classroom_not_found' };
+  type CreateTimeSlotTxResult =
+    | { ok: true }
+    | { ok: false; reason: 'classroom_not_found' };
 
   let txResult: CreateTimeSlotTxResult;
   try {
     txResult = await (async () => {
-        const [activeClassroom] = await db
-          .select({ id: classrooms.id })
-          .from(classrooms)
-          .where(and(eq(classrooms.id, input.classroomId), isNull(classrooms.deletedAt)))
-          .limit(1);
-        if (!activeClassroom) {
-          return { ok: false as const, reason: 'classroom_not_found' as const };
-        }
-        await db.insert(timeSlots).values({
-          id: newId,
-          classroomId: input.classroomId,
-          startTime: input.startTime,
-          endTime: input.endTime,
-          deletedAt: null,
-        });
-        return { ok: true as const };
+      const [activeClassroom] = await db
+        .select({ id: classrooms.id })
+        .from(classrooms)
+        .where(
+          and(
+            eq(classrooms.id, input.classroomId),
+            isNull(classrooms.deletedAt),
+          ),
+        )
+        .limit(1);
+      if (!activeClassroom) {
+        return { ok: false as const, reason: 'classroom_not_found' as const };
+      }
+      await db.insert(timeSlots).values({
+        id: newId,
+        classroomId: input.classroomId,
+        startTime: input.startTime,
+        endTime: input.endTime,
+        deletedAt: null,
+      });
+      return { ok: true as const };
     })();
   } catch (err) {
     console.log('POST /time-slots', err);
@@ -444,179 +523,215 @@ app.patch('/subjects/:id', auth, loadUser, requireManagerOrAbove, async (c) => {
   if (result.meta.changes === 0) {
     return c.json({ message: 'subject not found' }, 404);
   }
-  return c.json({ id: targetId, name: input.name, classroomId: row.classroomId }, 200);
-});
-
-app.patch('/lesson-types/:id', auth, loadUser, requireManagerOrAbove, async (c) => {
-  const targetId = c.req.param('id');
-  if (!targetId) {
-    return c.json({ message: 'id is required' }, 400);
-  }
-  const body = await c.req.json<unknown>().catch(() => null);
-  const { input, error } = validatePatchLessonTypeInput(body);
-  if (!input) {
-    return c.json({ message: error ?? 'invalid request' }, 400);
-  }
-  const db = getDb(c.env);
-  const [row] = await db
-    .select({ id: lessonTypes.id, classroomId: lessonTypes.classroomId })
-    .from(lessonTypes)
-    .where(and(eq(lessonTypes.id, targetId), isNull(lessonTypes.deletedAt)))
-    .limit(1);
-  if (!row) {
-    return c.json({ message: 'lesson type not found' }, 404);
-  }
-  const scopeDenied = denyUnlessClassroomScope(c, row.classroomId);
-  if (scopeDenied) {
-    return scopeDenied;
-  }
-  const result = await db
-    .update(lessonTypes)
-    .set({ name: input.name })
-    .where(and(eq(lessonTypes.id, targetId), isNull(lessonTypes.deletedAt)));
-  if (result.meta.changes === 0) {
-    return c.json({ message: 'lesson type not found' }, 404);
-  }
-  return c.json({ id: targetId, name: input.name, classroomId: row.classroomId }, 200);
-});
-
-app.patch('/time-slots/:id', auth, loadUser, requireManagerOrAbove, async (c) => {
-  const targetId = c.req.param('id');
-  if (!targetId) {
-    return c.json({ message: 'id is required' }, 400);
-  }
-  const body = await c.req.json<unknown>().catch(() => null);
-  const { input, error } = validatePatchTimeSlotInput(body);
-  if (!input) {
-    return c.json({ message: error ?? 'invalid request' }, 400);
-  }
-  const db = getDb(c.env);
-  const [row] = await db
-    .select({
-      id: timeSlots.id,
-      classroomId: timeSlots.classroomId,
-      startTime: timeSlots.startTime,
-      endTime: timeSlots.endTime,
-    })
-    .from(timeSlots)
-    .where(and(eq(timeSlots.id, targetId), isNull(timeSlots.deletedAt)))
-    .limit(1);
-  if (!row) {
-    return c.json({ message: 'time slot not found' }, 404);
-  }
-  const scopeDenied = denyUnlessClassroomScope(c, row.classroomId);
-  if (scopeDenied) {
-    return scopeDenied;
-  }
-  const nextStart = input.startTime ?? row.startTime;
-  const nextEnd = input.endTime ?? row.endTime;
-  if (hmToMinutes(nextStart) >= hmToMinutes(nextEnd)) {
-    return c.json({ message: 'end time must be after start time' }, 400);
-  }
-  const result = await db
-    .update(timeSlots)
-    .set({ startTime: nextStart, endTime: nextEnd })
-    .where(and(eq(timeSlots.id, targetId), isNull(timeSlots.deletedAt)));
-  if (result.meta.changes === 0) {
-    return c.json({ message: 'time slot not found' }, 404);
-  }
   return c.json(
-    {
-      id: targetId,
-      classroomId: row.classroomId,
-      startTime: nextStart,
-      endTime: nextEnd,
-    },
+    { id: targetId, name: input.name, classroomId: row.classroomId },
     200,
   );
 });
 
-app.delete('/subjects/:id', auth, loadUser, requireManagerOrAbove, async (c) => {
-  const targetId = c.req.param('id');
-  if (!targetId) {
-    return c.json({ message: 'id is required' }, 400);
-  }
-  const db = getDb(c.env);
-  const [row] = await db
-    .select({ id: subjects.id, classroomId: subjects.classroomId })
-    .from(subjects)
-    .where(and(eq(subjects.id, targetId), isNull(subjects.deletedAt)))
-    .limit(1);
-  if (!row) {
-    return c.json({ message: 'subject not found' }, 404);
-  }
-  const scopeDenied = denyUnlessClassroomScope(c, row.classroomId);
-  if (scopeDenied) {
-    return scopeDenied;
-  }
-  const deletedAt = new Date();
-  const result = await db
-    .update(subjects)
-    .set({ deletedAt })
-    .where(and(eq(subjects.id, targetId), isNull(subjects.deletedAt)));
-  if (result.meta.changes === 0) {
-    return c.json({ message: 'subject not found' }, 404);
-  }
-  return c.json({ success: true }, 200);
-});
+app.patch(
+  '/lesson-types/:id',
+  auth,
+  loadUser,
+  requireManagerOrAbove,
+  async (c) => {
+    const targetId = c.req.param('id');
+    if (!targetId) {
+      return c.json({ message: 'id is required' }, 400);
+    }
+    const body = await c.req.json<unknown>().catch(() => null);
+    const { input, error } = validatePatchLessonTypeInput(body);
+    if (!input) {
+      return c.json({ message: error ?? 'invalid request' }, 400);
+    }
+    const db = getDb(c.env);
+    const [row] = await db
+      .select({ id: lessonTypes.id, classroomId: lessonTypes.classroomId })
+      .from(lessonTypes)
+      .where(and(eq(lessonTypes.id, targetId), isNull(lessonTypes.deletedAt)))
+      .limit(1);
+    if (!row) {
+      return c.json({ message: 'lesson type not found' }, 404);
+    }
+    const scopeDenied = denyUnlessClassroomScope(c, row.classroomId);
+    if (scopeDenied) {
+      return scopeDenied;
+    }
+    const result = await db
+      .update(lessonTypes)
+      .set({ name: input.name })
+      .where(and(eq(lessonTypes.id, targetId), isNull(lessonTypes.deletedAt)));
+    if (result.meta.changes === 0) {
+      return c.json({ message: 'lesson type not found' }, 404);
+    }
+    return c.json(
+      { id: targetId, name: input.name, classroomId: row.classroomId },
+      200,
+    );
+  },
+);
 
-app.delete('/lesson-types/:id', auth, loadUser, requireManagerOrAbove, async (c) => {
-  const targetId = c.req.param('id');
-  if (!targetId) {
-    return c.json({ message: 'id is required' }, 400);
-  }
-  const db = getDb(c.env);
-  const [row] = await db
-    .select({ id: lessonTypes.id, classroomId: lessonTypes.classroomId })
-    .from(lessonTypes)
-    .where(and(eq(lessonTypes.id, targetId), isNull(lessonTypes.deletedAt)))
-    .limit(1);
-  if (!row) {
-    return c.json({ message: 'lesson type not found' }, 404);
-  }
-  const scopeDenied = denyUnlessClassroomScope(c, row.classroomId);
-  if (scopeDenied) {
-    return scopeDenied;
-  }
-  const deletedAt = new Date();
-  const result = await db
-    .update(lessonTypes)
-    .set({ deletedAt })
-    .where(and(eq(lessonTypes.id, targetId), isNull(lessonTypes.deletedAt)));
-  if (result.meta.changes === 0) {
-    return c.json({ message: 'lesson type not found' }, 404);
-  }
-  return c.json({ success: true }, 200);
-});
+app.patch(
+  '/time-slots/:id',
+  auth,
+  loadUser,
+  requireManagerOrAbove,
+  async (c) => {
+    const targetId = c.req.param('id');
+    if (!targetId) {
+      return c.json({ message: 'id is required' }, 400);
+    }
+    const body = await c.req.json<unknown>().catch(() => null);
+    const { input, error } = validatePatchTimeSlotInput(body);
+    if (!input) {
+      return c.json({ message: error ?? 'invalid request' }, 400);
+    }
+    const db = getDb(c.env);
+    const [row] = await db
+      .select({
+        id: timeSlots.id,
+        classroomId: timeSlots.classroomId,
+        startTime: timeSlots.startTime,
+        endTime: timeSlots.endTime,
+      })
+      .from(timeSlots)
+      .where(and(eq(timeSlots.id, targetId), isNull(timeSlots.deletedAt)))
+      .limit(1);
+    if (!row) {
+      return c.json({ message: 'time slot not found' }, 404);
+    }
+    const scopeDenied = denyUnlessClassroomScope(c, row.classroomId);
+    if (scopeDenied) {
+      return scopeDenied;
+    }
+    const nextStart = input.startTime ?? row.startTime;
+    const nextEnd = input.endTime ?? row.endTime;
+    if (hmToMinutes(nextStart) >= hmToMinutes(nextEnd)) {
+      return c.json({ message: 'end time must be after start time' }, 400);
+    }
+    const result = await db
+      .update(timeSlots)
+      .set({ startTime: nextStart, endTime: nextEnd })
+      .where(and(eq(timeSlots.id, targetId), isNull(timeSlots.deletedAt)));
+    if (result.meta.changes === 0) {
+      return c.json({ message: 'time slot not found' }, 404);
+    }
+    return c.json(
+      {
+        id: targetId,
+        classroomId: row.classroomId,
+        startTime: nextStart,
+        endTime: nextEnd,
+      },
+      200,
+    );
+  },
+);
 
-app.delete('/time-slots/:id', auth, loadUser, requireManagerOrAbove, async (c) => {
-  const targetId = c.req.param('id');
-  if (!targetId) {
-    return c.json({ message: 'id is required' }, 400);
-  }
-  const db = getDb(c.env);
-  const [row] = await db
-    .select({ id: timeSlots.id, classroomId: timeSlots.classroomId })
-    .from(timeSlots)
-    .where(and(eq(timeSlots.id, targetId), isNull(timeSlots.deletedAt)))
-    .limit(1);
-  if (!row) {
-    return c.json({ message: 'time slot not found' }, 404);
-  }
-  const scopeDenied = denyUnlessClassroomScope(c, row.classroomId);
-  if (scopeDenied) {
-    return scopeDenied;
-  }
-  const deletedAt = new Date();
-  const result = await db
-    .update(timeSlots)
-    .set({ deletedAt })
-    .where(and(eq(timeSlots.id, targetId), isNull(timeSlots.deletedAt)));
-  if (result.meta.changes === 0) {
-    return c.json({ message: 'time slot not found' }, 404);
-  }
-  return c.json({ success: true }, 200);
-});
+app.delete(
+  '/subjects/:id',
+  auth,
+  loadUser,
+  requireManagerOrAbove,
+  async (c) => {
+    const targetId = c.req.param('id');
+    if (!targetId) {
+      return c.json({ message: 'id is required' }, 400);
+    }
+    const db = getDb(c.env);
+    const [row] = await db
+      .select({ id: subjects.id, classroomId: subjects.classroomId })
+      .from(subjects)
+      .where(and(eq(subjects.id, targetId), isNull(subjects.deletedAt)))
+      .limit(1);
+    if (!row) {
+      return c.json({ message: 'subject not found' }, 404);
+    }
+    const scopeDenied = denyUnlessClassroomScope(c, row.classroomId);
+    if (scopeDenied) {
+      return scopeDenied;
+    }
+    const deletedAt = new Date();
+    const result = await db
+      .update(subjects)
+      .set({ deletedAt })
+      .where(and(eq(subjects.id, targetId), isNull(subjects.deletedAt)));
+    if (result.meta.changes === 0) {
+      return c.json({ message: 'subject not found' }, 404);
+    }
+    return c.json({ success: true }, 200);
+  },
+);
+
+app.delete(
+  '/lesson-types/:id',
+  auth,
+  loadUser,
+  requireManagerOrAbove,
+  async (c) => {
+    const targetId = c.req.param('id');
+    if (!targetId) {
+      return c.json({ message: 'id is required' }, 400);
+    }
+    const db = getDb(c.env);
+    const [row] = await db
+      .select({ id: lessonTypes.id, classroomId: lessonTypes.classroomId })
+      .from(lessonTypes)
+      .where(and(eq(lessonTypes.id, targetId), isNull(lessonTypes.deletedAt)))
+      .limit(1);
+    if (!row) {
+      return c.json({ message: 'lesson type not found' }, 404);
+    }
+    const scopeDenied = denyUnlessClassroomScope(c, row.classroomId);
+    if (scopeDenied) {
+      return scopeDenied;
+    }
+    const deletedAt = new Date();
+    const result = await db
+      .update(lessonTypes)
+      .set({ deletedAt })
+      .where(and(eq(lessonTypes.id, targetId), isNull(lessonTypes.deletedAt)));
+    if (result.meta.changes === 0) {
+      return c.json({ message: 'lesson type not found' }, 404);
+    }
+    return c.json({ success: true }, 200);
+  },
+);
+
+app.delete(
+  '/time-slots/:id',
+  auth,
+  loadUser,
+  requireManagerOrAbove,
+  async (c) => {
+    const targetId = c.req.param('id');
+    if (!targetId) {
+      return c.json({ message: 'id is required' }, 400);
+    }
+    const db = getDb(c.env);
+    const [row] = await db
+      .select({ id: timeSlots.id, classroomId: timeSlots.classroomId })
+      .from(timeSlots)
+      .where(and(eq(timeSlots.id, targetId), isNull(timeSlots.deletedAt)))
+      .limit(1);
+    if (!row) {
+      return c.json({ message: 'time slot not found' }, 404);
+    }
+    const scopeDenied = denyUnlessClassroomScope(c, row.classroomId);
+    if (scopeDenied) {
+      return scopeDenied;
+    }
+    const deletedAt = new Date();
+    const result = await db
+      .update(timeSlots)
+      .set({ deletedAt })
+      .where(and(eq(timeSlots.id, targetId), isNull(timeSlots.deletedAt)));
+    if (result.meta.changes === 0) {
+      return c.json({ message: 'time slot not found' }, 404);
+    }
+    return c.json({ success: true }, 200);
+  },
+);
 
 app.get(
   '/classrooms/:classroomId/lessons',
@@ -773,17 +888,29 @@ app.post('/lessons/bulk', auth, loadUser, async (c) => {
   const deleteResults: OpResult[] = [];
   for (const targetId of input.deleteIds ?? []) {
     const [row] = await db
-      .select({ id: lessons.id, classroomId: lessons.classroomId, teacherId: lessons.teacherId })
+      .select({
+        id: lessons.id,
+        classroomId: lessons.classroomId,
+        teacherId: lessons.teacherId,
+      })
       .from(lessons)
       .where(and(eq(lessons.id, targetId), isNull(lessons.deletedAt)))
       .limit(1);
 
     if (!row) {
-      deleteResults.push({ ok: false, message: 'lesson not found', id: targetId });
+      deleteResults.push({
+        ok: false,
+        message: 'lesson not found',
+        id: targetId,
+      });
       continue;
     }
     if (row.classroomId !== classroomId) {
-      deleteResults.push({ ok: false, message: 'lesson not in classroom', id: targetId });
+      deleteResults.push({
+        ok: false,
+        message: 'lesson not in classroom',
+        id: targetId,
+      });
       continue;
     }
 
@@ -811,7 +938,11 @@ app.post('/lessons/bulk', auth, loadUser, async (c) => {
       .where(and(eq(lessons.id, targetId), isNull(lessons.deletedAt)));
 
     if (result.meta.changes === 0) {
-      deleteResults.push({ ok: false, message: 'lesson not found', id: targetId });
+      deleteResults.push({
+        ok: false,
+        message: 'lesson not found',
+        id: targetId,
+      });
     } else {
       deleteResults.push({ ok: true, id: targetId });
     }
@@ -837,22 +968,42 @@ app.post('/lessons/bulk', auth, loadUser, async (c) => {
       .limit(1);
 
     if (!slotRow) {
-      createResults.push({ ok: false, message: 'time slot not found', ...withCreateRef(item) });
+      createResults.push({
+        ok: false,
+        message: 'time slot not found',
+        ...withCreateRef(item),
+      });
       continue;
     }
 
     const startAt =
-      tzOff === undefined ? null : utcDateFromLocalDateKeyAndHm(item.dateKey, slotRow.startTime, tzOff);
+      tzOff === undefined
+        ? null
+        : utcDateFromLocalDateKeyAndHm(item.dateKey, slotRow.startTime, tzOff);
     const endAt =
-      tzOff === undefined ? null : utcDateFromLocalDateKeyAndHm(item.dateKey, slotRow.endTime, tzOff);
+      tzOff === undefined
+        ? null
+        : utcDateFromLocalDateKeyAndHm(item.dateKey, slotRow.endTime, tzOff);
     if (!startAt || !endAt || startAt.getTime() >= endAt.getTime()) {
-      createResults.push({ ok: false, message: 'invalid date or time slot range', ...withCreateRef(item) });
+      createResults.push({
+        ok: false,
+        message: 'invalid date or time slot range',
+        ...withCreateRef(item),
+      });
       continue;
     }
 
-    const staffTeacherDenied = denyUnlessStaffLessonTeacherIsSelf(c, actor, item.teacherId);
+    const staffTeacherDenied = denyUnlessStaffLessonTeacherIsSelf(
+      c,
+      actor,
+      item.teacherId,
+    );
     if (staffTeacherDenied) {
-      createResults.push({ ok: false, message: 'forbidden', ...withCreateRef(item) });
+      createResults.push({
+        ok: false,
+        message: 'forbidden',
+        ...withCreateRef(item),
+      });
       continue;
     }
 
@@ -863,7 +1014,11 @@ app.post('/lessons/bulk', auth, loadUser, async (c) => {
         .where(eq(users.id, item.teacherId))
         .limit(1);
       if (!teacherUser || teacherUser.classroomId !== classroomId) {
-        createResults.push({ ok: false, message: 'forbidden', ...withCreateRef(item) });
+        createResults.push({
+          ok: false,
+          message: 'forbidden',
+          ...withCreateRef(item),
+        });
         continue;
       }
     }
@@ -888,7 +1043,9 @@ app.post('/lessons/bulk', auth, loadUser, async (c) => {
         const [activeClassroom] = await db
           .select({ id: classrooms.id })
           .from(classrooms)
-          .where(and(eq(classrooms.id, classroomId), isNull(classrooms.deletedAt)))
+          .where(
+            and(eq(classrooms.id, classroomId), isNull(classrooms.deletedAt)),
+          )
           .limit(1);
         if (!activeClassroom) {
           return { ok: false as const, reason: 'classroom_not_found' as const };
@@ -903,7 +1060,11 @@ app.post('/lessons/bulk', auth, loadUser, async (c) => {
                 isNull(users.deletedAt),
               );
 
-        const [teacher] = await db.select({ id: users.id }).from(users).where(teacherScope).limit(1);
+        const [teacher] = await db
+          .select({ id: users.id })
+          .from(users)
+          .where(teacherScope)
+          .limit(1);
         if (!teacher) {
           return { ok: false as const, reason: 'teacher_invalid' as const };
         }
@@ -953,7 +1114,10 @@ app.post('/lessons/bulk', auth, loadUser, async (c) => {
             )
             .limit(1);
           if (!ltRow) {
-            return { ok: false as const, reason: 'lesson_type_invalid' as const };
+            return {
+              ok: false as const,
+              reason: 'lesson_type_invalid' as const,
+            };
           }
         }
 
@@ -970,7 +1134,10 @@ app.post('/lessons/bulk', auth, loadUser, async (c) => {
           )
           .limit(1);
         if (teacherClash) {
-          return { ok: false as const, reason: 'teacher_double_booking' as const };
+          return {
+            ok: false as const,
+            reason: 'teacher_double_booking' as const,
+          };
         }
 
         const [studentClash] = await db
@@ -986,7 +1153,10 @@ app.post('/lessons/bulk', auth, loadUser, async (c) => {
           )
           .limit(1);
         if (studentClash) {
-          return { ok: false as const, reason: 'student_double_booking' as const };
+          return {
+            ok: false as const,
+            reason: 'student_double_booking' as const,
+          };
         }
 
         await db.insert(lessons).values({
@@ -1006,15 +1176,27 @@ app.post('/lessons/bulk', auth, loadUser, async (c) => {
     } catch (err) {
       console.log('POST /lessons/bulk creates', err);
       if (isD1ForeignKeyViolation(err)) {
-        createResults.push({ ok: false, message: 'invalid reference', ...withCreateRef(item) });
+        createResults.push({
+          ok: false,
+          message: 'invalid reference',
+          ...withCreateRef(item),
+        });
       } else {
-        createResults.push({ ok: false, message: 'failed to create lesson', ...withCreateRef(item) });
+        createResults.push({
+          ok: false,
+          message: 'failed to create lesson',
+          ...withCreateRef(item),
+        });
       }
       continue;
     }
 
     if (!txResult.ok) {
-      createResults.push({ ok: false, message: mapBulkCreateReason(txResult.reason), ...withCreateRef(item) });
+      createResults.push({
+        ok: false,
+        message: mapBulkCreateReason(txResult.reason),
+        ...withCreateRef(item),
+      });
     } else {
       createResults.push({ ok: true, id, ...withCreateRef(item) });
     }
@@ -1077,9 +1259,12 @@ app.patch('/lessons/:id', auth, loadUser, async (c) => {
   const mergedClassroomId = input.classroomId ?? existing.classroomId;
   const mergedTeacherId = input.teacherId ?? existing.teacherId;
   const mergedStudentId = input.studentId ?? existing.studentId;
-  const mergedSubjectId = input.subjectId !== undefined ? input.subjectId : existing.subjectId;
+  const mergedSubjectId =
+    input.subjectId !== undefined ? input.subjectId : existing.subjectId;
   const mergedLessonTypeId =
-    input.lessonTypeId !== undefined ? input.lessonTypeId : existing.lessonTypeId;
+    input.lessonTypeId !== undefined
+      ? input.lessonTypeId
+      : existing.lessonTypeId;
   const mergedStartAt = input.startAt ?? existing.startAt;
   const mergedEndAt = input.endAt ?? existing.endAt;
   const mergedStatus = input.status ?? existing.status;
@@ -1093,7 +1278,11 @@ app.patch('/lessons/:id', auth, loadUser, async (c) => {
     return patchScopeDenied;
   }
 
-  const patchStaffTeacherDenied = denyUnlessStaffLessonTeacherIsSelf(c, actor, mergedTeacherId);
+  const patchStaffTeacherDenied = denyUnlessStaffLessonTeacherIsSelf(
+    c,
+    actor,
+    mergedTeacherId,
+  );
   if (patchStaffTeacherDenied) {
     return patchStaffTeacherDenied;
   }
@@ -1126,7 +1315,12 @@ app.patch('/lessons/:id', auth, loadUser, async (c) => {
       const [activeClassroom] = await db
         .select({ id: classrooms.id })
         .from(classrooms)
-        .where(and(eq(classrooms.id, mergedClassroomId), isNull(classrooms.deletedAt)))
+        .where(
+          and(
+            eq(classrooms.id, mergedClassroomId),
+            isNull(classrooms.deletedAt),
+          ),
+        )
         .limit(1);
       if (!activeClassroom) {
         return { ok: false as const, reason: 'classroom_not_found' as const };
@@ -1141,7 +1335,11 @@ app.patch('/lessons/:id', auth, loadUser, async (c) => {
               isNull(users.deletedAt),
             );
 
-      const [teacher] = await db.select({ id: users.id }).from(users).where(mergedTeacherScope).limit(1);
+      const [teacher] = await db
+        .select({ id: users.id })
+        .from(users)
+        .where(mergedTeacherScope)
+        .limit(1);
       if (!teacher) {
         return { ok: false as const, reason: 'teacher_invalid' as const };
       }
@@ -1209,7 +1407,10 @@ app.patch('/lessons/:id', auth, loadUser, async (c) => {
         )
         .limit(1);
       if (teacherClash) {
-        return { ok: false as const, reason: 'teacher_double_booking' as const };
+        return {
+          ok: false as const,
+          reason: 'teacher_double_booking' as const,
+        };
       }
 
       const [studentClash] = await db
@@ -1226,7 +1427,10 @@ app.patch('/lessons/:id', auth, loadUser, async (c) => {
         )
         .limit(1);
       if (studentClash) {
-        return { ok: false as const, reason: 'student_double_booking' as const };
+        return {
+          ok: false as const,
+          reason: 'student_double_booking' as const,
+        };
       }
 
       const result = await db
@@ -1263,9 +1467,15 @@ app.patch('/lessons/:id', auth, loadUser, async (c) => {
       case 'classroom_not_found':
         return c.json({ message: 'classroom not found' }, 404);
       case 'teacher_invalid':
-        return c.json({ message: 'teacher not found or not in classroom' }, 400);
+        return c.json(
+          { message: 'teacher not found or not in classroom' },
+          400,
+        );
       case 'student_invalid':
-        return c.json({ message: 'student not found or not in classroom' }, 400);
+        return c.json(
+          { message: 'student not found or not in classroom' },
+          400,
+        );
       case 'subject_invalid':
         return c.json({ message: 'subject not found' }, 400);
       case 'lesson_type_invalid':
@@ -1321,25 +1531,24 @@ app.get('/me', auth, async (c) => {
 
 rootApp.route('/', app);
 // frontend
-rootApp.get('*', async(c) =>{
+rootApp.get('*', async (c) => {
   const res = await c.env.ASSETS.fetch(c.req.raw);
-  if(!c.env.ASSETS){
+  if (!c.env.ASSETS) {
     return c.notFound();
   }
-  if(res.ok || res.status == 304){
+  if (res.ok || res.status == 304) {
     return res;
   }
 
   const path = new URL(c.req.url).pathname;
-  if(path.match(/\.[a-zA-Z0-9]+$/)){
+  if (path.match(/\.[a-zA-Z0-9]+$/)) {
     return c.notFound();
   }
 
   const indexReq = new Request(new URL('/', c.req.url), c.req);
   return c.env.ASSETS.fetch(indexReq);
-})
-
+});
 
 export default {
-  fetch: rootApp.fetch
-}
+  fetch: rootApp.fetch,
+};

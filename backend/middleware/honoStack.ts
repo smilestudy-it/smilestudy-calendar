@@ -1,13 +1,14 @@
 /**
  * （責務）Hono: JWT 検証、loadUser、ロール/教室スコープ系のミドルウェア群。
  */
-import { jwk } from 'hono/jwk';
-import type { Next } from 'hono';
 import { and, eq, isNull } from 'drizzle-orm';
+import type { Next } from 'hono';
+import { jwk } from 'hono/jwk';
+
 import { getDb } from '../db';
 import { users } from '../db/schema';
-import type { AppUser, ApiContext } from '../types/apiTypes';
 import { jsonMessage } from '../lib/jsonMessage';
+import type { ApiContext, AppUser } from '../types/apiTypes';
 
 export const auth = async (c: ApiContext, next: Next) => {
   return jwk({
@@ -74,7 +75,8 @@ export function denyUnlessClassroomScope(
   if (!currentUser) {
     return jsonMessage(c, 500, 'user not loaded');
   }
-  const id = typeof targetClassroomId === 'string' ? targetClassroomId.trim() : '';
+  const id =
+    typeof targetClassroomId === 'string' ? targetClassroomId.trim() : '';
   if (!id) {
     return jsonMessage(c, 400, 'classroom id is required');
   }
@@ -104,7 +106,8 @@ export function denyUnlessStaffLessonTeacherIsSelf(
 /**
  * 管理者は全教室。教室長・講師は自教室のみ
  */
-export const requireClassroomScope = (resolveClassroomId: (c: ApiContext) => string | null) =>
+export const requireClassroomScope =
+  (resolveClassroomId: (c: ApiContext) => string | null) =>
   async (c: ApiContext, next: Next) => {
     const targetClassroomId = resolveClassroomId(c);
     const denied = denyUnlessClassroomScope(c, targetClassroomId);

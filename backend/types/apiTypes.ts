@@ -1,8 +1,8 @@
 /**
  * （責務）Hono 用の ApiBindings・AppUser・AppVariables 等の共有型。
  */
-import type { JwtVariables } from 'hono/jwt';
 import type { Context } from 'hono';
+import type { JwtVariables } from 'hono/jwt';
 
 /**
  * Cloudflare `Env` にアプリ用の必須 Auth0 変数を上乗せした Hono バインド型
@@ -16,7 +16,7 @@ export type ApiBindings = Env & {
   AUTH0_M2M_CLIENT_SECRET: string;
   AUTH0_DB_CONNECTION: string;
   VITE_AUTH0_CLIENT_ID: string;
-  ASSETS: Fetcher
+  ASSETS: Fetcher;
 };
 
 /**
@@ -43,4 +43,7 @@ export type Auth0ErrorResponse = {
 /**
  * 認可・スコープ判定用の Hono コンテキスト
  */
-export type ApiContext = Context<{ Bindings: ApiBindings; Variables: AppVariables }>;
+export type ApiContext = Context<{
+  Bindings: ApiBindings;
+  Variables: AppVariables;
+}>;

@@ -1,10 +1,12 @@
 /**
  * （責務）生徒 CRUD・一覧系 API の Vitest。
  */
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { SQL } from 'drizzle-orm';
 import { SQLiteSyncDialect } from 'drizzle-orm/sqlite-core';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+
 import { classrooms, students, users } from '../db/schema';
+import { app } from '../worker';
 
 const sqliteDialect = new SQLiteSyncDialect();
 
@@ -36,7 +38,10 @@ const state: {
 vi.mock('hono/jwk', () => {
   return {
     jwk: () => {
-      return async (c: { set: (key: string, value: unknown) => void }, next: () => Promise<void>) => {
+      return async (
+        c: { set: (key: string, value: unknown) => void },
+        next: () => Promise<void>,
+      ) => {
         c.set('jwtPayload', { sub: state.jwtSub });
         await next();
       };
@@ -94,7 +99,9 @@ vi.mock('../db', () => {
       const emailVal = params[2] as string;
       const birthVal = Number(params[3]);
       const classroomId = params[4] as string;
-      const classroom = state.classrooms.find((r) => r.id === classroomId && r.deletedAt === null);
+      const classroom = state.classrooms.find(
+        (r) => r.id === classroomId && r.deletedAt === null,
+      );
       if (!classroom) {
         return { meta: { changes: 0 } };
       }
@@ -126,7 +133,12 @@ vi.mock('../db', () => {
 
         if (table === users) {
           const keys = Object.keys(selection);
-          if (keys.length === 3 && keys.includes('id') && keys.includes('role') && keys.includes('classroomId')) {
+          if (
+            keys.length === 3 &&
+            keys.includes('id') &&
+            keys.includes('role') &&
+            keys.includes('classroomId')
+          ) {
             return {
               where: () => ({
                 limit: async () =>
@@ -135,7 +147,8 @@ vi.mock('../db', () => {
                         {
                           id: state.jwtSub,
                           role: state.userRole,
-                          classroomId: state.userRole === 'admin' ? null : 'room-1',
+                          classroomId:
+                            state.userRole === 'admin' ? null : 'room-1',
                         },
                       ]
                     : [],
@@ -152,7 +165,10 @@ vi.mock('../db', () => {
               where: async (predicate: unknown) => {
                 const classroomId = extractRequestedId(predicate);
                 return state.studentRows
-                  .filter((r) => r.classroomId === classroomId && r.deletedAt === null)
+                  .filter(
+                    (r) =>
+                      r.classroomId === classroomId && r.deletedAt === null,
+                  )
                   .map((r) => ({
                     id: r.id,
                     name: r.name,
@@ -169,7 +185,9 @@ vi.mock('../db', () => {
                 const row = state.studentRows.find(
                   (r) => r.id === targetId && r.deletedAt === null,
                 );
-                return row ? [{ id: row.id, classroomId: row.classroomId }] : [];
+                return row
+                  ? [{ id: row.id, classroomId: row.classroomId }]
+                  : [];
               },
             }),
           };
@@ -213,13 +231,13 @@ vi.mock('../db', () => {
 
   const db = {
     ...dbCore,
-    transaction: async <T>(callback: (tx: typeof dbCore) => Promise<T>): Promise<T> => callback(dbCore),
+    transaction: async <T>(
+      callback: (tx: typeof dbCore) => Promise<T>,
+    ): Promise<T> => callback(dbCore),
   };
 
   return { getDb: () => db };
 });
-
-import { app } from '../worker';
 
 const env = {
   AUTH0_AUDIENCE: 'https://api.example.local',
@@ -289,13 +307,20 @@ describe('students api', () => {
         env,
       );
       expect(response.status).toBe(201);
-      const body = (await response.json()) as { id: string; name: string; email: string; birthYear: number };
+      const body = (await response.json()) as {
+        id: string;
+        name: string;
+        email: string;
+        birthYear: number;
+      };
       expect(body.id).toBe('00000000-0000-4000-8000-000000000099');
       expect(body.name).toBe('New Student');
       expect(body.email).toBe('new-student@example.com');
       expect(body.birthYear).toBe(2016);
       expect(state.studentRows.length).toBe(before + 1);
-      expect(state.studentRows.some((r) => r.email === 'new-student@example.com')).toBe(true);
+      expect(
+        state.studentRows.some((r) => r.email === 'new-student@example.com'),
+      ).toBe(true);
     });
 
     it('returns 400 when validation fails', async () => {
@@ -304,7 +329,10 @@ describe('students api', () => {
         {
           method: 'POST',
           headers: { 'content-type': 'application/json' },
-          body: JSON.stringify({ ...validStudentBody(), email: 'not-an-email' }),
+          body: JSON.stringify({
+            ...validStudentBody(),
+            email: 'not-an-email',
+          }),
         },
         env,
       );
@@ -320,7 +348,10 @@ describe('students api', () => {
         {
           method: 'POST',
           headers: { 'content-type': 'application/json' },
-          body: JSON.stringify({ ...validStudentBody(), classroomId: 'room-2' }),
+          body: JSON.stringify({
+            ...validStudentBody(),
+            classroomId: 'room-2',
+          }),
         },
         env,
       );
@@ -333,7 +364,10 @@ describe('students api', () => {
         {
           method: 'POST',
           headers: { 'content-type': 'application/json' },
-          body: JSON.stringify({ ...validStudentBody(), classroomId: 'room-missing' }),
+          body: JSON.stringify({
+            ...validStudentBody(),
+            classroomId: 'room-missing',
+          }),
         },
         env,
       );
@@ -373,9 +407,16 @@ describe('students api', () => {
 
   describe('GET /students/:classroomId', () => {
     it('lists active students for a classroom', async () => {
-      const response = await app.request('/api/students/room-1', { method: 'GET' }, env);
+      const response = await app.request(
+        '/api/students/room-1',
+        { method: 'GET' },
+        env,
+      );
       expect(response.status).toBe(200);
-      const rows = (await response.json()) as Array<{ id: string; name: string }>;
+      const rows = (await response.json()) as Array<{
+        id: string;
+        name: string;
+      }>;
       expect(rows.map((r) => r.id)).toContain('student-1');
       expect(rows.find((r) => r.id === 'student-1')?.name).toBe('Student One');
     });
@@ -385,7 +426,11 @@ describe('students api', () => {
       expect(row).toBeDefined();
       row!.deletedAt = new Date();
 
-      const response = await app.request('/api/students/room-1', { method: 'GET' }, env);
+      const response = await app.request(
+        '/api/students/room-1',
+        { method: 'GET' },
+        env,
+      );
       expect(response.status).toBe(200);
       const rows = (await response.json()) as Array<{ id: string }>;
       expect(rows.some((r) => r.id === 'student-1')).toBe(false);
@@ -393,7 +438,11 @@ describe('students api', () => {
 
     it('returns empty array when classroom has no active students', async () => {
       state.studentRows = [];
-      const response = await app.request('/api/students/room-1', { method: 'GET' }, env);
+      const response = await app.request(
+        '/api/students/room-1',
+        { method: 'GET' },
+        env,
+      );
       expect(response.status).toBe(200);
       const rows = (await response.json()) as unknown[];
       expect(rows).toEqual([]);
@@ -403,7 +452,11 @@ describe('students api', () => {
       state.userRole = 'staff';
       state.jwtSub = 'auth0|staff-user';
 
-      const response = await app.request('/api/students/room-1', { method: 'GET' }, env);
+      const response = await app.request(
+        '/api/students/room-1',
+        { method: 'GET' },
+        env,
+      );
       expect(response.status).toBe(200);
       const rows = (await response.json()) as Array<{ id: string }>;
       expect(rows.map((r) => r.id)).toContain('student-1');
@@ -413,7 +466,11 @@ describe('students api', () => {
       state.userRole = 'staff';
       state.jwtSub = 'auth0|staff-user';
 
-      const response = await app.request('/api/students/room-2', { method: 'GET' }, env);
+      const response = await app.request(
+        '/api/students/room-2',
+        { method: 'GET' },
+        env,
+      );
       expect(response.status).toBe(403);
     });
 
@@ -421,45 +478,76 @@ describe('students api', () => {
       state.userRole = 'manager';
       state.jwtSub = 'auth0|manager-user';
 
-      const response = await app.request('/api/students/room-2', { method: 'GET' }, env);
+      const response = await app.request(
+        '/api/students/room-2',
+        { method: 'GET' },
+        env,
+      );
       expect(response.status).toBe(403);
     });
   });
 
   describe('DELETE /students/:id', () => {
     it('soft-deletes student as admin', async () => {
-      const response = await app.request('/api/students/student-1', { method: 'DELETE' }, env);
+      const response = await app.request(
+        '/api/students/student-1',
+        { method: 'DELETE' },
+        env,
+      );
       expect(response.status).toBe(200);
-      expect(state.studentRows.find((r) => r.id === 'student-1')?.deletedAt).toBeInstanceOf(Date);
+      expect(
+        state.studentRows.find((r) => r.id === 'student-1')?.deletedAt,
+      ).toBeInstanceOf(Date);
     });
 
     it('allows manager to delete student in own classroom', async () => {
       state.userRole = 'manager';
       state.jwtSub = 'auth0|manager-user';
 
-      const response = await app.request('/api/students/student-1', { method: 'DELETE' }, env);
+      const response = await app.request(
+        '/api/students/student-1',
+        { method: 'DELETE' },
+        env,
+      );
       expect(response.status).toBe(200);
-      expect(state.studentRows.find((r) => r.id === 'student-1')?.deletedAt).toBeInstanceOf(Date);
+      expect(
+        state.studentRows.find((r) => r.id === 'student-1')?.deletedAt,
+      ).toBeInstanceOf(Date);
     });
 
     it('returns 403 when manager deletes student in another classroom', async () => {
       state.userRole = 'manager';
       state.jwtSub = 'auth0|manager-user';
 
-      const response = await app.request('/api/students/student-2', { method: 'DELETE' }, env);
+      const response = await app.request(
+        '/api/students/student-2',
+        { method: 'DELETE' },
+        env,
+      );
       expect(response.status).toBe(403);
-      expect(state.studentRows.find((r) => r.id === 'student-2')?.deletedAt).toBeNull();
+      expect(
+        state.studentRows.find((r) => r.id === 'student-2')?.deletedAt,
+      ).toBeNull();
     });
 
     it('returns 404 when student does not exist', async () => {
-      const response = await app.request('/api/students/missing-id', { method: 'DELETE' }, env);
+      const response = await app.request(
+        '/api/students/missing-id',
+        { method: 'DELETE' },
+        env,
+      );
       expect(response.status).toBe(404);
     });
 
     it('returns 404 when student is already deleted', async () => {
-      state.studentRows.find((r) => r.id === 'student-1')!.deletedAt = new Date();
+      state.studentRows.find((r) => r.id === 'student-1')!.deletedAt =
+        new Date();
 
-      const response = await app.request('/api/students/student-1', { method: 'DELETE' }, env);
+      const response = await app.request(
+        '/api/students/student-1',
+        { method: 'DELETE' },
+        env,
+      );
       expect(response.status).toBe(404);
     });
 
@@ -467,7 +555,11 @@ describe('students api', () => {
       state.userRole = 'staff';
       state.jwtSub = 'auth0|staff-user';
 
-      const response = await app.request('/api/students/student-1', { method: 'DELETE' }, env);
+      const response = await app.request(
+        '/api/students/student-1',
+        { method: 'DELETE' },
+        env,
+      );
       expect(response.status).toBe(403);
     });
   });
