@@ -25,11 +25,9 @@ import { isD1ForeignKeyViolation } from './lib/sqliteConstraint';
 import { getActiveStudentAndClassroom } from './lib/studentRead';
 import {
   validateBulkLessonsInput,
-  validateCreateLessonTypeInput,
   validateCreateTimeSlotInput,
   validateLessonRangeQuery,
   validatePatchLessonInput,
-  validatePatchLessonTypeInput,
   validatePatchTimeSlotInput,
 } from './lib/validators';
 import {
@@ -41,6 +39,7 @@ import {
   requireManagerOrAbove,
 } from './middleware/honoStack';
 import classroomsApp from './routes/classrooms';
+import lessonTypesApp from './routes/lessonTypes';
 import studentsApp from './routes/students';
 import subjectsApp from './routes/subjects';
 import usersApp from './routes/users';
@@ -235,30 +234,7 @@ app.route('/classrooms', classroomsApp);
 app.route('/users', usersApp);
 app.route('/students', studentsApp);
 app.route('/subjects', subjectsApp);
-
-app.get(
-  '/classrooms/:classroomId/lesson-types',
-  auth,
-  loadUser,
-  requireClassroomScope((c) => c.req.param('classroomId') ?? null),
-  async (c) => {
-    const classroomId = c.req.param('classroomId');
-    if (!classroomId) {
-      return c.json({ message: 'classroom id is required' }, 400);
-    }
-    const db = getDb(c.env);
-    const rows = await db
-      .select({ id: lessonTypes.id, name: lessonTypes.name })
-      .from(lessonTypes)
-      .where(
-        and(
-          eq(lessonTypes.classroomId, classroomId),
-          isNull(lessonTypes.deletedAt),
-        ),
-      );
-    return c.json(rows, 200);
-  },
-);
+app.route('/lesson-types', lessonTypesApp);
 
 app.get(
   '/classrooms/:classroomId/time-slots',
@@ -287,65 +263,6 @@ app.get(
     return c.json(rows, 200);
   },
 );
-
-app.post('/lesson-types', auth, loadUser, requireManagerOrAbove, async (c) => {
-  const actor = c.var.currentUser;
-  const body = await c.req.json<unknown>().catch(() => null);
-  const { input, error } = validateCreateLessonTypeInput(body);
-  if (!input) {
-    return c.json({ message: error ?? 'invalid request' }, 400);
-  }
-  if (actor.role === 'manager' && actor.classroomId !== input.classroomId) {
-    return c.json({ message: 'forbidden' }, 403);
-  }
-  const db = getDb(c.env);
-  const newId = crypto.randomUUID();
-
-  type CreateLessonTypeTxResult =
-    | { ok: true }
-    | { ok: false; reason: 'classroom_not_found' };
-
-  let txResult: CreateLessonTypeTxResult;
-  try {
-    txResult = await (async () => {
-      const [activeClassroom] = await db
-        .select({ id: classrooms.id })
-        .from(classrooms)
-        .where(
-          and(
-            eq(classrooms.id, input.classroomId),
-            isNull(classrooms.deletedAt),
-          ),
-        )
-        .limit(1);
-      if (!activeClassroom) {
-        return { ok: false as const, reason: 'classroom_not_found' as const };
-      }
-      await db.insert(lessonTypes).values({
-        id: newId,
-        name: input.name,
-        classroomId: input.classroomId,
-        deletedAt: null,
-      });
-      return { ok: true as const };
-    })();
-  } catch (err) {
-    console.log('POST /lesson-types', err);
-    if (isD1ForeignKeyViolation(err)) {
-      return c.json({ message: 'classroom not found' }, 404);
-    }
-    return c.json({ message: 'failed to create lesson type' }, 500);
-  }
-
-  if (!txResult.ok) {
-    return c.json({ message: 'classroom not found' }, 404);
-  }
-
-  return c.json(
-    { id: newId, name: input.name, classroomId: input.classroomId },
-    201,
-  );
-});
 
 app.post('/time-slots', auth, loadUser, requireManagerOrAbove, async (c) => {
   const actor = c.var.currentUser;
@@ -413,48 +330,6 @@ app.post('/time-slots', auth, loadUser, requireManagerOrAbove, async (c) => {
 });
 
 app.patch(
-  '/lesson-types/:id',
-  auth,
-  loadUser,
-  requireManagerOrAbove,
-  async (c) => {
-    const targetId = c.req.param('id');
-    if (!targetId) {
-      return c.json({ message: 'id is required' }, 400);
-    }
-    const body = await c.req.json<unknown>().catch(() => null);
-    const { input, error } = validatePatchLessonTypeInput(body);
-    if (!input) {
-      return c.json({ message: error ?? 'invalid request' }, 400);
-    }
-    const db = getDb(c.env);
-    const [row] = await db
-      .select({ id: lessonTypes.id, classroomId: lessonTypes.classroomId })
-      .from(lessonTypes)
-      .where(and(eq(lessonTypes.id, targetId), isNull(lessonTypes.deletedAt)))
-      .limit(1);
-    if (!row) {
-      return c.json({ message: 'lesson type not found' }, 404);
-    }
-    const scopeDenied = denyUnlessClassroomScope(c, row.classroomId);
-    if (scopeDenied) {
-      return scopeDenied;
-    }
-    const result = await db
-      .update(lessonTypes)
-      .set({ name: input.name })
-      .where(and(eq(lessonTypes.id, targetId), isNull(lessonTypes.deletedAt)));
-    if (result.meta.changes === 0) {
-      return c.json({ message: 'lesson type not found' }, 404);
-    }
-    return c.json(
-      { id: targetId, name: input.name, classroomId: row.classroomId },
-      200,
-    );
-  },
-);
-
-app.patch(
   '/time-slots/:id',
   auth,
   loadUser,
@@ -508,41 +383,6 @@ app.patch(
       },
       200,
     );
-  },
-);
-
-app.delete(
-  '/lesson-types/:id',
-  auth,
-  loadUser,
-  requireManagerOrAbove,
-  async (c) => {
-    const targetId = c.req.param('id');
-    if (!targetId) {
-      return c.json({ message: 'id is required' }, 400);
-    }
-    const db = getDb(c.env);
-    const [row] = await db
-      .select({ id: lessonTypes.id, classroomId: lessonTypes.classroomId })
-      .from(lessonTypes)
-      .where(and(eq(lessonTypes.id, targetId), isNull(lessonTypes.deletedAt)))
-      .limit(1);
-    if (!row) {
-      return c.json({ message: 'lesson type not found' }, 404);
-    }
-    const scopeDenied = denyUnlessClassroomScope(c, row.classroomId);
-    if (scopeDenied) {
-      return scopeDenied;
-    }
-    const deletedAt = new Date();
-    const result = await db
-      .update(lessonTypes)
-      .set({ deletedAt })
-      .where(and(eq(lessonTypes.id, targetId), isNull(lessonTypes.deletedAt)));
-    if (result.meta.changes === 0) {
-      return c.json({ message: 'lesson type not found' }, 404);
-    }
-    return c.json({ success: true }, 200);
   },
 );
 

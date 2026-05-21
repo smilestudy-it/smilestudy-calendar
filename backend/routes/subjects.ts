@@ -115,7 +115,7 @@ subjectsApp.delete('/:id', auth, loadUser, requireManagerOrAbove, async (c) => {
 });
 
 // 科目追加
-subjectsApp.post('/', auth, loadUser, requireManagerOrAbove, async (c) => {
+subjectsApp.post('', auth, loadUser, requireManagerOrAbove, async (c) => {
   const actor = c.var.currentUser;
   const body = await c.req.json<unknown>().catch(() => null);
   const { input, error } = validateCreateSubjectInput(body);

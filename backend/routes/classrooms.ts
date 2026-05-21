@@ -50,7 +50,7 @@ classroomsApp.post('/', auth, loadUser, requireAdmin, async (c) => {
   return c.json({ id, name: input.name }, 201);
 });
 
-classroomsApp.get('/', auth, loadUser, requireAdmin, async (c) => {
+classroomsApp.get('', auth, loadUser, requireAdmin, async (c) => {
   const db = getDb(c.env);
 
   const rows = await db

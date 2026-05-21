@@ -28,7 +28,7 @@ function usersComp(a: User, b: User) {
 }
 
 // ユーザ登録
-usersApp.post('/', auth, loadUser, requireManagerOrAbove, async (c) => {
+usersApp.post('', auth, loadUser, requireManagerOrAbove, async (c) => {
   const actor = c.var.currentUser;
   const body = await c.req.json<unknown>().catch(() => null);
   const { input, error } = validateCreateUserInput(body);
