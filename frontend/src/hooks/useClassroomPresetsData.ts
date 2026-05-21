@@ -18,10 +18,9 @@ export function useClassroomPresetsData(authedFetch: AuthedFetch) {
   return useCallback(
     async (classroomId: string, signal?: AbortSignal) => {
       const [sRes, lRes, tRes] = await Promise.all([
-        authedFetch(
-          `/api/classrooms/${encodeURIComponent(classroomId)}/subjects`,
-          { signal },
-        ),
+        authedFetch(`/api/subjects/${encodeURIComponent(classroomId)}`, {
+          signal,
+        }),
         authedFetch(
           `/api/classrooms/${encodeURIComponent(classroomId)}/lesson-types`,
           { signal },

@@ -26,12 +26,10 @@ import { getActiveStudentAndClassroom } from './lib/studentRead';
 import {
   validateBulkLessonsInput,
   validateCreateLessonTypeInput,
-  validateCreateSubjectInput,
   validateCreateTimeSlotInput,
   validateLessonRangeQuery,
   validatePatchLessonInput,
   validatePatchLessonTypeInput,
-  validatePatchSubjectInput,
   validatePatchTimeSlotInput,
 } from './lib/validators';
 import {
@@ -44,6 +42,7 @@ import {
 } from './middleware/honoStack';
 import classroomsApp from './routes/classrooms';
 import studentsApp from './routes/students';
+import subjectsApp from './routes/subjects';
 import usersApp from './routes/users';
 import type { AppVariables, ApiBindings as Bindings } from './types/apiTypes';
 
@@ -235,27 +234,7 @@ app.get('/public/holidays', async (c) => {
 app.route('/classrooms', classroomsApp);
 app.route('/users', usersApp);
 app.route('/students', studentsApp);
-
-app.get(
-  '/classrooms/:classroomId/subjects',
-  auth,
-  loadUser,
-  requireClassroomScope((c) => c.req.param('classroomId') ?? null),
-  async (c) => {
-    const classroomId = c.req.param('classroomId');
-    if (!classroomId) {
-      return c.json({ message: 'classroom id is required' }, 400);
-    }
-    const db = getDb(c.env);
-    const rows = await db
-      .select({ id: subjects.id, name: subjects.name })
-      .from(subjects)
-      .where(
-        and(eq(subjects.classroomId, classroomId), isNull(subjects.deletedAt)),
-      );
-    return c.json(rows, 200);
-  },
-);
+app.route('/subjects', subjectsApp);
 
 app.get(
   '/classrooms/:classroomId/lesson-types',
@@ -308,66 +287,6 @@ app.get(
     return c.json(rows, 200);
   },
 );
-
-app.post('/subjects', auth, loadUser, requireManagerOrAbove, async (c) => {
-  const actor = c.var.currentUser;
-  const body = await c.req.json<unknown>().catch(() => null);
-  const { input, error } = validateCreateSubjectInput(body);
-  if (!input) {
-    return c.json({ message: error ?? 'invalid request' }, 400);
-  }
-  if (actor.role === 'manager' && actor.classroomId !== input.classroomId) {
-    return c.json({ message: 'forbidden' }, 403);
-  }
-  const db = getDb(c.env);
-  const newId = crypto.randomUUID();
-
-  type CreateSubjectTxResult =
-    | { ok: true }
-    | { ok: false; reason: 'classroom_not_found' };
-
-  // POST /lesson-types and POST /time-slots use the same non-transactional check-then-insert pattern (D1).
-  let txResult: CreateSubjectTxResult;
-  try {
-    txResult = await (async () => {
-      const [activeClassroom] = await db
-        .select({ id: classrooms.id })
-        .from(classrooms)
-        .where(
-          and(
-            eq(classrooms.id, input.classroomId),
-            isNull(classrooms.deletedAt),
-          ),
-        )
-        .limit(1);
-      if (!activeClassroom) {
-        return { ok: false as const, reason: 'classroom_not_found' as const };
-      }
-      await db.insert(subjects).values({
-        id: newId,
-        name: input.name,
-        classroomId: input.classroomId,
-        deletedAt: null,
-      });
-      return { ok: true as const };
-    })();
-  } catch (err) {
-    console.log('POST /subjects', err);
-    if (isD1ForeignKeyViolation(err)) {
-      return c.json({ message: 'classroom not found' }, 404);
-    }
-    return c.json({ message: 'failed to create subject' }, 500);
-  }
-
-  if (!txResult.ok) {
-    return c.json({ message: 'classroom not found' }, 404);
-  }
-
-  return c.json(
-    { id: newId, name: input.name, classroomId: input.classroomId },
-    201,
-  );
-});
 
 app.post('/lesson-types', auth, loadUser, requireManagerOrAbove, async (c) => {
   const actor = c.var.currentUser;
@@ -493,42 +412,6 @@ app.post('/time-slots', auth, loadUser, requireManagerOrAbove, async (c) => {
   );
 });
 
-app.patch('/subjects/:id', auth, loadUser, requireManagerOrAbove, async (c) => {
-  const targetId = c.req.param('id');
-  if (!targetId) {
-    return c.json({ message: 'id is required' }, 400);
-  }
-  const body = await c.req.json<unknown>().catch(() => null);
-  const { input, error } = validatePatchSubjectInput(body);
-  if (!input) {
-    return c.json({ message: error ?? 'invalid request' }, 400);
-  }
-  const db = getDb(c.env);
-  const [row] = await db
-    .select({ id: subjects.id, classroomId: subjects.classroomId })
-    .from(subjects)
-    .where(and(eq(subjects.id, targetId), isNull(subjects.deletedAt)))
-    .limit(1);
-  if (!row) {
-    return c.json({ message: 'subject not found' }, 404);
-  }
-  const scopeDenied = denyUnlessClassroomScope(c, row.classroomId);
-  if (scopeDenied) {
-    return scopeDenied;
-  }
-  const result = await db
-    .update(subjects)
-    .set({ name: input.name })
-    .where(and(eq(subjects.id, targetId), isNull(subjects.deletedAt)));
-  if (result.meta.changes === 0) {
-    return c.json({ message: 'subject not found' }, 404);
-  }
-  return c.json(
-    { id: targetId, name: input.name, classroomId: row.classroomId },
-    200,
-  );
-});
-
 app.patch(
   '/lesson-types/:id',
   auth,
@@ -625,41 +508,6 @@ app.patch(
       },
       200,
     );
-  },
-);
-
-app.delete(
-  '/subjects/:id',
-  auth,
-  loadUser,
-  requireManagerOrAbove,
-  async (c) => {
-    const targetId = c.req.param('id');
-    if (!targetId) {
-      return c.json({ message: 'id is required' }, 400);
-    }
-    const db = getDb(c.env);
-    const [row] = await db
-      .select({ id: subjects.id, classroomId: subjects.classroomId })
-      .from(subjects)
-      .where(and(eq(subjects.id, targetId), isNull(subjects.deletedAt)))
-      .limit(1);
-    if (!row) {
-      return c.json({ message: 'subject not found' }, 404);
-    }
-    const scopeDenied = denyUnlessClassroomScope(c, row.classroomId);
-    if (scopeDenied) {
-      return scopeDenied;
-    }
-    const deletedAt = new Date();
-    const result = await db
-      .update(subjects)
-      .set({ deletedAt })
-      .where(and(eq(subjects.id, targetId), isNull(subjects.deletedAt)));
-    if (result.meta.changes === 0) {
-      return c.json({ message: 'subject not found' }, 404);
-    }
-    return c.json({ success: true }, 200);
   },
 );
 

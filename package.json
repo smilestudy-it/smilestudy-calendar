@@ -10,7 +10,8 @@
     "test": "vitest run --root ./backend/",
     "preview": "npm run build && vite preview",
     "deploy": "npm run build && wrangler deploy",
-    "cf-typegen": "wrangler types"
+    "cf-typegen": "wrangler types",
+    "format": "npx prettier --write ."
   },
   "dependencies": {
     "@auth0/auth0-react": "^2.15.1",

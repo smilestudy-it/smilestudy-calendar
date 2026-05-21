@@ -47,15 +47,13 @@ studentsApp.post('/', auth, loadUser, requireManagerOrAbove, async (c) => {
     if (!classroom) {
       throw new Error('CLASSROOM_NOT_FOUND');
     }
-    await db
-      .insert(students)
-      .values({
-        id: id,
-        name: input.name,
-        email: input.email,
-        birthYear: input.birthYear,
-        classroomId: input.classroomId,
-      });
+    await db.insert(students).values({
+      id: id,
+      name: input.name,
+      email: input.email,
+      birthYear: input.birthYear,
+      classroomId: input.classroomId,
+    });
   } catch (err) {
     if (err instanceof Error) {
       if (err.message === 'CLASSROOM_NOT_FOUND') {

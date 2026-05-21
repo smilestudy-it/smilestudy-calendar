@@ -386,7 +386,7 @@ describe('presets api', () => {
   describe('GET lists', () => {
     it('lists active subjects for classroom', async () => {
       const res = await app.request(
-        '/api/classrooms/room-1/subjects',
+        '/api/subjects/room-1',
         { method: 'GET' },
         env,
       );
@@ -400,7 +400,7 @@ describe('presets api', () => {
       state.userRole = 'manager';
       state.jwtSub = 'auth0|manager-user';
       const res = await app.request(
-        '/api/classrooms/room-2/subjects',
+        '/api/subjects/room-2',
         { method: 'GET' },
         env,
       );
@@ -411,7 +411,7 @@ describe('presets api', () => {
       state.userRole = 'staff';
       state.jwtSub = 'auth0|staff-user';
       const res = await app.request(
-        '/api/classrooms/room-1/subjects',
+        '/api/subjects/room-1',
         { method: 'GET' },
         env,
       );
