@@ -6,7 +6,7 @@ import { Hono } from 'hono';
 import { getDb } from '../db';
 import { classrooms, students } from '../db/schema';
 import type { ApiBindings, AppVariables } from '../types/apiTypes';
-import { and, eq, isNotNull, isNull } from 'drizzle-orm';
+import { and, eq, isNull } from 'drizzle-orm';
 import { validateCreateStudentInput } from '../lib/validators';
 import { auth, loadUser, requireManagerOrAbove, requireClassroomScope } from '../middleware/honoStack';
 
