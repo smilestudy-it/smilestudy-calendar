@@ -30,7 +30,7 @@ studentsApp.post('/', auth, loadUser, requireManagerOrAbove, async (c) => {
   const id = crypto.randomUUID();
 
   try{
-      const [classroom] = await db.select({id: classrooms.id}).from(classrooms).where(and(eq(classrooms.id, input.classroomId), isNotNull(classrooms.deletedAt))).limit(1);
+      const [classroom] = await db.select({id: classrooms.id}).from(classrooms).where(and(eq(classrooms.id, input.classroomId), isNull(classrooms.deletedAt))).limit(1);
       if(!classroom){
         throw new Error('CLASSROOM_NOT_FOUND');
       }
