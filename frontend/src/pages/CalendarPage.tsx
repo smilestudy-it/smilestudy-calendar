@@ -122,7 +122,7 @@ export default function CalendarPage({
         const userQs = new URLSearchParams({ includeAdmins: '1' });
         const [lRes, uRes, sRes, subRes, ltRes] = await Promise.all([
           authedFetch(
-            `/api/classrooms/${encodeURIComponent(activeClassroom.id)}/lessons?${qs}`,
+            `/api/lessons/${encodeURIComponent(activeClassroom.id)}?${qs}`,
           ),
           authedFetch(
             `/api/users/${encodeURIComponent(activeClassroom.id)}?${userQs}`,
@@ -131,10 +131,10 @@ export default function CalendarPage({
             `/api/students/${encodeURIComponent(activeClassroom.id)}`,
           ),
           authedFetch(
-            `/api/classrooms/${encodeURIComponent(activeClassroom.id)}/subjects`,
+            `/api/subjects/${encodeURIComponent(activeClassroom.id)}`,
           ),
           authedFetch(
-            `/api/classrooms/${encodeURIComponent(activeClassroom.id)}/lesson-types`,
+            `/api/lesson-types/${encodeURIComponent(activeClassroom.id)}`,
           ),
         ]);
         if (isDisposed) {

@@ -35,7 +35,11 @@ timeSlotsApp.get(
     }
     const db = getDb(c.env);
     const rows = await db
-      .select({ id: timeSlots.id, startTime: timeSlots.startTime, endTime: timeSlots.endTime })
+      .select({
+        id: timeSlots.id,
+        startTime: timeSlots.startTime,
+        endTime: timeSlots.endTime,
+      })
       .from(timeSlots)
       .where(
         and(
@@ -86,55 +90,57 @@ timeSlotsApp.post('', auth, loadUser, requireManagerOrAbove, async (c) => {
   }
 
   return c.json(
-    { id: newId, startTime: input.startTime, endTime: input.endTime, classroomId: input.classroomId },
+    {
+      id: newId,
+      startTime: input.startTime,
+      endTime: input.endTime,
+      classroomId: input.classroomId,
+    },
     201,
   );
 });
 
-timeSlotsApp.patch(
-  '/:id',
-  auth,
-  loadUser,
-  requireManagerOrAbove,
-  async (c) => {
-    const targetId = c.req.param('id');
-    if (!targetId) {
-      return c.json({ message: 'id is required' }, 400);
-    }
-    const body = await c.req.json<unknown>().catch(() => null);
-    const { input, error } = validatePatchTimeSlotInput(body);
-    if (!input) {
-      return c.json({ message: error ?? 'invalid request' }, 400);
-    }
-    const db = getDb(c.env);
-    const [row] = await db
-      .select({ id: timeSlots.id, classroomId: timeSlots.classroomId })
-      .from(timeSlots)
-      .where(and(eq(timeSlots.id, targetId), isNull(timeSlots.deletedAt)))
-      .limit(1);
-    if (!row) {
-      return c.json({ message: 'time slot not found' }, 404);
-    }
-    const actor = c.var.currentUser;
-    if (actor.role !== 'admin' && actor.classroomId !== row.classroomId) {
-      return c.json({ message: 'forbidden' }, 403);
-    }
-    try {
-      await db
-        .update(timeSlots)
-        .set({ startTime: input.startTime, endTime: input.endTime })
-        .where(
-          and(eq(timeSlots.id, targetId), isNull(timeSlots.deletedAt)),
-        );
-    } catch {
-      return c.json({ message: 'failed to update time slot' }, 500);
-    }
-    return c.json(
-      { id: targetId, startTime: input.startTime, endTime: input.endTime, classroomId: row.classroomId },
-      200,
-    );
-  },
-);
+timeSlotsApp.patch('/:id', auth, loadUser, requireManagerOrAbove, async (c) => {
+  const targetId = c.req.param('id');
+  if (!targetId) {
+    return c.json({ message: 'id is required' }, 400);
+  }
+  const body = await c.req.json<unknown>().catch(() => null);
+  const { input, error } = validatePatchTimeSlotInput(body);
+  if (!input) {
+    return c.json({ message: error ?? 'invalid request' }, 400);
+  }
+  const db = getDb(c.env);
+  const [row] = await db
+    .select({ id: timeSlots.id, classroomId: timeSlots.classroomId })
+    .from(timeSlots)
+    .where(and(eq(timeSlots.id, targetId), isNull(timeSlots.deletedAt)))
+    .limit(1);
+  if (!row) {
+    return c.json({ message: 'time slot not found' }, 404);
+  }
+  const actor = c.var.currentUser;
+  if (actor.role !== 'admin' && actor.classroomId !== row.classroomId) {
+    return c.json({ message: 'forbidden' }, 403);
+  }
+  try {
+    await db
+      .update(timeSlots)
+      .set({ startTime: input.startTime, endTime: input.endTime })
+      .where(and(eq(timeSlots.id, targetId), isNull(timeSlots.deletedAt)));
+  } catch {
+    return c.json({ message: 'failed to update time slot' }, 500);
+  }
+  return c.json(
+    {
+      id: targetId,
+      startTime: input.startTime,
+      endTime: input.endTime,
+      classroomId: row.classroomId,
+    },
+    200,
+  );
+});
 
 timeSlotsApp.delete(
   '/:id',
@@ -166,9 +172,7 @@ timeSlotsApp.delete(
       await db
         .update(timeSlots)
         .set({ deletedAt })
-        .where(
-          and(eq(timeSlots.id, targetId), isNull(timeSlots.deletedAt)),
-        );
+        .where(and(eq(timeSlots.id, targetId), isNull(timeSlots.deletedAt)));
     } catch {
       return c.json({ message: 'failed to delete lesson type' }, 500);
     }

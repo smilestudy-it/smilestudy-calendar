@@ -24,10 +24,9 @@ export function useClassroomPresetsData(authedFetch: AuthedFetch) {
         authedFetch(`/api/lesson-types/${encodeURIComponent(classroomId)}`, {
           signal,
         }),
-        authedFetch(
-          `/api/time-slots/${encodeURIComponent(classroomId)}`,
-          { signal },
-        ),
+        authedFetch(`/api/time-slots/${encodeURIComponent(classroomId)}`, {
+          signal,
+        }),
       ]);
       if (!sRes.ok || !lRes.ok || !tRes.ok) {
         return {

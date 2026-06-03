@@ -698,7 +698,7 @@ describe('lessons api', () => {
 
   it('GET /classrooms/:id/lessons returns 400 without range', async () => {
     const res = await app.request(
-      '/api/classrooms/room-1/lessons',
+      '/api/lessons/room-1',
       { method: 'GET' },
       env,
     );
@@ -719,7 +719,7 @@ describe('lessons api', () => {
       deletedAt: null,
     });
     const res = await app.request(
-      '/api/classrooms/room-1/lessons?from=2025-06-01T00:00:00.000Z&to=2025-07-01T00:00:00.000Z',
+      '/api/lessons/room-1?from=2025-06-01T00:00:00.000Z&to=2025-07-01T00:00:00.000Z',
       { method: 'GET' },
       env,
     );
@@ -753,7 +753,7 @@ describe('lessons api', () => {
       deletedAt: null,
     });
     const res = await app.request(
-      '/api/classrooms/room-1/lessons?from=2025-06-01T00:00:00.000Z&to=2025-07-01T00:00:00.000Z',
+      '/api/lessons/room-1?from=2025-06-01T00:00:00.000Z&to=2025-07-01T00:00:00.000Z',
       { method: 'GET' },
       env,
     );
