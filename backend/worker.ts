@@ -16,7 +16,6 @@ import {
   users,
 } from './db/schema';
 import {
-  hmToMinutes,
   lessonStudentDisplay,
   lessonTeacherDisplay,
   utcDateFromLocalDateKeyAndHm,
@@ -25,10 +24,8 @@ import { isD1ForeignKeyViolation } from './lib/sqliteConstraint';
 import { getActiveStudentAndClassroom } from './lib/studentRead';
 import {
   validateBulkLessonsInput,
-  validateCreateTimeSlotInput,
   validateLessonRangeQuery,
   validatePatchLessonInput,
-  validatePatchTimeSlotInput,
 } from './lib/validators';
 import {
   auth,
@@ -36,13 +33,13 @@ import {
   denyUnlessStaffLessonTeacherIsSelf,
   loadUser,
   requireClassroomScope,
-  requireManagerOrAbove,
 } from './middleware/honoStack';
 import classroomsApp from './routes/classrooms';
 import lessonTypesApp from './routes/lessonTypes';
 import studentsApp from './routes/students';
 import subjectsApp from './routes/subjects';
 import usersApp from './routes/users';
+import timeSlotsApp from './routes/timeSlots';
 import type { AppVariables, ApiBindings as Bindings } from './types/apiTypes';
 
 export const app = new Hono<{
@@ -235,191 +232,9 @@ app.route('/users', usersApp);
 app.route('/students', studentsApp);
 app.route('/subjects', subjectsApp);
 app.route('/lesson-types', lessonTypesApp);
+app.route('/time-slots', timeSlotsApp);
 
-app.get(
-  '/classrooms/:classroomId/time-slots',
-  auth,
-  loadUser,
-  requireClassroomScope((c) => c.req.param('classroomId') ?? null),
-  async (c) => {
-    const classroomId = c.req.param('classroomId');
-    if (!classroomId) {
-      return c.json({ message: 'classroom id is required' }, 400);
-    }
-    const db = getDb(c.env);
-    const rows = await db
-      .select({
-        id: timeSlots.id,
-        startTime: timeSlots.startTime,
-        endTime: timeSlots.endTime,
-      })
-      .from(timeSlots)
-      .where(
-        and(
-          eq(timeSlots.classroomId, classroomId),
-          isNull(timeSlots.deletedAt),
-        ),
-      );
-    return c.json(rows, 200);
-  },
-);
 
-app.post('/time-slots', auth, loadUser, requireManagerOrAbove, async (c) => {
-  const actor = c.var.currentUser;
-  const body = await c.req.json<unknown>().catch(() => null);
-  const { input, error } = validateCreateTimeSlotInput(body);
-  if (!input) {
-    return c.json({ message: error ?? 'invalid request' }, 400);
-  }
-  if (actor.role === 'manager' && actor.classroomId !== input.classroomId) {
-    return c.json({ message: 'forbidden' }, 403);
-  }
-  const db = getDb(c.env);
-  const newId = crypto.randomUUID();
-
-  type CreateTimeSlotTxResult =
-    | { ok: true }
-    | { ok: false; reason: 'classroom_not_found' };
-
-  let txResult: CreateTimeSlotTxResult;
-  try {
-    txResult = await (async () => {
-      const [activeClassroom] = await db
-        .select({ id: classrooms.id })
-        .from(classrooms)
-        .where(
-          and(
-            eq(classrooms.id, input.classroomId),
-            isNull(classrooms.deletedAt),
-          ),
-        )
-        .limit(1);
-      if (!activeClassroom) {
-        return { ok: false as const, reason: 'classroom_not_found' as const };
-      }
-      await db.insert(timeSlots).values({
-        id: newId,
-        classroomId: input.classroomId,
-        startTime: input.startTime,
-        endTime: input.endTime,
-        deletedAt: null,
-      });
-      return { ok: true as const };
-    })();
-  } catch (err) {
-    console.log('POST /time-slots', err);
-    if (isD1ForeignKeyViolation(err)) {
-      return c.json({ message: 'classroom not found' }, 404);
-    }
-    return c.json({ message: 'failed to create time slot' }, 500);
-  }
-
-  if (!txResult.ok) {
-    return c.json({ message: 'classroom not found' }, 404);
-  }
-
-  return c.json(
-    {
-      id: newId,
-      classroomId: input.classroomId,
-      startTime: input.startTime,
-      endTime: input.endTime,
-    },
-    201,
-  );
-});
-
-app.patch(
-  '/time-slots/:id',
-  auth,
-  loadUser,
-  requireManagerOrAbove,
-  async (c) => {
-    const targetId = c.req.param('id');
-    if (!targetId) {
-      return c.json({ message: 'id is required' }, 400);
-    }
-    const body = await c.req.json<unknown>().catch(() => null);
-    const { input, error } = validatePatchTimeSlotInput(body);
-    if (!input) {
-      return c.json({ message: error ?? 'invalid request' }, 400);
-    }
-    const db = getDb(c.env);
-    const [row] = await db
-      .select({
-        id: timeSlots.id,
-        classroomId: timeSlots.classroomId,
-        startTime: timeSlots.startTime,
-        endTime: timeSlots.endTime,
-      })
-      .from(timeSlots)
-      .where(and(eq(timeSlots.id, targetId), isNull(timeSlots.deletedAt)))
-      .limit(1);
-    if (!row) {
-      return c.json({ message: 'time slot not found' }, 404);
-    }
-    const scopeDenied = denyUnlessClassroomScope(c, row.classroomId);
-    if (scopeDenied) {
-      return scopeDenied;
-    }
-    const nextStart = input.startTime ?? row.startTime;
-    const nextEnd = input.endTime ?? row.endTime;
-    if (hmToMinutes(nextStart) >= hmToMinutes(nextEnd)) {
-      return c.json({ message: 'end time must be after start time' }, 400);
-    }
-    const result = await db
-      .update(timeSlots)
-      .set({ startTime: nextStart, endTime: nextEnd })
-      .where(and(eq(timeSlots.id, targetId), isNull(timeSlots.deletedAt)));
-    if (result.meta.changes === 0) {
-      return c.json({ message: 'time slot not found' }, 404);
-    }
-    return c.json(
-      {
-        id: targetId,
-        classroomId: row.classroomId,
-        startTime: nextStart,
-        endTime: nextEnd,
-      },
-      200,
-    );
-  },
-);
-
-app.delete(
-  '/time-slots/:id',
-  auth,
-  loadUser,
-  requireManagerOrAbove,
-  async (c) => {
-    const targetId = c.req.param('id');
-    if (!targetId) {
-      return c.json({ message: 'id is required' }, 400);
-    }
-    const db = getDb(c.env);
-    const [row] = await db
-      .select({ id: timeSlots.id, classroomId: timeSlots.classroomId })
-      .from(timeSlots)
-      .where(and(eq(timeSlots.id, targetId), isNull(timeSlots.deletedAt)))
-      .limit(1);
-    if (!row) {
-      return c.json({ message: 'time slot not found' }, 404);
-    }
-    const scopeDenied = denyUnlessClassroomScope(c, row.classroomId);
-    if (scopeDenied) {
-      return scopeDenied;
-    }
-    const deletedAt = new Date();
-    const result = await db
-      .update(timeSlots)
-      .set({ deletedAt })
-      .where(and(eq(timeSlots.id, targetId), isNull(timeSlots.deletedAt)));
-    if (result.meta.changes === 0) {
-      return c.json({ message: 'time slot not found' }, 404);
-    }
-    return c.json({ success: true }, 200);
-  },
-);
 
 app.get(
   '/classrooms/:classroomId/lessons',

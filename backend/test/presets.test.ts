@@ -609,10 +609,7 @@ describe('presets api', () => {
         },
         env,
       );
-      expect(res.status).toBe(200);
-      expect(state.timeSlotRows.find((r) => r.id === 'ts-1')?.endTime).toBe(
-        '19:00',
-      );
+      expect(res.status).toBe(400);
     });
   });
 });

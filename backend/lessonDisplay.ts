@@ -36,11 +36,6 @@ export function lessonStudentDisplay(
   return name || '（不明）';
 }
 
-export function hmToMinutes(hm: string): number {
-  const [h, m] = hm.split(':').map(Number);
-  return h * 60 + m;
-}
-
 const DATE_KEY_STRICT = /^([0-9]{4})-([0-9]{2})-([0-9]{2})$/;
 const HM_STRICT = /^([0-9]{1,2}):([0-9]{2})$/;
 

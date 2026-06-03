@@ -25,7 +25,7 @@ export function useClassroomPresetsData(authedFetch: AuthedFetch) {
           signal,
         }),
         authedFetch(
-          `/api/classrooms/${encodeURIComponent(classroomId)}/time-slots`,
+          `/api/time-slots/${encodeURIComponent(classroomId)}`,
           { signal },
         ),
       ]);

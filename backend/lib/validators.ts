@@ -154,8 +154,8 @@ const patchLessonTypeSchema = patchSubjectSchema;
 
 const patchTimeSlotSchema = z
   .object({
-    startTime: hmTimeSchema.optional(),
-    endTime: hmTimeSchema.optional(),
+    startTime: hmTimeSchema,
+    endTime: hmTimeSchema,
   })
   .superRefine((v, ctx) => {
     if (v.startTime === undefined && v.endTime === undefined) {
