@@ -240,10 +240,10 @@ app.get('/me', auth, async (c) => {
 rootApp.route('/', app);
 // frontend
 rootApp.get('*', async (c) => {
-  const res = await c.env.ASSETS.fetch(c.req.raw);
   if (!c.env.ASSETS) {
     return c.notFound();
   }
+  const res = await c.env.ASSETS.fetch(c.req.raw);
   if (res.ok || res.status == 304) {
     return res;
   }
