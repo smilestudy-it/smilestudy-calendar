@@ -56,10 +56,10 @@ studentsApp.post('/', auth, loadUser, requireManagerOrAbove, async (c) => {
     });
   } catch (err) {
     if (err instanceof Error) {
+      console.error('Create student failed: ' + err.message);
       if (err.message === 'CLASSROOM_NOT_FOUND') {
         return c.json({ message: 'classroom not found' }, 404);
       }
-      return c.json({ message: err.message }, 500);
     }
     return c.json({ message: 'failed to create student' }, 500);
   }
