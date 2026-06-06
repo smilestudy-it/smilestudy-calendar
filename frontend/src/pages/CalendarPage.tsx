@@ -215,14 +215,17 @@ export default function CalendarPage({
     );
   }
 
+  const isAdmin = currentUser.role === 'admin'
+
   return (
     <section className="space-y-6">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h2 className="text-lg font-semibold md:text-xl">カレンダー</h2>
-          <p className="text-sm text-slate-500">
-            現在の教室: {activeClassroom?.name || '未選択'}
-          </p>
+          {
+            isAdmin &&
+            <p className="text-sm text-slate-500">現在の教室: {activeClassroom?.name || '未選択'}</p>
+          }
         </div>
         <div className="flex flex-wrap items-center gap-2">
           <Button type="button" variant="outline" size="sm" asChild>
@@ -235,9 +238,9 @@ export default function CalendarPage({
         </div>
       </div>
 
-      {!activeClassroom && (
+      {isAdmin && (!activeClassroom && (
         <p className="text-sm text-amber-700">教室を選択してください。</p>
-      )}
+      ))}
 
       {listError && <p className="text-sm text-rose-600">{listError}</p>}
 
