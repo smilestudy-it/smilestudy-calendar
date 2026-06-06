@@ -124,10 +124,13 @@ timeSlotsApp.patch('/:id', auth, loadUser, requireManagerOrAbove, async (c) => {
     return c.json({ message: 'forbidden' }, 403);
   }
   try {
-    await db
+    const res = await db
       .update(timeSlots)
       .set({ startTime: input.startTime, endTime: input.endTime })
       .where(and(eq(timeSlots.id, targetId), isNull(timeSlots.deletedAt)));
+    if (res.meta.changes === 0) {
+      return c.json({ message: 'time slot not found' }, 404);
+    }
   } catch {
     return c.json({ message: 'failed to update time slot' }, 500);
   }
@@ -169,10 +172,13 @@ timeSlotsApp.delete(
 
     const deletedAt = new Date();
     try {
-      await db
+      const res = await db
         .update(timeSlots)
         .set({ deletedAt })
         .where(and(eq(timeSlots.id, targetId), isNull(timeSlots.deletedAt)));
+      if (res.meta.changes === 0) {
+        return c.json({ message: 'time slot not found' }, 404);
+      }
     } catch {
       return c.json({ message: 'failed to delete time slots' }, 500);
     }
