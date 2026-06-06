@@ -119,12 +119,15 @@ lessonTypesApp.patch(
       return c.json({ message: 'forbidden' }, 403);
     }
     try {
-      await db
+      const res = await db
         .update(lessonTypes)
         .set({ name: input.name })
         .where(
           and(eq(lessonTypes.id, targetId), isNull(lessonTypes.deletedAt)),
         );
+      if (res.meta.changes === 0) {
+        return c.json({ message: 'lesson type not found' }, 404);
+      }
     } catch {
       return c.json({ message: 'failed to update lesson type' }, 500);
     }
@@ -162,12 +165,15 @@ lessonTypesApp.delete(
 
     const deletedAt = new Date();
     try {
-      await db
+      const res = await db
         .update(lessonTypes)
         .set({ deletedAt })
         .where(
           and(eq(lessonTypes.id, targetId), isNull(lessonTypes.deletedAt)),
         );
+      if (res.meta.changes === 0) {
+        return c.json({ message: 'lesson type not found' }, 404);
+      }
     } catch {
       return c.json({ message: 'failed to delete lesson type' }, 500);
     }
