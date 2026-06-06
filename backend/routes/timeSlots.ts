@@ -86,7 +86,7 @@ timeSlotsApp.post('', auth, loadUser, requireManagerOrAbove, async (c) => {
     if (err instanceof Error && err.message === 'CLASSROOM_NOT_FOUND') {
       return c.json({ message: 'classroom not found' }, 404);
     }
-    return c.json({ message: 'failed to create lesson type' }, 500);
+    return c.json({ message: 'failed to create time slots' }, 500);
   }
 
   return c.json(
@@ -159,7 +159,7 @@ timeSlotsApp.delete(
       .where(and(eq(timeSlots.id, targetId), isNull(timeSlots.deletedAt)))
       .limit(1);
     if (!row) {
-      return c.json({ message: 'lesson type not found' }, 404);
+      return c.json({ message: 'time slots not found' }, 404);
     }
 
     const actor = c.var.currentUser;
@@ -174,7 +174,7 @@ timeSlotsApp.delete(
         .set({ deletedAt })
         .where(and(eq(timeSlots.id, targetId), isNull(timeSlots.deletedAt)));
     } catch {
-      return c.json({ message: 'failed to delete lesson type' }, 500);
+      return c.json({ message: 'failed to delete time slots' }, 500);
     }
     return c.json({ success: true }, 200);
   },
