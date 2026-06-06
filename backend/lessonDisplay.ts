@@ -5,7 +5,11 @@
 
 export function lessonTeacherDisplay(
   row:
-    | { firstName: string | null; lastName: string | null; deletedAt: Date | null }
+    | {
+        firstName: string | null;
+        lastName: string | null;
+        deletedAt: Date | null;
+      }
     | null
     | undefined,
 ): string {
@@ -32,11 +36,6 @@ export function lessonStudentDisplay(
   return name || '（不明）';
 }
 
-export function hmToMinutes(hm: string): number {
-  const [h, m] = hm.split(':').map(Number);
-  return h * 60 + m;
-}
-
 const DATE_KEY_STRICT = /^([0-9]{4})-([0-9]{2})-([0-9]{2})$/;
 const HM_STRICT = /^([0-9]{1,2}):([0-9]{2})$/;
 
@@ -48,7 +47,13 @@ export function isValidDateKey(dateKey: string): boolean {
   const y = Number(dm[1]);
   const mo = Number(dm[2]);
   const d = Number(dm[3]);
-  if (!Number.isInteger(y) || !Number.isInteger(mo) || !Number.isInteger(d) || mo < 1 || mo > 12) {
+  if (
+    !Number.isInteger(y) ||
+    !Number.isInteger(mo) ||
+    !Number.isInteger(d) ||
+    mo < 1 ||
+    mo > 12
+  ) {
     return false;
   }
   const daysInMonth = new Date(y, mo, 0).getDate();
@@ -92,6 +97,8 @@ export function utcDateFromLocalDateKeyAndHm(
   ) {
     return null;
   }
-  const utcMs = Date.UTC(y, mo - 1, d, hour, minute, 0, 0) + timezoneOffsetMinutes * 60 * 1000;
+  const utcMs =
+    Date.UTC(y, mo - 1, d, hour, minute, 0, 0) +
+    timezoneOffsetMinutes * 60 * 1000;
   return new Date(utcMs);
 }

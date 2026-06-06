@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
-import dayGridPlugin from '@fullcalendar/daygrid';
+
 import type { EventClickArg, EventInput } from '@fullcalendar/core/index.js';
+import dayGridPlugin from '@fullcalendar/daygrid';
 import FullCalendar from '@fullcalendar/react';
 
 type CalendarEventClick = {
@@ -105,7 +106,9 @@ export default function MonthCalendar({
       }
       events={events}
       dayCellContent={(arg) => (
-        <span className={getDateColorClass(arg.date)}>{arg.date.getDate()}</span>
+        <span className={getDateColorClass(arg.date)}>
+          {arg.date.getDate()}
+        </span>
       )}
       datesSet={(arg) => {
         if (!onFocusDateChange) {

@@ -1,12 +1,14 @@
 /**
  * （責務）React ルートへマウント。Auth0Provider・BrowserRouter で App を包むエントリ。
  */
-import { StrictMode } from 'react'
-import { createRoot } from 'react-dom/client'
-import './index.css'
-import App from './App.tsx'
-import { Auth0Provider } from '@auth0/auth0-react'
-import { BrowserRouter } from 'react-router-dom'
+import { StrictMode } from 'react';
+import { createRoot } from 'react-dom/client';
+import { BrowserRouter } from 'react-router-dom';
+
+import { Auth0Provider } from '@auth0/auth0-react';
+
+import App from './App.tsx';
+import './index.css';
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
@@ -15,7 +17,7 @@ createRoot(document.getElementById('root')!).render(
       clientId={import.meta.env.VITE_AUTH0_CLIENT_ID}
       authorizationParams={{
         redirect_uri: window.location.origin,
-        audience: import.meta.env.VITE_AUTH0_AUDIENCE
+        audience: import.meta.env.VITE_AUTH0_AUDIENCE,
       }}
     >
       <BrowserRouter>
@@ -23,4 +25,4 @@ createRoot(document.getElementById('root')!).render(
       </BrowserRouter>
     </Auth0Provider>
   </StrictMode>,
-)
+);

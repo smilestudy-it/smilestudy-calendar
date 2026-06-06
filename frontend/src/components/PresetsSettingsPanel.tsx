@@ -2,17 +2,24 @@
  * （責務）授業プリセット管理のコンテナ。科目/種別/枠の各ブロックを束ねる。
  */
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { useAuthedFetch } from '@/hooks/useAuthedFetch';
-import { useClassroomPresetsData } from '@/hooks/useClassroomPresetsData';
+
 import LessonTypesBlock from '@/components/presets/LessonTypesBlock';
+import SubjectsBlock from '@/components/presets/SubjectsBlock';
+import TimeSlotsBlock from '@/components/presets/TimeSlotsBlock';
 import {
   presetMutationNetworkError,
   readPresetApiError,
   toHm,
 } from '@/components/presets/presetFormUtils';
-import SubjectsBlock from '@/components/presets/SubjectsBlock';
-import TimeSlotsBlock from '@/components/presets/TimeSlotsBlock';
-import type { ClassroomListItem, LessonTypeListItem, SubjectListItem, TimeSlotListItem } from '@/types/api';
+import { useAuthedFetch } from '@/hooks/useAuthedFetch';
+import { useClassroomPresetsData } from '@/hooks/useClassroomPresetsData';
+import type {
+  ClassroomListItem,
+  LessonTypeListItem,
+  SubjectListItem,
+  TimeSlotListItem,
+} from '@/types/api';
+
 import type { CurrentUser } from '../types/currentUser';
 
 type SubjectRow = SubjectListItem;
@@ -29,11 +36,16 @@ type Props = {
  * 管理者: 全教室のプリセット。教室長: 自教室のみ。
  * 科目・授業種別・時間枠の CRUD は `presets/*` 子コンポーネントに委譲。
  */
-export default function PresetsSettingsPanel({ currentUser, getAccessTokenSilently }: Props) {
+export default function PresetsSettingsPanel({
+  currentUser,
+  getAccessTokenSilently,
+}: Props) {
   const isAdmin = currentUser.role === 'admin';
 
   const [classrooms, setClassrooms] = useState<Classroom[]>([]);
-  const [selectedClassroomId, setSelectedClassroomId] = useState<string>(currentUser.classroomId ?? '');
+  const [selectedClassroomId, setSelectedClassroomId] = useState<string>(
+    currentUser.classroomId ?? '',
+  );
   const [subjects, setSubjects] = useState<SubjectRow[]>([]);
   const [lessonTypes, setLessonTypes] = useState<LessonTypeRow[]>([]);
   const [timeSlots, setTimeSlots] = useState<TimeSlotRow[]>([]);
@@ -47,7 +59,9 @@ export default function PresetsSettingsPanel({ currentUser, getAccessTokenSilent
   const [newSlotEnd, setNewSlotEnd] = useState('18:30');
 
   const [draftNames, setDraftNames] = useState<Record<string, string>>({});
-  const [draftSlots, setDraftSlots] = useState<Record<string, { start: string; end: string }>>({});
+  const [draftSlots, setDraftSlots] = useState<
+    Record<string, { start: string; end: string }>
+  >({});
 
   const activeClassroomId = useMemo(() => {
     return isAdmin ? selectedClassroomId : (currentUser.classroomId ?? '');
@@ -102,7 +116,10 @@ export default function PresetsSettingsPanel({ currentUser, getAccessTokenSilent
     setError(null);
     try {
       const result = await loadClassroomPresets(classroomAtStart, ac.signal);
-      if (gen !== loadPresetsGen.current || activeClassroomIdRef.current !== classroomAtStart) {
+      if (
+        gen !== loadPresetsGen.current ||
+        activeClassroomIdRef.current !== classroomAtStart
+      ) {
         return;
       }
       if (!result.ok) {
@@ -118,7 +135,9 @@ export default function PresetsSettingsPanel({ currentUser, getAccessTokenSilent
       if (gen !== loadPresetsGen.current || ac.signal.aborted) {
         return;
       }
-      setError(presetMutationNetworkError('プリセット一覧の取得に失敗しました', e));
+      setError(
+        presetMutationNetworkError('プリセット一覧の取得に失敗しました', e),
+      );
     } finally {
       if (gen === loadPresetsGen.current) {
         setIsLoadingPresets(false);
@@ -285,9 +304,12 @@ export default function PresetsSettingsPanel({ currentUser, getAccessTokenSilent
     setError(null);
     try {
       const res = await authedFetch(`/api/time-slots/${id}`, {
-        method: 'PATCH',
+        method: 'PUT',
         headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ startTime: toHm(d.start), endTime: toHm(d.end) }),
+        body: JSON.stringify({
+          startTime: toHm(d.start),
+          endTime: toHm(d.end),
+        }),
       });
       if (!res.ok) {
         setError(
@@ -307,7 +329,9 @@ export default function PresetsSettingsPanel({ currentUser, getAccessTokenSilent
   const disableSubject = async (id: string) => {
     setError(null);
     try {
-      const res = await authedFetch(`/api/subjects/${id}`, { method: 'DELETE' });
+      const res = await authedFetch(`/api/subjects/${id}`, {
+        method: 'DELETE',
+      });
       if (!res.ok) {
         setError(
           await readPresetApiError(res, {
@@ -326,7 +350,9 @@ export default function PresetsSettingsPanel({ currentUser, getAccessTokenSilent
   const disableLessonType = async (id: string) => {
     setError(null);
     try {
-      const res = await authedFetch(`/api/lesson-types/${id}`, { method: 'DELETE' });
+      const res = await authedFetch(`/api/lesson-types/${id}`, {
+        method: 'DELETE',
+      });
       if (!res.ok) {
         setError(
           await readPresetApiError(res, {
@@ -345,7 +371,9 @@ export default function PresetsSettingsPanel({ currentUser, getAccessTokenSilent
   const disableTimeSlot = async (id: string) => {
     setError(null);
     try {
-      const res = await authedFetch(`/api/time-slots/${id}`, { method: 'DELETE' });
+      const res = await authedFetch(`/api/time-slots/${id}`, {
+        method: 'DELETE',
+      });
       if (!res.ok) {
         setError(
           await readPresetApiError(res, {
@@ -372,8 +400,12 @@ export default function PresetsSettingsPanel({ currentUser, getAccessTokenSilent
   return (
     <section className="space-y-8">
       <header className="space-y-2 border-b border-slate-200 pb-6">
-        <p className="text-xs font-semibold uppercase tracking-wider text-cyan-600">Presets</p>
-        <h2 className="text-xl font-bold tracking-tight text-slate-900 md:text-2xl">授業プリセット</h2>
+        <p className="text-xs font-semibold tracking-wider text-cyan-600 uppercase">
+          Presets
+        </p>
+        <h2 className="text-xl font-bold tracking-tight text-slate-900 md:text-2xl">
+          授業プリセット
+        </h2>
         <p className="max-w-2xl text-sm leading-relaxed text-slate-500">
           科目・授業種別・時間枠の選択肢を教室ごとに管理します。無効化した項目は一覧に表示されず、新規コマで選べなくなります。
         </p>
@@ -386,7 +418,7 @@ export default function PresetsSettingsPanel({ currentUser, getAccessTokenSilent
           </label>
           <select
             id="preset-classroom"
-            className="w-full rounded-lg border border-slate-200 bg-slate-200 px-3 py-2 text-slate-900 focus:border-cyan-500/60 focus:outline-none focus:ring-2 focus:ring-cyan-500/25"
+            className="w-full rounded-lg border border-slate-200 bg-slate-200 px-3 py-2 text-slate-900 focus:border-cyan-500/60 focus:ring-2 focus:ring-cyan-500/25 focus:outline-none"
             value={selectedClassroomId}
             onChange={(e) => setSelectedClassroomId(e.target.value)}
             disabled={isLoadingClassrooms}
@@ -402,13 +434,18 @@ export default function PresetsSettingsPanel({ currentUser, getAccessTokenSilent
       )}
 
       {error && (
-        <p className="rounded-lg border border-rose-500/30 bg-rose-100/40 px-3 py-2 text-sm text-rose-700" role="alert">
+        <p
+          className="rounded-lg border border-rose-500/30 bg-rose-100/40 px-3 py-2 text-sm text-rose-700"
+          role="alert"
+        >
           {error}
         </p>
       )}
 
       {!activeClassroomId ? (
-        <p className="text-sm text-slate-500">教室を選択するとプリセットを編集できます。</p>
+        <p className="text-sm text-slate-500">
+          教室を選択するとプリセットを編集できます。
+        </p>
       ) : isLoadingPresets ? (
         <p className="text-sm text-slate-500">読み込み中…</p>
       ) : (

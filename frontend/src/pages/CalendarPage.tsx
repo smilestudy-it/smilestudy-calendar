@@ -2,12 +2,16 @@
  * （責務）月次カレンダー。教室選択・月移動・コマ一覧と週編集への導線。
  */
 import { useEffect, useMemo, useState } from 'react';
+import { Link } from 'react-router-dom';
+
 import dayjs from 'dayjs';
 import 'dayjs/locale/ja';
-import { Link } from 'react-router-dom';
+
 import { Button } from '@/components/ui/button';
 import MonthCalendar from '@/components/ui/full-calendar';
-import LessonDeletePanel, { type LessonDeleteTarget } from '@/components/ui/lesson-delete-panel';
+import LessonDeletePanel, {
+  type LessonDeleteTarget,
+} from '@/components/ui/lesson-delete-panel';
 import { useAuthedFetch } from '@/hooks/useAuthedFetch';
 import { useSelectedClassroom } from '@/hooks/useSelectedClassroom';
 import type { CurrentUser } from '@/types/currentUser';
@@ -56,13 +60,18 @@ function buildModalEventTitle(
   teacher?: TeacherRow,
   student?: StudentRow,
   subjectName?: string,
-  lessonTypeName?: string
+  lessonTypeName?: string,
 ) {
   const teacherName =
-    lesson.teacherDisplay || `${teacher?.lastName ?? ''} ${teacher?.firstName ?? ''}`.trim() || lesson.teacherId;
-  const studentName = lesson.studentDisplay || student?.name || lesson.studentId;
+    lesson.teacherDisplay ||
+    `${teacher?.lastName ?? ''} ${teacher?.firstName ?? ''}`.trim() ||
+    lesson.teacherId;
+  const studentName =
+    lesson.studentDisplay || student?.name || lesson.studentId;
   const detailText = [subjectName, lessonTypeName].filter(Boolean).join('・');
-  return detailText ? `${teacherName} - ${studentName} (${detailText})` : `${teacherName} - ${studentName}`;
+  return detailText
+    ? `${teacherName} - ${studentName} (${detailText})`
+    : `${teacherName} - ${studentName}`;
 }
 
 export default function CalendarPage({
@@ -78,12 +87,23 @@ export default function CalendarPage({
   const [lessonTypes, setLessonTypes] = useState<PresetRow[]>([]);
   const [listError, setListError] = useState<string | null>(null);
   const [isLoadingMonth, setIsLoadingMonth] = useState(false);
-  const [selectedEvent, setSelectedEvent] = useState<LessonDeleteTarget | null>(null);
+  const [selectedEvent, setSelectedEvent] = useState<LessonDeleteTarget | null>(
+    null,
+  );
 
-  const monthStart = useMemo(() => dayjs(focusDate).startOf('month'), [focusDate]);
-  const monthEndExclusive = useMemo(() => monthStart.add(1, 'month'), [monthStart]);
+  const monthStart = useMemo(
+    () => dayjs(focusDate).startOf('month'),
+    [focusDate],
+  );
+  const monthEndExclusive = useMemo(
+    () => monthStart.add(1, 'month'),
+    [monthStart],
+  );
   const monthFromIso = useMemo(() => monthStart.toISOString(), [monthStart]);
-  const monthToIso = useMemo(() => monthEndExclusive.toISOString(), [monthEndExclusive]);
+  const monthToIso = useMemo(
+    () => monthEndExclusive.toISOString(),
+    [monthEndExclusive],
+  );
 
   const authedFetch = useAuthedFetch(getAccessTokenSilently);
 
@@ -101,11 +121,21 @@ export default function CalendarPage({
         const qs = new URLSearchParams({ from: monthFromIso, to: monthToIso });
         const userQs = new URLSearchParams({ includeAdmins: '1' });
         const [lRes, uRes, sRes, subRes, ltRes] = await Promise.all([
-          authedFetch(`/api/classrooms/${encodeURIComponent(activeClassroom.id)}/lessons?${qs}`),
-          authedFetch(`/api/users/${encodeURIComponent(activeClassroom.id)}?${userQs}`),
-          authedFetch(`/api/students/${encodeURIComponent(activeClassroom.id)}`),
-          authedFetch(`/api/classrooms/${encodeURIComponent(activeClassroom.id)}/subjects`),
-          authedFetch(`/api/classrooms/${encodeURIComponent(activeClassroom.id)}/lesson-types`),
+          authedFetch(
+            `/api/lessons/${encodeURIComponent(activeClassroom.id)}?${qs}`,
+          ),
+          authedFetch(
+            `/api/users/${encodeURIComponent(activeClassroom.id)}?${userQs}`,
+          ),
+          authedFetch(
+            `/api/students/${encodeURIComponent(activeClassroom.id)}`,
+          ),
+          authedFetch(
+            `/api/subjects/${encodeURIComponent(activeClassroom.id)}`,
+          ),
+          authedFetch(
+            `/api/lesson-types/${encodeURIComponent(activeClassroom.id)}`,
+          ),
         ]);
         if (isDisposed) {
           return;
@@ -116,19 +146,27 @@ export default function CalendarPage({
         }
         const [lessonsJson, uJson, sJson, subJson, ltJson] = await Promise.all([
           lRes.json() as Promise<LessonApi[]>,
-          uRes.ok ? (uRes.json() as Promise<TeacherRow[]>) : Promise.resolve(null),
-          sRes.ok ? (sRes.json() as Promise<StudentRow[]>) : Promise.resolve(null),
-          subRes.ok ? (subRes.json() as Promise<PresetRow[]>) : Promise.resolve(null),
-          ltRes.ok ? (ltRes.json() as Promise<PresetRow[]>) : Promise.resolve(null),
+          uRes.ok
+            ? (uRes.json() as Promise<TeacherRow[]>)
+            : Promise.resolve(null),
+          sRes.ok
+            ? (sRes.json() as Promise<StudentRow[]>)
+            : Promise.resolve(null),
+          subRes.ok
+            ? (subRes.json() as Promise<PresetRow[]>)
+            : Promise.resolve(null),
+          ltRes.ok
+            ? (ltRes.json() as Promise<PresetRow[]>)
+            : Promise.resolve(null),
         ]);
         if (isDisposed) {
           return;
         }
         setLessons(lessonsJson);
-        if (uJson) setTeachers(uJson);
-        if (sJson) setStudents(sJson);
-        if (subJson) setSubjects(subJson);
-        if (ltJson) setLessonTypes(ltJson);
+        setTeachers(uJson ?? []);
+        setStudents(sJson ?? []);
+        setSubjects(subJson ?? []);
+        setLessonTypes(ltJson ?? []);
       } catch {
         if (!isDisposed) {
           setListError('ネットワークエラーが発生しました。');
@@ -151,8 +189,14 @@ export default function CalendarPage({
   const calendarEvents = useMemo(() => {
     return lessons.map((l) => {
       const te = teacherById.get(l.teacherId);
-      const teacherLastName = te?.lastName?.trim() || l.teacherDisplay.trim().split(/\s+/)[0] || l.teacherId;
-      const eventColor = te?.color && /^#([0-9a-fA-F]{6})$/.test(te.color) ? te.color : '#6366f1';
+      const teacherLastName =
+        te?.lastName?.trim() ||
+        l.teacherDisplay.trim().split(/\s+/)[0] ||
+        l.teacherId;
+      const eventColor =
+        te?.color && /^#([0-9a-fA-F]{6})$/.test(te.color)
+          ? te.color
+          : '#6366f1';
       return {
         id: l.id,
         title: teacherLastName,
@@ -166,31 +210,38 @@ export default function CalendarPage({
   }, [lessons, teacherById]);
 
   if (!currentUser) {
-    return <p className="text-sm text-slate-700">この画面にアクセスできません。</p>;
+    return (
+      <p className="text-sm text-slate-700">この画面にアクセスできません。</p>
+    );
   }
 
-  const isAdmin = currentUser.role === 'admin'
+  const isAdmin = currentUser.role === 'admin';
 
   return (
     <section className="space-y-6">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h2 className="text-lg font-semibold md:text-xl">カレンダー</h2>
-          {
-            isAdmin &&
-            <p className="text-sm text-slate-500">現在の教室: {activeClassroom?.name || '未選択'}</p>
-          }
+          {isAdmin && (
+            <p className="text-sm text-slate-500">
+              現在の教室: {activeClassroom?.name || '未選択'}
+            </p>
+          )}
         </div>
         <div className="flex flex-wrap items-center gap-2">
           <Button type="button" variant="outline" size="sm" asChild>
-            <Link to={`/calendar/edit?week=${dayjs(focusDate).format('YYYY-MM-DD')}`}>編集</Link>
+            <Link
+              to={`/calendar/edit?week=${dayjs(focusDate).format('YYYY-MM-DD')}`}
+            >
+              編集
+            </Link>
           </Button>
         </div>
       </div>
 
-      {isAdmin && (!activeClassroom && (
+      {isAdmin && !activeClassroom && (
         <p className="text-sm text-amber-700">教室を選択してください。</p>
-      ))}
+      )}
 
       {listError && <p className="text-sm text-rose-600">{listError}</p>}
 
@@ -205,7 +256,9 @@ export default function CalendarPage({
                 type="button"
                 variant="outline"
                 size="sm"
-                onClick={() => setFocusDate((d) => dayjs(d).subtract(1, 'month').toDate())}
+                onClick={() =>
+                  setFocusDate((d) => dayjs(d).subtract(1, 'month').toDate())
+                }
               >
                 前の月
               </Button>
@@ -221,7 +274,9 @@ export default function CalendarPage({
                 type="button"
                 variant="outline"
                 size="sm"
-                onClick={() => setFocusDate((d) => dayjs(d).add(1, 'month').toDate())}
+                onClick={() =>
+                  setFocusDate((d) => dayjs(d).add(1, 'month').toDate())
+                }
               >
                 次の月
               </Button>
@@ -244,11 +299,21 @@ export default function CalendarPage({
                   }
                   const teacher = teacherById.get(lesson.teacherId);
                   const student = studentById.get(lesson.studentId);
-                  const subjectName = lesson.subjectId ? subjectById.get(lesson.subjectId) : undefined;
-                  const lessonTypeName = lesson.lessonTypeId ? lessonTypeById.get(lesson.lessonTypeId) : undefined;
+                  const subjectName = lesson.subjectId
+                    ? subjectById.get(lesson.subjectId)
+                    : undefined;
+                  const lessonTypeName = lesson.lessonTypeId
+                    ? lessonTypeById.get(lesson.lessonTypeId)
+                    : undefined;
                   setSelectedEvent({
                     ...event,
-                    title: buildModalEventTitle(lesson, teacher, student, subjectName, lessonTypeName),
+                    title: buildModalEventTitle(
+                      lesson,
+                      teacher,
+                      student,
+                      subjectName,
+                      lessonTypeName,
+                    ),
                   });
                 }}
               />
@@ -262,7 +327,6 @@ export default function CalendarPage({
         error={null}
         onClose={() => setSelectedEvent(null)}
       />
-
     </section>
   );
 }

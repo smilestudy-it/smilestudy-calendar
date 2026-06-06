@@ -1,8 +1,8 @@
 {
+  "id": "fae5ac79-1c2b-44e2-bb5c-70fb02c89ac6",
+  "prevId": "68f7e76a-b72a-469b-976d-1e26b2af771a",
   "version": "6",
   "dialect": "sqlite",
-  "id": "68f7e76a-b72a-469b-976d-1e26b2af771a",
-  "prevId": "00000000-0000-0000-0000-000000000000",
   "tables": {
     "classrooms": {
       "name": "classrooms",
@@ -33,8 +33,8 @@
         "classrooms_name_active_unique": {
           "name": "classrooms_name_active_unique",
           "columns": ["name"],
-          "isUnique": true,
-          "where": "\"classrooms\".\"deleted_at\" is null"
+          "where": "\"classrooms\".\"deleted_at\" is null",
+          "isUnique": true
         }
       },
       "foreignKeys": {},
@@ -79,11 +79,11 @@
         "lesson_types_classroom_id_classrooms_id_fk": {
           "name": "lesson_types_classroom_id_classrooms_id_fk",
           "tableFrom": "lesson_types",
-          "tableTo": "classrooms",
           "columnsFrom": ["classroom_id"],
+          "tableTo": "classrooms",
           "columnsTo": ["id"],
-          "onDelete": "no action",
-          "onUpdate": "no action"
+          "onUpdate": "no action",
+          "onDelete": "no action"
         }
       },
       "compositePrimaryKeys": {},
@@ -170,47 +170,47 @@
         "lessons_teacher_id_users_id_fk": {
           "name": "lessons_teacher_id_users_id_fk",
           "tableFrom": "lessons",
-          "tableTo": "users",
           "columnsFrom": ["teacher_id"],
+          "tableTo": "users",
           "columnsTo": ["id"],
-          "onDelete": "no action",
-          "onUpdate": "no action"
+          "onUpdate": "no action",
+          "onDelete": "no action"
         },
         "lessons_student_id_students_id_fk": {
           "name": "lessons_student_id_students_id_fk",
           "tableFrom": "lessons",
-          "tableTo": "students",
           "columnsFrom": ["student_id"],
+          "tableTo": "students",
           "columnsTo": ["id"],
-          "onDelete": "no action",
-          "onUpdate": "no action"
+          "onUpdate": "no action",
+          "onDelete": "no action"
         },
         "lessons_classroom_id_classrooms_id_fk": {
           "name": "lessons_classroom_id_classrooms_id_fk",
           "tableFrom": "lessons",
-          "tableTo": "classrooms",
           "columnsFrom": ["classroom_id"],
+          "tableTo": "classrooms",
           "columnsTo": ["id"],
-          "onDelete": "no action",
-          "onUpdate": "no action"
+          "onUpdate": "no action",
+          "onDelete": "no action"
         },
         "lessons_subject_id_subjects_id_fk": {
           "name": "lessons_subject_id_subjects_id_fk",
           "tableFrom": "lessons",
-          "tableTo": "subjects",
           "columnsFrom": ["subject_id"],
+          "tableTo": "subjects",
           "columnsTo": ["id"],
-          "onDelete": "no action",
-          "onUpdate": "no action"
+          "onUpdate": "no action",
+          "onDelete": "no action"
         },
         "lessons_lesson_type_id_lesson_types_id_fk": {
           "name": "lessons_lesson_type_id_lesson_types_id_fk",
           "tableFrom": "lessons",
-          "tableTo": "lesson_types",
           "columnsFrom": ["lesson_type_id"],
+          "tableTo": "lesson_types",
           "columnsTo": ["id"],
-          "onDelete": "no action",
-          "onUpdate": "no action"
+          "onUpdate": "no action",
+          "onDelete": "no action"
         }
       },
       "compositePrimaryKeys": {},
@@ -268,11 +268,11 @@
         "students_classroom_id_classrooms_id_fk": {
           "name": "students_classroom_id_classrooms_id_fk",
           "tableFrom": "students",
-          "tableTo": "classrooms",
           "columnsFrom": ["classroom_id"],
+          "tableTo": "classrooms",
           "columnsTo": ["id"],
-          "onDelete": "no action",
-          "onUpdate": "no action"
+          "onUpdate": "no action",
+          "onDelete": "no action"
         }
       },
       "compositePrimaryKeys": {},
@@ -316,11 +316,11 @@
         "subjects_classroom_id_classrooms_id_fk": {
           "name": "subjects_classroom_id_classrooms_id_fk",
           "tableFrom": "subjects",
-          "tableTo": "classrooms",
           "columnsFrom": ["classroom_id"],
+          "tableTo": "classrooms",
           "columnsTo": ["id"],
-          "onDelete": "no action",
-          "onUpdate": "no action"
+          "onUpdate": "no action",
+          "onDelete": "no action"
         }
       },
       "compositePrimaryKeys": {},
@@ -371,11 +371,11 @@
         "time_slots_classroom_id_classrooms_id_fk": {
           "name": "time_slots_classroom_id_classrooms_id_fk",
           "tableFrom": "time_slots",
-          "tableTo": "classrooms",
           "columnsFrom": ["classroom_id"],
+          "tableTo": "classrooms",
           "columnsTo": ["id"],
-          "onDelete": "no action",
-          "onUpdate": "no action"
+          "onUpdate": "no action",
+          "onDelete": "no action"
         }
       },
       "compositePrimaryKeys": {},
@@ -450,19 +450,19 @@
         "users_email_active_unique": {
           "name": "users_email_active_unique",
           "columns": ["email"],
-          "isUnique": true,
-          "where": "\"users\".\"deleted_at\" is null"
+          "where": "\"users\".\"deleted_at\" is null",
+          "isUnique": true
         }
       },
       "foreignKeys": {
         "users_classroom_id_classrooms_id_fk": {
           "name": "users_classroom_id_classrooms_id_fk",
           "tableFrom": "users",
-          "tableTo": "classrooms",
           "columnsFrom": ["classroom_id"],
+          "tableTo": "classrooms",
           "columnsTo": ["id"],
-          "onDelete": "no action",
-          "onUpdate": "no action"
+          "onUpdate": "no action",
+          "onDelete": "no action"
         }
       },
       "compositePrimaryKeys": {},
@@ -473,9 +473,9 @@
   "views": {},
   "enums": {},
   "_meta": {
+    "columns": {},
     "schemas": {},
-    "tables": {},
-    "columns": {}
+    "tables": {}
   },
   "internal": {
     "indexes": {}

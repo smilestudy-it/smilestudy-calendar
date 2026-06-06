@@ -2,18 +2,31 @@
  * （責務）リクエスト body / クエリの zod 系バリデーション。各 POST/PATCH の入力検証。
  */
 import { z } from 'zod';
+
 import { isValidDateKey } from '../lessonDisplay';
 
 type HexColor = string & { readonly __brand: 'HexColor' };
 
 const classroomSchema = z.object({
-  name: z.string().trim().min(1, 'name is required').max(100, 'name must be 100 characters or less'),
+  name: z
+    .string()
+    .trim()
+    .min(1, 'name is required')
+    .max(100, 'name must be 100 characters or less'),
 });
 
 const userSchema = z
   .object({
-    firstName: z.string().trim().min(1, 'first name is required').max(100, 'first name must be 100 characters or less'),
-    lastName: z.string().trim().min(1, 'last name is required').max(100, 'last name must be 100 characters or less'),
+    firstName: z
+      .string()
+      .trim()
+      .min(1, 'first name is required')
+      .max(100, 'first name must be 100 characters or less'),
+    lastName: z
+      .string()
+      .trim()
+      .min(1, 'last name is required')
+      .max(100, 'last name must be 100 characters or less'),
     classroomId: z.string().trim().nullable().optional(),
     color: z
       .string()
@@ -22,7 +35,9 @@ const userSchema = z
       .regex(/^#(?:[0-9a-fA-F]{6})$/, 'invalid color')
       .transform((value) => value as HexColor),
     email: z.string().trim().pipe(z.email('invalid email')),
-    role: z.enum(['admin', 'manager', 'staff'], 'invalid role').default('staff'),
+    role: z
+      .enum(['admin', 'manager', 'staff'], 'invalid role')
+      .default('staff'),
   })
   .superRefine((value, ctx) => {
     if (value.role !== 'admin' && !value.classroomId) {
@@ -36,7 +51,11 @@ const userSchema = z
 
 const studentSchema = z
   .object({
-    name: z.string().trim().min(1, 'name is required').max(100, 'name must be 100 characters or less'),
+    name: z
+      .string()
+      .trim()
+      .min(1, 'name is required')
+      .max(100, 'name must be 100 characters or less'),
     email: z.string().trim().pipe(z.email('invalid email')),
     birthYear: z.coerce
       .number()
@@ -87,7 +106,11 @@ function normalizeToHm24(raw: string): string {
 const hmTimeSchema = z
   .string()
   .transform(normalizeToHm24)
-  .pipe(z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/, 'invalid time format (use HH:mm)'));
+  .pipe(
+    z
+      .string()
+      .regex(/^([01]\d|2[0-3]):[0-5]\d$/, 'invalid time format (use HH:mm)'),
+  );
 
 function parseHmToMinutes(s: string): number {
   const [h, m] = s.split(':').map(Number);
@@ -95,7 +118,11 @@ function parseHmToMinutes(s: string): number {
 }
 
 const presetNameBodySchema = z.object({
-  name: z.string().trim().min(1, 'name is required').max(100, 'name must be 100 characters or less'),
+  name: z
+    .string()
+    .trim()
+    .min(1, 'name is required')
+    .max(100, 'name must be 100 characters or less'),
   classroomId: z.string().trim().min(1, 'classroom id is required'),
 });
 
@@ -116,15 +143,19 @@ const createTimeSlotSchema = z
   });
 
 const patchSubjectSchema = z.object({
-  name: z.string().trim().min(1, 'name is required').max(100, 'name must be 100 characters or less'),
+  name: z
+    .string()
+    .trim()
+    .min(1, 'name is required')
+    .max(100, 'name must be 100 characters or less'),
 });
 
 const patchLessonTypeSchema = patchSubjectSchema;
 
 const patchTimeSlotSchema = z
   .object({
-    startTime: hmTimeSchema.optional(),
-    endTime: hmTimeSchema.optional(),
+    startTime: hmTimeSchema,
+    endTime: hmTimeSchema,
   })
   .superRefine((v, ctx) => {
     if (v.startTime === undefined && v.endTime === undefined) {
@@ -167,9 +198,10 @@ function firstIssueMessage(error: z.ZodError): string {
   return error.issues[0]?.message ?? 'invalid request';
 }
 
-export function validateCreateClassroomInput(
-  body: unknown,
-): { input: CreateClassroomInput | null; error: string | null} {
+export function validateCreateClassroomInput(body: unknown): {
+  input: CreateClassroomInput | null;
+  error: string | null;
+} {
   const result = classroomSchema.safeParse(body);
   if (!result.success) {
     return { input: null, error: firstIssueMessage(result.error) };
@@ -177,9 +209,10 @@ export function validateCreateClassroomInput(
   return { input: result.data, error: null };
 }
 
-export function validateCreateUserInput(
-  body: unknown,
-): { input?: CreateUserInput; error?: string } {
+export function validateCreateUserInput(body: unknown): {
+  input?: CreateUserInput;
+  error?: string;
+} {
   const result = userSchema.safeParse(body);
   if (!result.success) {
     return { error: firstIssueMessage(result.error) };
@@ -189,7 +222,8 @@ export function validateCreateUserInput(
     input: {
       firstName: result.data.firstName,
       lastName: result.data.lastName,
-      classroomId: result.data.role === 'admin' ? null : (result.data.classroomId ?? null),
+      classroomId:
+        result.data.role === 'admin' ? null : (result.data.classroomId ?? null),
       color: result.data.color,
       email: result.data.email,
       role: result.data.role,
@@ -197,9 +231,10 @@ export function validateCreateUserInput(
   };
 }
 
-export function validateCreateStudentInput(
-  body: unknown,
-): { input?: CreateStudentInput; error?: string } {
+export function validateCreateStudentInput(body: unknown): {
+  input?: CreateStudentInput;
+  error?: string;
+} {
   const result = studentSchema.safeParse(body);
   if (!result.success) {
     return { error: firstIssueMessage(result.error) };
@@ -207,9 +242,10 @@ export function validateCreateStudentInput(
   return { input: result.data };
 }
 
-export function validateCreateSubjectInput(
-  body: unknown,
-): { input?: CreatePresetNameInput; error?: string } {
+export function validateCreateSubjectInput(body: unknown): {
+  input?: CreatePresetNameInput;
+  error?: string;
+} {
   const result = presetNameBodySchema.safeParse(body);
   if (!result.success) {
     return { error: firstIssueMessage(result.error) };
@@ -217,15 +253,17 @@ export function validateCreateSubjectInput(
   return { input: result.data };
 }
 
-export function validateCreateLessonTypeInput(
-  body: unknown,
-): { input?: CreatePresetNameInput; error?: string } {
+export function validateCreateLessonTypeInput(body: unknown): {
+  input?: CreatePresetNameInput;
+  error?: string;
+} {
   return validateCreateSubjectInput(body);
 }
 
-export function validateCreateTimeSlotInput(
-  body: unknown,
-): { input?: CreateTimeSlotInput; error?: string } {
+export function validateCreateTimeSlotInput(body: unknown): {
+  input?: CreateTimeSlotInput;
+  error?: string;
+} {
   const result = createTimeSlotSchema.safeParse(body);
   if (!result.success) {
     return { error: firstIssueMessage(result.error) };
@@ -233,9 +271,10 @@ export function validateCreateTimeSlotInput(
   return { input: result.data };
 }
 
-export function validatePatchSubjectInput(
-  body: unknown,
-): { input?: PatchSubjectInput; error?: string } {
+export function validatePatchSubjectInput(body: unknown): {
+  input?: PatchSubjectInput;
+  error?: string;
+} {
   const result = patchSubjectSchema.safeParse(body);
   if (!result.success) {
     return { error: firstIssueMessage(result.error) };
@@ -243,9 +282,10 @@ export function validatePatchSubjectInput(
   return { input: result.data };
 }
 
-export function validatePatchLessonTypeInput(
-  body: unknown,
-): { input?: PatchLessonTypeInput; error?: string } {
+export function validatePatchLessonTypeInput(body: unknown): {
+  input?: PatchLessonTypeInput;
+  error?: string;
+} {
   const result = patchLessonTypeSchema.safeParse(body);
   if (!result.success) {
     return { error: firstIssueMessage(result.error) };
@@ -253,9 +293,10 @@ export function validatePatchLessonTypeInput(
   return { input: result.data };
 }
 
-export function validatePatchTimeSlotInput(
-  body: unknown,
-): { input?: PatchTimeSlotInput; error?: string } {
+export function validatePatchTimeSlotInput(body: unknown): {
+  input?: PatchTimeSlotInput;
+  error?: string;
+} {
   const result = patchTimeSlotSchema.safeParse(body);
   if (!result.success) {
     return { error: firstIssueMessage(result.error) };
@@ -351,7 +392,12 @@ const bulkLessonsBodySchema = z
     deleteIds: z.array(z.string().trim().min(1)).optional(),
     creates: z.array(bulkLessonCreateItemSchema).optional(),
     /** creates があるとき必須。`Date#getTimezoneOffset` と同じ値（クライアントが送る） */
-    createsTimezoneOffsetMinutes: z.number().int().min(-840).max(840).optional(),
+    createsTimezoneOffsetMinutes: z
+      .number()
+      .int()
+      .min(-840)
+      .max(840)
+      .optional(),
   })
   .superRefine((data, ctx) => {
     const d = data.deleteIds?.length ?? 0;
@@ -367,14 +413,18 @@ const bulkLessonsBodySchema = z
       ctx.addIssue({
         code: 'custom',
         path: ['createsTimezoneOffsetMinutes'],
-        message: 'createsTimezoneOffsetMinutes is required when creates is non-empty',
+        message:
+          'createsTimezoneOffsetMinutes is required when creates is non-empty',
       });
     }
   });
 
 type BulkLessonsInput = z.infer<typeof bulkLessonsBodySchema>;
 
-export function validateBulkLessonsInput(body: unknown): { input?: BulkLessonsInput; error?: string } {
+export function validateBulkLessonsInput(body: unknown): {
+  input?: BulkLessonsInput;
+  error?: string;
+} {
   const result = bulkLessonsBodySchema.safeParse(body);
   if (!result.success) {
     return { error: firstIssueMessage(result.error) };
@@ -385,9 +435,10 @@ export function validateBulkLessonsInput(body: unknown): { input?: BulkLessonsIn
 type CreateLessonInput = z.infer<typeof createLessonSchema>;
 type PatchLessonInput = z.infer<typeof patchLessonSchema>;
 
-export function validateCreateLessonInput(
-  body: unknown,
-): { input?: CreateLessonInput; error?: string } {
+export function validateCreateLessonInput(body: unknown): {
+  input?: CreateLessonInput;
+  error?: string;
+} {
   const result = createLessonSchema.safeParse(body);
   if (!result.success) {
     return { error: firstIssueMessage(result.error) };
@@ -395,9 +446,10 @@ export function validateCreateLessonInput(
   return { input: result.data };
 }
 
-export function validatePatchLessonInput(
-  body: unknown,
-): { input?: PatchLessonInput; error?: string } {
+export function validatePatchLessonInput(body: unknown): {
+  input?: PatchLessonInput;
+  error?: string;
+} {
   const result = patchLessonSchema.safeParse(body);
   if (!result.success) {
     return { error: firstIssueMessage(result.error) };

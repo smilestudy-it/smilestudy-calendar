@@ -3,10 +3,13 @@
  */
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useForm } from 'react-hook-form';
+import type { Resolver, SubmitHandler } from 'react-hook-form';
+
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
-import type { Resolver, SubmitHandler } from 'react-hook-form';
+
 import { useAuthedFetch } from '@/hooks/useAuthedFetch';
+
 import type { CurrentUser } from '../types/currentUser';
 
 type Classroom = {
@@ -31,8 +34,15 @@ const currentYear = new Date().getFullYear();
 function buildStudentFormSchema(isAdmin: boolean) {
   return z
     .object({
-      name: z.string().trim().min(1, '氏名を入力してください。').max(100, '氏名は100文字以内で入力してください。'),
-      email: z.string().trim().pipe(z.email('メールアドレスの形式が不正です。')),
+      name: z
+        .string()
+        .trim()
+        .min(1, '氏名を入力してください。')
+        .max(100, '氏名は100文字以内で入力してください。'),
+      email: z
+        .string()
+        .trim()
+        .pipe(z.email('メールアドレスの形式が不正です。')),
       birthYear: z.coerce
         .number({ message: '出生年を入力してください。' })
         .int('出生年は整数で入力してください。')
@@ -53,20 +63,33 @@ function buildStudentFormSchema(isAdmin: boolean) {
 
 type StudentFormValues = z.infer<ReturnType<typeof buildStudentFormSchema>>;
 
-export default function StudentManagementPanel({ currentUser, getAccessTokenSilently }: Props) {
+export default function StudentManagementPanel({
+  currentUser,
+  getAccessTokenSilently,
+}: Props) {
   const isAdmin = currentUser.role === 'admin';
-  const canManageStudents = currentUser.role === 'admin' || currentUser.role === 'manager';
-  const studentFormSchema = useMemo(() => buildStudentFormSchema(isAdmin), [isAdmin]);
+  const canManageStudents =
+    currentUser.role === 'admin' || currentUser.role === 'manager';
+  const studentFormSchema = useMemo(
+    () => buildStudentFormSchema(isAdmin),
+    [isAdmin],
+  );
 
   const [classrooms, setClassrooms] = useState<Classroom[]>([]);
-  const [selectedClassroomId, setSelectedClassroomId] = useState<string>(currentUser.classroomId ?? '');
+  const [selectedClassroomId, setSelectedClassroomId] = useState<string>(
+    currentUser.classroomId ?? '',
+  );
   const [students, setStudents] = useState<StudentRow[]>([]);
   const [isLoadingStudents, setIsLoadingStudents] = useState(false);
   const [isLoadingClassrooms, setIsLoadingClassrooms] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [copiedShareStudentId, setCopiedShareStudentId] = useState<string | null>(null);
+  const [copiedShareStudentId, setCopiedShareStudentId] = useState<
+    string | null
+  >(null);
   const [shareCopyError, setShareCopyError] = useState<string | null>(null);
-  const shareCopyFeedbackTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const shareCopyFeedbackTimerRef = useRef<ReturnType<
+    typeof setTimeout
+  > | null>(null);
 
   const latestLoadStudentsRequestId = useRef(0);
 
@@ -95,7 +118,9 @@ export default function StudentManagementPanel({ currentUser, getAccessTokenSile
   }, [currentUser.classroomId, isAdmin, selectedClassroomId]);
 
   const formClassroomId = watch('classroomId') ?? '';
-  const targetClassroomIdForForm = isAdmin ? formClassroomId : (currentUser.classroomId ?? '');
+  const targetClassroomIdForForm = isAdmin
+    ? formClassroomId
+    : (currentUser.classroomId ?? '');
 
   const loadClassrooms = useCallback(async () => {
     if (!isAdmin) {
@@ -179,8 +204,12 @@ export default function StudentManagementPanel({ currentUser, getAccessTokenSile
     void loadStudents();
   }, [loadStudents]);
 
-  const handleCreateStudent: SubmitHandler<StudentFormValues> = async (values) => {
-    const classroomId = isAdmin ? (values.classroomId ?? '').trim() : (currentUser.classroomId ?? '');
+  const handleCreateStudent: SubmitHandler<StudentFormValues> = async (
+    values,
+  ) => {
+    const classroomId = isAdmin
+      ? (values.classroomId ?? '').trim()
+      : (currentUser.classroomId ?? '');
     if (!classroomId) {
       setError('所属教室を選択してください。');
       return;
@@ -208,7 +237,9 @@ export default function StudentManagementPanel({ currentUser, getAccessTokenSile
         } else if (response.status === 404) {
           setError('教室が見つかりません。');
         } else {
-          const body = (await response.json().catch(() => ({}))) as { message?: string };
+          const body = (await response.json().catch(() => ({}))) as {
+            message?: string;
+          };
           const msg = body.message;
           if (msg === 'invalid request') {
             setError('入力内容を確認してください。');
@@ -229,7 +260,9 @@ export default function StudentManagementPanel({ currentUser, getAccessTokenSile
         name: '',
         email: '',
         birthYear: currentYear - 10,
-        classroomId: isAdmin ? getValues('classroomId') : (currentUser.classroomId ?? ''),
+        classroomId: isAdmin
+          ? getValues('classroomId')
+          : (currentUser.classroomId ?? ''),
       });
       await loadStudentsRef.current();
     } catch {
@@ -266,7 +299,9 @@ export default function StudentManagementPanel({ currentUser, getAccessTokenSile
   const handleDeleteStudent = async (id: string) => {
     setError(null);
     try {
-      const response = await authedFetch(`/api/students/${id}`, { method: 'DELETE' });
+      const response = await authedFetch(`/api/students/${id}`, {
+        method: 'DELETE',
+      });
       if (!response.ok) {
         if (response.status === 403) {
           setError('この生徒を削除する権限がありません。');
@@ -284,8 +319,12 @@ export default function StudentManagementPanel({ currentUser, getAccessTokenSile
   return (
     <section className="space-y-8">
       <header className="space-y-2 border-b border-slate-200 pb-6">
-        <p className="text-xs font-semibold uppercase tracking-wider text-emerald-600">Students</p>
-        <h2 className="text-xl font-bold tracking-tight text-slate-900 md:text-2xl">生徒管理</h2>
+        <p className="text-xs font-semibold tracking-wider text-emerald-600 uppercase">
+          Students
+        </p>
+        <h2 className="text-xl font-bold tracking-tight text-slate-900 md:text-2xl">
+          生徒管理
+        </h2>
         <p className="max-w-2xl text-sm leading-relaxed text-slate-500">
           {canManageStudents
             ? '教室ごとに生徒を登録・一覧・削除できます。出生年はカレンダー年度の参照用として保存されます。'
@@ -294,101 +333,131 @@ export default function StudentManagementPanel({ currentUser, getAccessTokenSile
       </header>
 
       {canManageStudents && (
-      <section className="space-y-4 rounded-xl border border-slate-200/80 bg-gradient-to-br from-slate-50 to-slate-100 p-4 shadow-lg ring-1 ring-emerald-500/10 md:p-5">
-        <h3 className="text-base font-semibold text-slate-900">生徒を登録</h3>
-        <form onSubmit={handleSubmit(handleCreateStudent)} className="grid grid-cols-1 gap-3 md:grid-cols-2 md:gap-4">
-          {isAdmin && (
+        <section className="space-y-4 rounded-xl border border-slate-200/80 bg-gradient-to-br from-slate-50 to-slate-100 p-4 shadow-lg ring-1 ring-emerald-500/10 md:p-5">
+          <h3 className="text-base font-semibold text-slate-900">生徒を登録</h3>
+          <form
+            onSubmit={handleSubmit(handleCreateStudent)}
+            className="grid grid-cols-1 gap-3 md:grid-cols-2 md:gap-4"
+          >
+            {isAdmin && (
+              <div className="md:col-span-2">
+                <label
+                  htmlFor="student-classroom"
+                  className="mb-1 block text-sm text-slate-700"
+                >
+                  所属教室
+                </label>
+                <select
+                  id="student-classroom"
+                  aria-label="登録先の所属教室"
+                  {...register('classroomId', {
+                    onChange: (e) => setSelectedClassroomId(e.target.value),
+                  })}
+                  disabled={isLoadingClassrooms}
+                  className="w-full rounded-lg border border-slate-200 bg-slate-200/80 px-3 py-2.5 text-slate-900 focus:border-emerald-500/60 focus:ring-2 focus:ring-emerald-500/25 focus:outline-none"
+                >
+                  <option value="">教室を選択</option>
+                  {classrooms.map((c) => (
+                    <option key={c.id} value={c.id}>
+                      {c.name}
+                    </option>
+                  ))}
+                </select>
+                {errors.classroomId?.message && (
+                  <p className="mt-1 text-sm text-rose-600">
+                    {errors.classroomId.message}
+                  </p>
+                )}
+              </div>
+            )}
+
             <div className="md:col-span-2">
-              <label htmlFor="student-classroom" className="mb-1 block text-sm text-slate-700">
-                所属教室
-              </label>
-              <select
-                id="student-classroom"
-                aria-label="登録先の所属教室"
-                {...register('classroomId', {
-                  onChange: (e) => setSelectedClassroomId(e.target.value),
-                })}
-                disabled={isLoadingClassrooms}
-                className="w-full rounded-lg border border-slate-200 bg-slate-200/80 px-3 py-2.5 text-slate-900 focus:border-emerald-500/60 focus:outline-none focus:ring-2 focus:ring-emerald-500/25"
+              <label
+                htmlFor="student-name"
+                className="mb-1 block text-sm text-slate-700"
               >
-                <option value="">教室を選択</option>
-                {classrooms.map((c) => (
-                  <option key={c.id} value={c.id}>
-                    {c.name}
-                  </option>
-                ))}
-              </select>
-              {errors.classroomId?.message && (
-                <p className="mt-1 text-sm text-rose-600">{errors.classroomId.message}</p>
+                氏名
+              </label>
+              <input
+                id="student-name"
+                aria-label="氏名"
+                {...register('name')}
+                placeholder="山田 太郎"
+                maxLength={100}
+                className="w-full rounded-lg border border-slate-200 bg-slate-200/80 px-3 py-2.5 text-slate-900 placeholder:text-slate-500 focus:border-emerald-500/60 focus:ring-2 focus:ring-emerald-500/25 focus:outline-none"
+              />
+              {errors.name?.message && (
+                <p className="mt-1 text-sm text-rose-600">
+                  {errors.name.message}
+                </p>
               )}
             </div>
-          )}
 
-          <div className="md:col-span-2">
-            <label htmlFor="student-name" className="mb-1 block text-sm text-slate-700">
-              氏名
-            </label>
-            <input
-              id="student-name"
-              aria-label="氏名"
-              {...register('name')}
-              placeholder="山田 太郎"
-              maxLength={100}
-              className="w-full rounded-lg border border-slate-200 bg-slate-200/80 px-3 py-2.5 text-slate-900 placeholder:text-slate-500 focus:border-emerald-500/60 focus:outline-none focus:ring-2 focus:ring-emerald-500/25"
-            />
-            {errors.name?.message && <p className="mt-1 text-sm text-rose-600">{errors.name.message}</p>}
-          </div>
+            <div>
+              <label
+                htmlFor="student-email"
+                className="mb-1 block text-sm text-slate-700"
+              >
+                メールアドレス
+              </label>
+              <input
+                id="student-email"
+                type="email"
+                aria-label="メールアドレス"
+                {...register('email')}
+                placeholder="student@example.com"
+                className="w-full rounded-lg border border-slate-200 bg-slate-200/80 px-3 py-2.5 text-slate-900 placeholder:text-slate-500 focus:border-emerald-500/60 focus:ring-2 focus:ring-emerald-500/25 focus:outline-none"
+              />
+              {errors.email?.message && (
+                <p className="mt-1 text-sm text-rose-600">
+                  {errors.email.message}
+                </p>
+              )}
+            </div>
 
-          <div>
-            <label htmlFor="student-email" className="mb-1 block text-sm text-slate-700">
-              メールアドレス
-            </label>
-            <input
-              id="student-email"
-              type="email"
-              aria-label="メールアドレス"
-              {...register('email')}
-              placeholder="student@example.com"
-              className="w-full rounded-lg border border-slate-200 bg-slate-200/80 px-3 py-2.5 text-slate-900 placeholder:text-slate-500 focus:border-emerald-500/60 focus:outline-none focus:ring-2 focus:ring-emerald-500/25"
-            />
-            {errors.email?.message && <p className="mt-1 text-sm text-rose-600">{errors.email.message}</p>}
-          </div>
+            <div>
+              <label
+                htmlFor="student-birth-year"
+                className="mb-1 block text-sm text-slate-700"
+              >
+                出生年度（西暦）
+              </label>
+              <input
+                id="student-birth-year"
+                type="number"
+                aria-label="出生年"
+                min={1900}
+                max={currentYear}
+                {...register('birthYear', { valueAsNumber: true })}
+                className="w-full rounded-lg border border-slate-200 bg-slate-200/80 px-3 py-2.5 text-slate-900 focus:border-emerald-500/60 focus:ring-2 focus:ring-emerald-500/25 focus:outline-none"
+              />
+              {errors.birthYear?.message && (
+                <p className="mt-1 text-sm text-rose-600">
+                  {errors.birthYear.message}
+                </p>
+              )}
+            </div>
 
-          <div>
-            <label htmlFor="student-birth-year" className="mb-1 block text-sm text-slate-700">
-              出生年度（西暦）
-            </label>
-            <input
-              id="student-birth-year"
-              type="number"
-              aria-label="出生年"
-              min={1900}
-              max={currentYear}
-              {...register('birthYear', { valueAsNumber: true })}
-              className="w-full rounded-lg border border-slate-200 bg-slate-200/80 px-3 py-2.5 text-slate-900 focus:border-emerald-500/60 focus:outline-none focus:ring-2 focus:ring-emerald-500/25"
-            />
-            {errors.birthYear?.message && (
-              <p className="mt-1 text-sm text-rose-600">{errors.birthYear.message}</p>
-            )}
-          </div>
-
-          <button
-            type="submit"
-            disabled={
-              isSubmitting ||
-              (isAdmin && !targetClassroomIdForForm) ||
-              (!isAdmin && !currentUser.classroomId)
-            }
-            className="rounded-lg bg-emerald-600 px-4 py-2.5 text-sm font-semibold text-white shadow-md shadow-emerald-900/30 transition hover:bg-emerald-500 disabled:cursor-not-allowed disabled:opacity-50 md:col-span-2"
-          >
-            {isSubmitting ? '登録中…' : '生徒を登録'}
-          </button>
-        </form>
-      </section>
+            <button
+              type="submit"
+              disabled={
+                isSubmitting ||
+                (isAdmin && !targetClassroomIdForForm) ||
+                (!isAdmin && !currentUser.classroomId)
+              }
+              className="rounded-lg bg-emerald-600 px-4 py-2.5 text-sm font-semibold text-white shadow-md shadow-emerald-900/30 transition hover:bg-emerald-500 disabled:cursor-not-allowed disabled:opacity-50 md:col-span-2"
+            >
+              {isSubmitting ? '登録中…' : '生徒を登録'}
+            </button>
+          </form>
+        </section>
       )}
 
       {error && (
-        <p className="rounded-lg border border-rose-500/30 bg-rose-100/40 px-3 py-2 text-sm text-rose-700" role="alert">
+        <p
+          className="rounded-lg border border-rose-500/30 bg-rose-100/40 px-3 py-2 text-sm text-rose-700"
+          role="alert"
+        >
           {error}
         </p>
       )}
@@ -398,12 +467,15 @@ export default function StudentManagementPanel({ currentUser, getAccessTokenSile
           <h3 className="text-base font-semibold text-slate-900">生徒一覧</h3>
           {isAdmin && (
             <div className="w-full max-w-xs space-y-1">
-              <label htmlFor="list-classroom" className="text-xs text-slate-500">
+              <label
+                htmlFor="list-classroom"
+                className="text-xs text-slate-500"
+              >
                 表示する教室
               </label>
               <select
                 id="list-classroom"
-                className="w-full rounded-lg border border-slate-200 bg-slate-200 px-3 py-2 text-sm text-slate-900 focus:border-emerald-500/60 focus:outline-none focus:ring-2 focus:ring-emerald-500/25"
+                className="w-full rounded-lg border border-slate-200 bg-slate-200 px-3 py-2 text-sm text-slate-900 focus:border-emerald-500/60 focus:ring-2 focus:ring-emerald-500/25 focus:outline-none"
                 value={selectedClassroomId}
                 onChange={(e) => {
                   const v = e.target.value;
@@ -450,8 +522,12 @@ export default function StudentManagementPanel({ currentUser, getAccessTokenSile
                 >
                   <div className="min-w-0 space-y-1">
                     <p className="font-medium text-slate-900">{row.name}</p>
-                    <p className="truncate text-sm text-slate-500">{row.email}</p>
-                    <p className="text-xs text-slate-500">出生年: {row.birthYear}</p>
+                    <p className="truncate text-sm text-slate-500">
+                      {row.email}
+                    </p>
+                    <p className="text-xs text-slate-500">
+                      出生年: {row.birthYear}
+                    </p>
                   </div>
                   <div className="flex shrink-0 flex-wrap items-center gap-2">
                     <button
@@ -459,7 +535,9 @@ export default function StudentManagementPanel({ currentUser, getAccessTokenSile
                       className="rounded-lg border border-slate-600 bg-slate-100/80 px-3 py-2 text-sm font-medium text-slate-800 transition hover:bg-slate-200/80"
                       onClick={() => void handleCopyShareLink(row.id)}
                     >
-                      {copiedShareStudentId === row.id ? 'コピーしました' : '共有リンクをコピー'}
+                      {copiedShareStudentId === row.id
+                        ? 'コピーしました'
+                        : '共有リンクをコピー'}
                     </button>
                     {canManageStudents && (
                       <button

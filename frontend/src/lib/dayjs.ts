@@ -10,6 +10,6 @@ dayjs.extend(utc);
 dayjs.extend(timezone);
 
 // デフォルトのタイムゾーンを日本に設定
-dayjs.tz.setDefault("Asia/Tokyo");
+dayjs.tz.setDefault('Asia/Tokyo');
 
 export default dayjs;

@@ -3,12 +3,15 @@
  */
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useForm } from 'react-hook-form';
+import type { SubmitHandler } from 'react-hook-form';
+
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
-import type { SubmitHandler } from 'react-hook-form';
-import { useAuthedFetch } from '@/hooks/useAuthedFetch';
-import type { CurrentUser } from '../types/currentUser';
+
 import type { User } from '@/../../shared/type';
+import { useAuthedFetch } from '@/hooks/useAuthedFetch';
+
+import type { CurrentUser } from '../types/currentUser';
 
 type Classroom = {
   id: string;
@@ -25,10 +28,21 @@ const inviteFormSchema = z
   .object({
     role: z.enum(['admin', 'manager', 'staff']),
     classroomId: z.string().trim().optional(),
-    firstName: z.string().trim().min(1, '名を入力してください。').max(100, '名は100文字以内で入力してください。'),
-    lastName: z.string().trim().min(1, '姓を入力してください。').max(100, '姓は100文字以内で入力してください。'),
+    firstName: z
+      .string()
+      .trim()
+      .min(1, '名を入力してください。')
+      .max(100, '名は100文字以内で入力してください。'),
+    lastName: z
+      .string()
+      .trim()
+      .min(1, '姓を入力してください。')
+      .max(100, '姓は100文字以内で入力してください。'),
     email: z.string().trim().pipe(z.email('メールアドレスの形式が不正です。')),
-    color: z.string().trim().regex(/^#(?:[0-9a-fA-F]{6})$/, 'カラーコードが不正です。'),
+    color: z
+      .string()
+      .trim()
+      .regex(/^#(?:[0-9a-fA-F]{6})$/, 'カラーコードが不正です。'),
   })
   .superRefine((value, ctx) => {
     if (value.role !== 'admin' && !value.classroomId) {
@@ -42,11 +56,17 @@ const inviteFormSchema = z
 
 type InviteFormValues = z.infer<typeof inviteFormSchema>;
 
-export default function TeacherManagementPanel({ currentUser, getAccessTokenSilently }: Props) {
+export default function TeacherManagementPanel({
+  currentUser,
+  getAccessTokenSilently,
+}: Props) {
   const isAdmin = currentUser.role === 'admin';
-  const canListAdmins = currentUser.role === 'admin' || currentUser.role === 'manager';
+  const canListAdmins =
+    currentUser.role === 'admin' || currentUser.role === 'manager';
   const [classrooms, setClassrooms] = useState<Classroom[]>([]);
-  const [selectedClassroomId, setSelectedClassroomId] = useState<string>(currentUser.classroomId ?? '');
+  const [selectedClassroomId, setSelectedClassroomId] = useState<string>(
+    currentUser.classroomId ?? '',
+  );
   const [users, setUsers] = useState<User[]>([]);
   const [adminUsers, setAdminUsers] = useState<User[]>([]);
   const [isLoadingUsers, setIsLoadingUsers] = useState(false);
@@ -62,10 +82,7 @@ export default function TeacherManagementPanel({ currentUser, getAccessTokenSile
     setValue,
     getValues,
     reset,
-    formState: {
-      errors,
-      isSubmitting,
-    },
+    formState: { errors, isSubmitting },
   } = useForm<InviteFormValues>({
     resolver: zodResolver(inviteFormSchema),
     defaultValues: {
@@ -86,7 +103,9 @@ export default function TeacherManagementPanel({ currentUser, getAccessTokenSile
   const inviteRole = watch('role');
   const inviteClassroomId = watch('classroomId') ?? '';
   const requiresClassroom = inviteRole !== 'admin';
-  const inviteTargetClassroomId = isAdmin ? inviteClassroomId : activeClassroomId;
+  const inviteTargetClassroomId = isAdmin
+    ? inviteClassroomId
+    : activeClassroomId;
 
   const loadClassrooms = useCallback(async () => {
     if (!isAdmin) {
@@ -246,7 +265,9 @@ export default function TeacherManagementPanel({ currentUser, getAccessTokenSile
 
       reset({
         role: 'staff',
-        classroomId: isAdmin ? getValues('classroomId') : (currentUser.classroomId ?? ''),
+        classroomId: isAdmin
+          ? getValues('classroomId')
+          : (currentUser.classroomId ?? ''),
         firstName: '',
         lastName: '',
         email: '',
@@ -267,7 +288,9 @@ export default function TeacherManagementPanel({ currentUser, getAccessTokenSile
       });
       if (!response.ok) {
         if (response.status === 403) {
-          setError('このユーザーを削除する権限がないか、自分自身は削除できません。');
+          setError(
+            'このユーザーを削除する権限がないか、自分自身は削除できません。',
+          );
         } else {
           setError('ユーザー削除に失敗しました。');
         }
@@ -282,12 +305,20 @@ export default function TeacherManagementPanel({ currentUser, getAccessTokenSile
 
   return (
     <section className="space-y-6 rounded-xl border border-slate-200 bg-slate-50/50 p-4">
-      <h2 className="text-lg font-semibold md:text-xl">講師管理（教室長以上）</h2>
+      <h2 className="text-lg font-semibold md:text-xl">
+        講師管理（教室長以上）
+      </h2>
 
       <section className="space-y-3 rounded-lg border border-slate-200 bg-slate-100/60 p-3">
         <h3 className="text-base font-semibold">講師招待</h3>
-        <form onSubmit={handleSubmit(handleInvite)} className="grid grid-cols-1 gap-2 md:grid-cols-2">
-          <label className="text-sm text-slate-700 md:col-span-2" htmlFor="invite-role">
+        <form
+          onSubmit={handleSubmit(handleInvite)}
+          className="grid grid-cols-1 gap-2 md:grid-cols-2"
+        >
+          <label
+            className="text-sm text-slate-700 md:col-span-2"
+            htmlFor="invite-role"
+          >
             権限
           </label>
           <div className="md:col-span-2">
@@ -295,18 +326,25 @@ export default function TeacherManagementPanel({ currentUser, getAccessTokenSile
               id="invite-role"
               aria-label="招待する権限"
               {...register('role')}
-              className="w-full rounded-lg border border-slate-200 bg-slate-200 px-3 py-2 text-slate-900 focus:border-indigo-400 focus:outline-none focus:ring-2 focus:ring-indigo-500/30"
+              className="w-full rounded-lg border border-slate-200 bg-slate-200 px-3 py-2 text-slate-900 focus:border-indigo-400 focus:ring-2 focus:ring-indigo-500/30 focus:outline-none"
             >
               {isAdmin && <option value="admin">管理者</option>}
               <option value="manager">教室長</option>
               <option value="staff">講師</option>
             </select>
-            {errors.role?.message && <p className="mt-1 text-sm text-rose-600">{errors.role.message}</p>}
+            {errors.role?.message && (
+              <p className="mt-1 text-sm text-rose-600">
+                {errors.role.message}
+              </p>
+            )}
           </div>
 
           {isAdmin && requiresClassroom && (
             <>
-              <label className="text-sm text-slate-700 md:col-span-2" htmlFor="invite-classroom">
+              <label
+                className="text-sm text-slate-700 md:col-span-2"
+                htmlFor="invite-classroom"
+              >
                 所属教室
               </label>
               <div className="md:col-span-2">
@@ -315,7 +353,7 @@ export default function TeacherManagementPanel({ currentUser, getAccessTokenSile
                   aria-label="招待先の所属教室"
                   {...register('classroomId')}
                   disabled={isLoadingClassrooms}
-                  className="w-full rounded-lg border border-slate-200 bg-slate-200 px-3 py-2 text-slate-900 focus:border-indigo-400 focus:outline-none focus:ring-2 focus:ring-indigo-500/30"
+                  className="w-full rounded-lg border border-slate-200 bg-slate-200 px-3 py-2 text-slate-900 focus:border-indigo-400 focus:ring-2 focus:ring-indigo-500/30 focus:outline-none"
                 >
                   <option value="">教室を選択してください</option>
                   {classrooms.map((classroom) => (
@@ -324,7 +362,11 @@ export default function TeacherManagementPanel({ currentUser, getAccessTokenSile
                     </option>
                   ))}
                 </select>
-                {errors.classroomId?.message && <p className="mt-1 text-sm text-rose-600">{errors.classroomId.message}</p>}
+                {errors.classroomId?.message && (
+                  <p className="mt-1 text-sm text-rose-600">
+                    {errors.classroomId.message}
+                  </p>
+                )}
               </div>
             </>
           )}
@@ -335,9 +377,13 @@ export default function TeacherManagementPanel({ currentUser, getAccessTokenSile
               {...register('lastName')}
               placeholder="姓"
               maxLength={100}
-              className="w-full rounded-lg border border-slate-200 bg-slate-200 px-3 py-2 text-slate-900 placeholder:text-slate-500 focus:border-indigo-400 focus:outline-none focus:ring-2 focus:ring-indigo-500/30"
+              className="w-full rounded-lg border border-slate-200 bg-slate-200 px-3 py-2 text-slate-900 placeholder:text-slate-500 focus:border-indigo-400 focus:ring-2 focus:ring-indigo-500/30 focus:outline-none"
             />
-            {errors.lastName?.message && <p className="mt-1 text-sm text-rose-600">{errors.lastName.message}</p>}
+            {errors.lastName?.message && (
+              <p className="mt-1 text-sm text-rose-600">
+                {errors.lastName.message}
+              </p>
+            )}
           </div>
           <div>
             <input
@@ -345,9 +391,13 @@ export default function TeacherManagementPanel({ currentUser, getAccessTokenSile
               {...register('firstName')}
               placeholder="名"
               maxLength={100}
-              className="w-full rounded-lg border border-slate-200 bg-slate-200 px-3 py-2 text-slate-900 placeholder:text-slate-500 focus:border-indigo-400 focus:outline-none focus:ring-2 focus:ring-indigo-500/30"
+              className="w-full rounded-lg border border-slate-200 bg-slate-200 px-3 py-2 text-slate-900 placeholder:text-slate-500 focus:border-indigo-400 focus:ring-2 focus:ring-indigo-500/30 focus:outline-none"
             />
-            {errors.firstName?.message && <p className="mt-1 text-sm text-rose-600">{errors.firstName.message}</p>}
+            {errors.firstName?.message && (
+              <p className="mt-1 text-sm text-rose-600">
+                {errors.firstName.message}
+              </p>
+            )}
           </div>
           <div className="md:col-span-2">
             <input
@@ -355,9 +405,13 @@ export default function TeacherManagementPanel({ currentUser, getAccessTokenSile
               type="email"
               {...register('email')}
               placeholder="email@example.com"
-              className="w-full rounded-lg border border-slate-200 bg-slate-200 px-3 py-2 text-slate-900 placeholder:text-slate-500 focus:border-indigo-400 focus:outline-none focus:ring-2 focus:ring-indigo-500/30"
+              className="w-full rounded-lg border border-slate-200 bg-slate-200 px-3 py-2 text-slate-900 placeholder:text-slate-500 focus:border-indigo-400 focus:ring-2 focus:ring-indigo-500/30 focus:outline-none"
             />
-            {errors.email?.message && <p className="mt-1 text-sm text-rose-600">{errors.email.message}</p>}
+            {errors.email?.message && (
+              <p className="mt-1 text-sm text-rose-600">
+                {errors.email.message}
+              </p>
+            )}
           </div>
           <div className="md:col-span-2">
             <input
@@ -366,12 +420,18 @@ export default function TeacherManagementPanel({ currentUser, getAccessTokenSile
               {...register('color')}
               className="h-10 w-full rounded-lg border border-slate-200 bg-slate-200 px-2 py-1"
             />
-            {errors.color?.message && <p className="mt-1 text-sm text-rose-600">{errors.color.message}</p>}
+            {errors.color?.message && (
+              <p className="mt-1 text-sm text-rose-600">
+                {errors.color.message}
+              </p>
+            )}
           </div>
           <button
             type="submit"
             className="rounded-lg bg-indigo-700 px-4 py-2 font-semibold text-white transition hover:bg-indigo-600 disabled:cursor-not-allowed disabled:opacity-60 md:col-span-2"
-            disabled={isSubmitting || (requiresClassroom && !inviteTargetClassroomId)}
+            disabled={
+              isSubmitting || (requiresClassroom && !inviteTargetClassroomId)
+            }
           >
             {isSubmitting ? '招待中...' : '講師を招待する'}
           </button>
@@ -393,7 +453,9 @@ export default function TeacherManagementPanel({ currentUser, getAccessTokenSile
                   className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-slate-200 bg-slate-50/60 px-3 py-2"
                 >
                   <div className="space-y-0.5 text-sm">
-                    <p className="font-medium text-slate-900">{row.lastName} {row.firstName}</p>
+                    <p className="font-medium text-slate-900">
+                      {row.lastName} {row.firstName}
+                    </p>
                     <p className="text-slate-700">{row.email}</p>
                     <p className="text-xs text-slate-500">role: {row.role}</p>
                   </div>
@@ -408,7 +470,9 @@ export default function TeacherManagementPanel({ currentUser, getAccessTokenSile
                   )}
                 </li>
               ))}
-              {adminUsers.length === 0 && <li className="text-sm text-slate-500">管理者がいません。</li>}
+              {adminUsers.length === 0 && (
+                <li className="text-sm text-slate-500">管理者がいません。</li>
+              )}
             </ul>
           )}
         </section>
@@ -418,12 +482,15 @@ export default function TeacherManagementPanel({ currentUser, getAccessTokenSile
         <h3 className="text-base font-semibold">講師一覧・削除</h3>
         {isAdmin && (
           <div className="space-y-1">
-            <label htmlFor="target-classroom" className="text-sm text-slate-700">
+            <label
+              htmlFor="target-classroom"
+              className="text-sm text-slate-700"
+            >
               一覧対象教室
             </label>
             <select
               id="target-classroom"
-              className="w-full rounded-lg border border-slate-200 bg-slate-200 px-3 py-2 text-slate-900 focus:border-indigo-400 focus:outline-none focus:ring-2 focus:ring-indigo-500/30"
+              className="w-full rounded-lg border border-slate-200 bg-slate-200 px-3 py-2 text-slate-900 focus:border-indigo-400 focus:ring-2 focus:ring-indigo-500/30 focus:outline-none"
               value={selectedClassroomId}
               onChange={(event) => setSelectedClassroomId(event.target.value)}
               disabled={isLoadingClassrooms}
@@ -447,7 +514,9 @@ export default function TeacherManagementPanel({ currentUser, getAccessTokenSile
                 className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-slate-200 bg-slate-50/60 px-3 py-2"
               >
                 <div className="space-y-0.5 text-sm">
-                  <p className="font-medium text-slate-900">{row.lastName} {row.firstName}</p>
+                  <p className="font-medium text-slate-900">
+                    {row.lastName} {row.firstName}
+                  </p>
                   <p className="text-slate-700">{row.email}</p>
                   <p className="text-xs text-slate-500">role: {row.role}</p>
                 </div>
@@ -462,7 +531,9 @@ export default function TeacherManagementPanel({ currentUser, getAccessTokenSile
                 )}
               </li>
             ))}
-            {users.length === 0 && <li className="text-sm text-slate-500">講師がいません。</li>}
+            {users.length === 0 && (
+              <li className="text-sm text-slate-500">講師がいません。</li>
+            )}
           </ul>
         )}
       </section>

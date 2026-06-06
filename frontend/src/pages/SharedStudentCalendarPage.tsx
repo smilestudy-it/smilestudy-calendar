@@ -2,9 +2,11 @@
  * （責務）生徒向け共有ビュー（未認証）。student_id クエリで月次コマを表示。
  */
 import { useEffect, useMemo, useState } from 'react';
+import { useSearchParams } from 'react-router-dom';
+
 import dayjs from 'dayjs';
 import 'dayjs/locale/ja';
-import { useSearchParams } from 'react-router-dom';
+
 import { Button } from '@/components/ui/button';
 import MonthCalendar from '@/components/ui/full-calendar';
 
@@ -30,8 +32,14 @@ export default function SharedStudentCalendarPage() {
   const [listError, setListError] = useState<string | null>(null);
   const [isLoadingMonth, setIsLoadingMonth] = useState(false);
 
-  const monthStart = useMemo(() => dayjs(focusDate).startOf('month'), [focusDate]);
-  const monthEndExclusive = useMemo(() => monthStart.add(1, 'month'), [monthStart]);
+  const monthStart = useMemo(
+    () => dayjs(focusDate).startOf('month'),
+    [focusDate],
+  );
+  const monthEndExclusive = useMemo(
+    () => monthStart.add(1, 'month'),
+    [monthStart],
+  );
 
   useEffect(() => {
     let isDisposed = false;
@@ -52,7 +60,9 @@ export default function SharedStudentCalendarPage() {
           return;
         }
         if (res.status === 404) {
-          setListError('表示できません。リンクが無効か、対象の生徒が見つかりません。');
+          setListError(
+            '表示できません。リンクが無効か、対象の生徒が見つかりません。',
+          );
           setStudentName('');
           setLessons([]);
           return;
@@ -63,7 +73,10 @@ export default function SharedStudentCalendarPage() {
           setLessons([]);
           return;
         }
-        const data = (await res.json()) as { studentName?: string; lessons?: PublicLesson[] };
+        const data = (await res.json()) as {
+          studentName?: string;
+          lessons?: PublicLesson[];
+        };
         if (!isDisposed) {
           setStudentName(data.studentName ?? '');
           setLessons(data.lessons ?? []);
@@ -88,7 +101,9 @@ export default function SharedStudentCalendarPage() {
 
   const calendarEvents = useMemo(() => {
     return lessons.map((l) => {
-      const subLt = [l.subjectName, l.lessonTypeName].filter(Boolean).join(' · ');
+      const subLt = [l.subjectName, l.lessonTypeName]
+        .filter(Boolean)
+        .join(' · ');
       return {
         id: l.id,
         title: `${dayjs(l.startAt).format('HH:mm')}–${dayjs(l.endAt).format('HH:mm')} ${l.teacherDisplay}${
@@ -96,8 +111,14 @@ export default function SharedStudentCalendarPage() {
         }`,
         start: l.startAt,
         end: l.endAt,
-        backgroundColor: l.teacherColor && /^#([0-9a-fA-F]{6})$/.test(l.teacherColor) ? l.teacherColor : '#6366f1',
-        borderColor: l.teacherColor && /^#([0-9a-fA-F]{6})$/.test(l.teacherColor) ? l.teacherColor : '#6366f1',
+        backgroundColor:
+          l.teacherColor && /^#([0-9a-fA-F]{6})$/.test(l.teacherColor)
+            ? l.teacherColor
+            : '#6366f1',
+        borderColor:
+          l.teacherColor && /^#([0-9a-fA-F]{6})$/.test(l.teacherColor)
+            ? l.teacherColor
+            : '#6366f1',
         textColor: '#ffffff',
       };
     });
@@ -108,7 +129,8 @@ export default function SharedStudentCalendarPage() {
       <div className="mx-auto max-w-lg rounded-2xl border border-slate-200 bg-slate-100/80 p-8 text-center shadow-xl">
         <h1 className="text-lg font-semibold text-slate-900">共有カレンダー</h1>
         <p className="mt-3 text-sm text-slate-500">
-          URL に <span className="font-mono text-slate-700">student_id</span> パラメータが必要です。
+          URL に <span className="font-mono text-slate-700">student_id</span>{' '}
+          パラメータが必要です。
         </p>
       </div>
     );
@@ -136,18 +158,27 @@ export default function SharedStudentCalendarPage() {
               type="button"
               variant="outline"
               size="sm"
-              onClick={() => setFocusDate((d) => dayjs(d).subtract(1, 'month').toDate())}
+              onClick={() =>
+                setFocusDate((d) => dayjs(d).subtract(1, 'month').toDate())
+              }
             >
               前の月
             </Button>
-            <Button type="button" variant="outline" size="sm" onClick={() => setFocusDate(() => new Date())}>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() => setFocusDate(() => new Date())}
+            >
               今月
             </Button>
             <Button
               type="button"
               variant="outline"
               size="sm"
-              onClick={() => setFocusDate((d) => dayjs(d).add(1, 'month').toDate())}
+              onClick={() =>
+                setFocusDate((d) => dayjs(d).add(1, 'month').toDate())
+              }
             >
               次の月
             </Button>

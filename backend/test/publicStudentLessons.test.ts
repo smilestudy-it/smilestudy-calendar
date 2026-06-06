@@ -2,9 +2,23 @@
  * （責務）未認証 GET /api/public/student-lessons の Vitest。
  */
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { classrooms, lessonTypes, lessons, students, subjects, users } from '../db/schema';
 
-type StudentRow = { id: string; classroomId: string; name: string; deletedAt: Date | null };
+import {
+  classrooms,
+  lessonTypes,
+  lessons,
+  students,
+  subjects,
+  users,
+} from '../db/schema';
+import { app } from '../worker';
+
+type StudentRow = {
+  id: string;
+  classroomId: string;
+  name: string;
+  deletedAt: Date | null;
+};
 type ClassroomRow = { id: string; deletedAt: Date | null };
 type LessonRow = {
   id: string;
@@ -25,8 +39,18 @@ type UserRow = {
   color: string | null;
   deletedAt: Date | null;
 };
-type SubjectRow = { id: string; classroomId: string; name: string; deletedAt: Date | null };
-type LessonTypeRow = { id: string; classroomId: string; name: string; deletedAt: Date | null };
+type SubjectRow = {
+  id: string;
+  classroomId: string;
+  name: string;
+  deletedAt: Date | null;
+};
+type LessonTypeRow = {
+  id: string;
+  classroomId: string;
+  name: string;
+  deletedAt: Date | null;
+};
 
 const state: {
   studentRows: StudentRow[];
@@ -45,7 +69,9 @@ const state: {
 };
 
 vi.mock('../db', () => {
-  const walkPredicate = (predicate: unknown): { strings: string[]; dates: Date[] } => {
+  const walkPredicate = (
+    predicate: unknown,
+  ): { strings: string[]; dates: Date[] } => {
     const strings: string[] = [];
     const dates: Date[] = [];
     const visited = new Set<object>();
@@ -90,9 +116,21 @@ vi.mock('../db', () => {
               where: (predicate: unknown) => ({
                 limit: async () => {
                   const { strings } = walkPredicate(predicate);
-                  const id = strings.find((s) => state.studentRows.some((r) => r.id === s));
-                  const row = state.studentRows.find((r) => r.id === id && r.deletedAt === null);
-                  return row ? [{ id: row.id, classroomId: row.classroomId, name: row.name }] : [];
+                  const id = strings.find((s) =>
+                    state.studentRows.some((r) => r.id === s),
+                  );
+                  const row = state.studentRows.find(
+                    (r) => r.id === id && r.deletedAt === null,
+                  );
+                  return row
+                    ? [
+                        {
+                          id: row.id,
+                          classroomId: row.classroomId,
+                          name: row.name,
+                        },
+                      ]
+                    : [];
                 },
               }),
             };
@@ -103,8 +141,12 @@ vi.mock('../db', () => {
               where: (predicate: unknown) => ({
                 limit: async () => {
                   const { strings } = walkPredicate(predicate);
-                  const id = strings.find((s) => state.classroomRows.some((r) => r.id === s));
-                  const row = state.classroomRows.find((r) => r.id === id && r.deletedAt === null);
+                  const id = strings.find((s) =>
+                    state.classroomRows.some((r) => r.id === s),
+                  );
+                  const row = state.classroomRows.find(
+                    (r) => r.id === id && r.deletedAt === null,
+                  );
                   return row ? [{ id: row.id }] : [];
                 },
               }),
@@ -114,12 +156,17 @@ vi.mock('../db', () => {
           if (table === lessons && isLessonsSelection(sel)) {
             return {
               where: async (predicate: unknown) => {
-                const { strings, dates: datesFromWalk } = walkPredicate(predicate);
-                const studentId = strings.find((s) => state.studentRows.some((r) => r.id === s));
+                const { strings, dates: datesFromWalk } =
+                  walkPredicate(predicate);
+                const studentId = strings.find((s) =>
+                  state.studentRows.some((r) => r.id === s),
+                );
                 if (!studentId) {
                   return [];
                 }
-                const sorted = [...datesFromWalk].sort((a, b) => a.getTime() - b.getTime());
+                const sorted = [...datesFromWalk].sort(
+                  (a, b) => a.getTime() - b.getTime(),
+                );
                 const from = sorted[0];
                 const to = sorted[sorted.length - 1];
                 if (!from || !to) {
@@ -153,7 +200,9 @@ vi.mock('../db', () => {
             return {
               where: async (predicate: unknown) => {
                 const { strings } = walkPredicate(predicate);
-                const ids = strings.filter((s) => state.userRows.some((u) => u.id === s));
+                const ids = strings.filter((s) =>
+                  state.userRows.some((u) => u.id === s),
+                );
                 const unique = [...new Set(ids)];
                 return state.userRows
                   .filter((u) => unique.includes(u.id) && u.deletedAt === null)
@@ -172,13 +221,22 @@ vi.mock('../db', () => {
             return {
               where: async (predicate: unknown) => {
                 const { strings } = walkPredicate(predicate);
-                const classroomId = strings.find((s) => state.classroomRows.some((c) => c.id === s));
+                const classroomId = strings.find((s) =>
+                  state.classroomRows.some((c) => c.id === s),
+                );
                 if (!classroomId) {
                   return [];
                 }
-                const ids = strings.filter((s) => state.subjectRows.some((x) => x.id === s));
+                const ids = strings.filter((s) =>
+                  state.subjectRows.some((x) => x.id === s),
+                );
                 return state.subjectRows
-                  .filter((s) => ids.includes(s.id) && s.classroomId === classroomId && s.deletedAt === null)
+                  .filter(
+                    (s) =>
+                      ids.includes(s.id) &&
+                      s.classroomId === classroomId &&
+                      s.deletedAt === null,
+                  )
                   .map((s) => ({ id: s.id, name: s.name }));
               },
             };
@@ -188,13 +246,22 @@ vi.mock('../db', () => {
             return {
               where: async (predicate: unknown) => {
                 const { strings } = walkPredicate(predicate);
-                const classroomId = strings.find((s) => state.classroomRows.some((c) => c.id === s));
+                const classroomId = strings.find((s) =>
+                  state.classroomRows.some((c) => c.id === s),
+                );
                 if (!classroomId) {
                   return [];
                 }
-                const ids = strings.filter((s) => state.lessonTypeRows.some((x) => x.id === s));
+                const ids = strings.filter((s) =>
+                  state.lessonTypeRows.some((x) => x.id === s),
+                );
                 return state.lessonTypeRows
-                  .filter((s) => ids.includes(s.id) && s.classroomId === classroomId && s.deletedAt === null)
+                  .filter(
+                    (s) =>
+                      ids.includes(s.id) &&
+                      s.classroomId === classroomId &&
+                      s.deletedAt === null,
+                  )
                   .map((s) => ({ id: s.id, name: s.name }));
               },
             };
@@ -213,8 +280,6 @@ vi.mock('../db', () => {
   return { getDb };
 });
 
-import { app } from '../worker';
-
 const env = {
   AUTH0_AUDIENCE: 'https://api.example.local',
   AUTH0_ISSUER: 'https://issuer.example.local/',
@@ -230,7 +295,14 @@ const env = {
 describe('GET /api/public/student-lessons', () => {
   beforeEach(() => {
     state.classroomRows = [{ id: 'room-1', deletedAt: null }];
-    state.studentRows = [{ id: 'stu-1', classroomId: 'room-1', name: '佐藤 花子', deletedAt: null }];
+    state.studentRows = [
+      {
+        id: 'stu-1',
+        classroomId: 'room-1',
+        name: '佐藤 花子',
+        deletedAt: null,
+      },
+    ];
     state.userRows = [
       {
         id: 'teacher-1',
@@ -240,8 +312,12 @@ describe('GET /api/public/student-lessons', () => {
         deletedAt: null,
       },
     ];
-    state.subjectRows = [{ id: 'sub-1', classroomId: 'room-1', name: '英語', deletedAt: null }];
-    state.lessonTypeRows = [{ id: 'lt-1', classroomId: 'room-1', name: '通常', deletedAt: null }];
+    state.subjectRows = [
+      { id: 'sub-1', classroomId: 'room-1', name: '英語', deletedAt: null },
+    ];
+    state.lessonTypeRows = [
+      { id: 'lt-1', classroomId: 'room-1', name: '通常', deletedAt: null },
+    ];
     state.lessonRows = [
       {
         id: 'L-pub',
@@ -301,7 +377,12 @@ describe('GET /api/public/student-lessons', () => {
   });
 
   it('returns 404 for soft-deleted student', async () => {
-    state.studentRows[0] = { id: 'stu-1', classroomId: 'room-1', name: '佐藤 花子', deletedAt: new Date() };
+    state.studentRows[0] = {
+      id: 'stu-1',
+      classroomId: 'room-1',
+      name: '佐藤 花子',
+      deletedAt: new Date(),
+    };
     const res = await app.request(
       '/api/public/student-lessons?student_id=stu-1&from=2025-06-01T00:00:00.000Z&to=2025-07-01T00:00:00.000Z',
       { method: 'GET' },
@@ -319,7 +400,12 @@ describe('GET /api/public/student-lessons', () => {
     expect(res.status).toBe(200);
     const payload = (await res.json()) as {
       studentName: string;
-      lessons: Array<{ id: string; status: string; teacherDisplay: string; teacherColor: string | null }>;
+      lessons: Array<{
+        id: string;
+        status: string;
+        teacherDisplay: string;
+        teacherColor: string | null;
+      }>;
     };
     expect(payload.studentName).toBe('佐藤 花子');
     expect(payload.lessons.map((r) => r.id)).toEqual(['L-pub']);

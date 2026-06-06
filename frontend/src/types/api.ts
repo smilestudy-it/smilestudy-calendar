@@ -5,5 +5,9 @@
 
 export type SubjectListItem = { id: string; name: string };
 export type LessonTypeListItem = { id: string; name: string };
-export type TimeSlotListItem = { id: string; startTime: string; endTime: string };
+export type TimeSlotListItem = {
+  id: string;
+  startTime: string;
+  endTime: string;
+};
 export type ClassroomListItem = { id: string; name: string };

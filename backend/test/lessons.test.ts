@@ -1,9 +1,11 @@
 /**
  * （責務）コマ CRUD・週件取得系 API の Vitest。
  */
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { Column, SQL, StringChunk, is } from 'drizzle-orm';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+
 import { classrooms, lessons, students, users } from '../db/schema';
+import { app } from '../worker';
 
 type LessonRow = {
   id: string;
@@ -27,7 +29,12 @@ type UserRow = {
   lastName?: string | null;
 };
 
-type StudentRow = { id: string; classroomId: string; deletedAt: Date | null; name?: string | null };
+type StudentRow = {
+  id: string;
+  classroomId: string;
+  deletedAt: Date | null;
+  name?: string | null;
+};
 
 function overlaps(aStart: Date, aEnd: Date, bStart: Date, bEnd: Date): boolean {
   return aStart < bEnd && bStart < aEnd;
@@ -41,7 +48,9 @@ function paramValue(chunk: unknown): unknown {
   if (typeof chunk !== 'object' || chunk === null) {
     return undefined;
   }
-  if ((chunk as { constructor?: { name?: string } }).constructor?.name !== 'Param') {
+  if (
+    (chunk as { constructor?: { name?: string } }).constructor?.name !== 'Param'
+  ) {
     return undefined;
   }
   return (chunk as { value: unknown }).value;
@@ -117,7 +126,10 @@ function evalCalendarAtomOnRow(row: LessonRow, atom: SQL): boolean {
   return true;
 }
 
-function lessonRowMatchesCalendarPredicate(row: LessonRow, predicate: unknown): boolean {
+function lessonRowMatchesCalendarPredicate(
+  row: LessonRow,
+  predicate: unknown,
+): boolean {
   const parts = calendarWhereAndParts(predicate);
   if (parts.length === 0) {
     return false;
@@ -170,7 +182,10 @@ const state: {
 vi.mock('hono/jwk', () => {
   return {
     jwk: () => {
-      return async (c: { set: (key: string, value: unknown) => void }, next: () => Promise<void>) => {
+      return async (
+        c: { set: (key: string, value: unknown) => void },
+        next: () => Promise<void>,
+      ) => {
         c.set('jwtPayload', { sub: state.jwtSub });
         await next();
       };
@@ -210,7 +225,11 @@ vi.mock('../db', () => {
       from: (table: unknown) => {
         if (table === users) {
           const keys = Object.keys(selection ?? {});
-          if (keys.length === 3 && keys.includes('role') && keys.includes('classroomId')) {
+          if (
+            keys.length === 3 &&
+            keys.includes('role') &&
+            keys.includes('classroomId')
+          ) {
             return {
               where: () => ({
                 limit: async () =>
@@ -219,7 +238,8 @@ vi.mock('../db', () => {
                         {
                           id: state.jwtSub,
                           role: state.userRole,
-                          classroomId: state.userRole === 'admin' ? null : 'room-1',
+                          classroomId:
+                            state.userRole === 'admin' ? null : 'room-1',
                         },
                       ]
                     : [],
@@ -231,7 +251,9 @@ vi.mock('../db', () => {
               where: (predicate: unknown) => ({
                 limit: async () => {
                   const uid = extractRequestedId(predicate);
-                  const u = state.users.find((x) => x.id === uid && x.deletedAt === null);
+                  const u = state.users.find(
+                    (x) => x.id === uid && x.deletedAt === null,
+                  );
                   return u ? [{ classroomId: u.classroomId }] : [];
                 },
               }),
@@ -256,13 +278,19 @@ vi.mock('../db', () => {
           if (
             keys.length === 1 &&
             keys[0] === 'id' &&
-            (state.inTx || state.expectPostLessonTx || state.expectPatchLessonTx)
+            (state.inTx ||
+              state.expectPostLessonTx ||
+              state.expectPatchLessonTx)
           ) {
             return {
               where: () => ({
                 limit: async () => {
                   const i = state.lessonTxLimitIndex++;
-                  if (state.expectPostLessonTx && i === 1 && state.postFixture) {
+                  if (
+                    state.expectPostLessonTx &&
+                    i === 1 &&
+                    state.postFixture
+                  ) {
                     const t = state.postFixture;
                     const u = state.users.find((x) => {
                       if (x.id !== t.teacherId || x.deletedAt !== null) {
@@ -275,7 +303,11 @@ vi.mock('../db', () => {
                     });
                     return u ? [{ id: u.id }] : [];
                   }
-                  if (state.expectPatchLessonTx && i === 2 && state.patchMerged) {
+                  if (
+                    state.expectPatchLessonTx &&
+                    i === 2 &&
+                    state.patchMerged
+                  ) {
                     const t = state.patchMerged;
                     const u = state.users.find((x) => {
                       if (x.id !== t.teacherId || x.deletedAt !== null) {
@@ -301,16 +333,22 @@ vi.mock('../db', () => {
             where: () => ({
               limit: async () => {
                 const i = state.lessonTxLimitIndex++;
-                const wantPost = state.expectPostLessonTx && i === 0 && state.postFixture;
-                const wantPatch = state.expectPatchLessonTx && i === 1 && state.patchMerged;
+                const wantPost =
+                  state.expectPostLessonTx && i === 0 && state.postFixture;
+                const wantPatch =
+                  state.expectPatchLessonTx && i === 1 && state.patchMerged;
                 if (wantPost) {
                   const cid = state.postFixture!.classroomId;
-                  const c = state.classrooms.find((r) => r.id === cid && r.deletedAt === null);
+                  const c = state.classrooms.find(
+                    (r) => r.id === cid && r.deletedAt === null,
+                  );
                   return c ? [{ id: c.id }] : [];
                 }
                 if (wantPatch) {
                   const cid = state.patchMerged!.classroomId;
-                  const c = state.classrooms.find((r) => r.id === cid && r.deletedAt === null);
+                  const c = state.classrooms.find(
+                    (r) => r.id === cid && r.deletedAt === null,
+                  );
                   return c ? [{ id: c.id }] : [];
                 }
                 const requestedId = extractRequestedId(selection);
@@ -323,7 +361,11 @@ vi.mock('../db', () => {
 
         if (table === students) {
           const keys = Object.keys(selection ?? {});
-          if (keys.includes('id') && keys.includes('name') && keys.includes('deletedAt')) {
+          if (
+            keys.includes('id') &&
+            keys.includes('name') &&
+            keys.includes('deletedAt')
+          ) {
             return {
               where: async () =>
                 state.students.map((s) => ({
@@ -336,13 +378,19 @@ vi.mock('../db', () => {
           if (
             keys.length === 1 &&
             keys[0] === 'id' &&
-            (state.inTx || state.expectPostLessonTx || state.expectPatchLessonTx)
+            (state.inTx ||
+              state.expectPostLessonTx ||
+              state.expectPatchLessonTx)
           ) {
             return {
               where: () => ({
                 limit: async () => {
                   const i = state.lessonTxLimitIndex++;
-                  if (state.expectPostLessonTx && i === 2 && state.postFixture) {
+                  if (
+                    state.expectPostLessonTx &&
+                    i === 2 &&
+                    state.postFixture
+                  ) {
                     const t = state.postFixture;
                     const s = state.students.find(
                       (x) =>
@@ -352,7 +400,11 @@ vi.mock('../db', () => {
                     );
                     return s ? [{ id: s.id }] : [];
                   }
-                  if (state.expectPatchLessonTx && i === 3 && state.patchMerged) {
+                  if (
+                    state.expectPatchLessonTx &&
+                    i === 3 &&
+                    state.patchMerged
+                  ) {
                     const t = state.patchMerged;
                     const s = state.students.find(
                       (x) =>
@@ -373,12 +425,16 @@ vi.mock('../db', () => {
         if (table === lessons) {
           const keys = Object.keys(selection ?? {});
           const isCalendarList =
-            keys.includes('teacherId') && keys.includes('startAt') && !keys.includes('deletedAt');
+            keys.includes('teacherId') &&
+            keys.includes('startAt') &&
+            !keys.includes('deletedAt');
           if (isCalendarList) {
             return {
               where: async (predicate: unknown) =>
                 state.lessonRows
-                  .filter((r) => lessonRowMatchesCalendarPredicate(r, predicate))
+                  .filter((r) =>
+                    lessonRowMatchesCalendarPredicate(r, predicate),
+                  )
                   .map((r) => ({
                     id: r.id,
                     teacherId: r.teacherId,
@@ -393,14 +449,26 @@ vi.mock('../db', () => {
             };
           }
 
-          if (keys.includes('classroomId') && keys.includes('teacherId') && keys.includes('id')) {
+          if (
+            keys.includes('classroomId') &&
+            keys.includes('teacherId') &&
+            keys.includes('id')
+          ) {
             return {
               where: (predicate: unknown) => ({
                 limit: async () => {
                   const id = extractRequestedId(predicate);
-                  const row = state.lessonRows.find((r) => r.id === id && r.deletedAt === null);
+                  const row = state.lessonRows.find(
+                    (r) => r.id === id && r.deletedAt === null,
+                  );
                   return row
-                    ? [{ id: row.id, classroomId: row.classroomId, teacherId: row.teacherId }]
+                    ? [
+                        {
+                          id: row.id,
+                          classroomId: row.classroomId,
+                          teacherId: row.teacherId,
+                        },
+                      ]
                     : [];
                 },
               }),
@@ -434,10 +502,15 @@ vi.mock('../db', () => {
                       return clash ? [{ id: clash.id }] : [];
                     }
                   }
-                  if (state.expectPatchLessonTx && state.patchMerged && state.patchTargetId) {
+                  if (
+                    state.expectPatchLessonTx &&
+                    state.patchMerged &&
+                    state.patchTargetId
+                  ) {
                     if (i === 0) {
                       const row = state.lessonRows.find(
-                        (r) => r.id === state.patchTargetId && r.deletedAt === null,
+                        (r) =>
+                          r.id === state.patchTargetId && r.deletedAt === null,
                       );
                       return row ? [{ id: row.id }] : [];
                     }
@@ -474,7 +547,9 @@ vi.mock('../db', () => {
             where: (predicate: unknown) => ({
               limit: async () => {
                 const id = extractRequestedId(predicate);
-                const row = state.lessonRows.find((r) => r.id === id && r.deletedAt === null);
+                const row = state.lessonRows.find(
+                  (r) => r.id === id && r.deletedAt === null,
+                );
                 return row ? [row] : [];
               },
             }),
@@ -499,7 +574,9 @@ vi.mock('../db', () => {
           }
           const requestedId = extractRequestedId(predicate);
           const row = state.lessonRows.find(
-            (r) => r.id === requestedId && (patch.deletedAt === undefined || r.deletedAt === null),
+            (r) =>
+              r.id === requestedId &&
+              (patch.deletedAt === undefined || r.deletedAt === null),
           );
           if (!row) {
             return { meta: { changes: 0 } };
@@ -539,7 +616,9 @@ vi.mock('../db', () => {
 
   const db = {
     ...dbCore,
-    transaction: async <T>(callback: (tx: typeof dbCore) => Promise<T>): Promise<T> => {
+    transaction: async <T>(
+      callback: (tx: typeof dbCore) => Promise<T>,
+    ): Promise<T> => {
       state.inTx = true;
       state.lessonTxLimitIndex = 0;
       try {
@@ -557,8 +636,6 @@ vi.mock('../db', () => {
 
   return { getDb: () => db };
 });
-
-import { app } from '../worker';
 
 const env = {
   AUTH0_AUDIENCE: 'https://api.example.local',
@@ -598,7 +675,14 @@ describe('lessons api', () => {
         lastName: '佐藤',
       },
     ];
-    state.students = [{ id: 'student-1', classroomId: 'room-1', deletedAt: null, name: '生徒A' }];
+    state.students = [
+      {
+        id: 'student-1',
+        classroomId: 'room-1',
+        deletedAt: null,
+        name: '生徒A',
+      },
+    ];
     state.lessonRows = [];
     state.expectPostLessonTx = false;
     state.expectPatchLessonTx = false;
@@ -613,7 +697,11 @@ describe('lessons api', () => {
   });
 
   it('GET /classrooms/:id/lessons returns 400 without range', async () => {
-    const res = await app.request('/api/classrooms/room-1/lessons', { method: 'GET' }, env);
+    const res = await app.request(
+      '/api/lessons/room-1',
+      { method: 'GET' },
+      env,
+    );
     expect(res.status).toBe(400);
   });
 
@@ -631,12 +719,16 @@ describe('lessons api', () => {
       deletedAt: null,
     });
     const res = await app.request(
-      '/api/classrooms/room-1/lessons?from=2025-06-01T00:00:00.000Z&to=2025-07-01T00:00:00.000Z',
+      '/api/lessons/room-1?from=2025-06-01T00:00:00.000Z&to=2025-07-01T00:00:00.000Z',
       { method: 'GET' },
       env,
     );
     expect(res.status).toBe(200);
-    const rows = (await res.json()) as Array<{ id: string; teacherDisplay: string; studentDisplay: string }>;
+    const rows = (await res.json()) as Array<{
+      id: string;
+      teacherDisplay: string;
+      studentDisplay: string;
+    }>;
     expect(rows.some((r) => r.id === 'L1')).toBe(true);
     const row = rows.find((r) => r.id === 'L1');
     expect(row?.teacherDisplay).toContain('山田');
@@ -661,7 +753,7 @@ describe('lessons api', () => {
       deletedAt: null,
     });
     const res = await app.request(
-      '/api/classrooms/room-1/lessons?from=2025-06-01T00:00:00.000Z&to=2025-07-01T00:00:00.000Z',
+      '/api/lessons/room-1?from=2025-06-01T00:00:00.000Z&to=2025-07-01T00:00:00.000Z',
       { method: 'GET' },
       env,
     );
@@ -746,8 +838,17 @@ describe('lessons api', () => {
       { id: 'room-1', deletedAt: null },
       { id: 'room-2', deletedAt: null },
     ];
-    state.users = [{ id: 'teacher-remote', role: 'staff', classroomId: 'room-2', deletedAt: null }];
-    state.students = [{ id: 'student-1', classroomId: 'room-1', deletedAt: null }];
+    state.users = [
+      {
+        id: 'teacher-remote',
+        role: 'staff',
+        classroomId: 'room-2',
+        deletedAt: null,
+      },
+    ];
+    state.students = [
+      { id: 'student-1', classroomId: 'room-1', deletedAt: null },
+    ];
     state.lessonRows.push({
       id: 'L-mgr-patch-remote',
       teacherId: 'teacher-remote',
@@ -803,14 +904,19 @@ describe('lessons api', () => {
       {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ classroomId: 'room-1', deleteIds: ['L-bulk-del'] }),
+        body: JSON.stringify({
+          classroomId: 'room-1',
+          deleteIds: ['L-bulk-del'],
+        }),
       },
       env,
     );
     expect(res.status).toBe(200);
     const body = (await res.json()) as { deletes: Array<{ ok: boolean }> };
     expect(body.deletes[0]?.ok).toBe(true);
-    expect(state.lessonRows.find((r) => r.id === 'L-bulk-del')?.deletedAt).not.toBeNull();
+    expect(
+      state.lessonRows.find((r) => r.id === 'L-bulk-del')?.deletedAt,
+    ).not.toBeNull();
   });
 
   it('POST /lessons/bulk returns 403 for other classroom', async () => {

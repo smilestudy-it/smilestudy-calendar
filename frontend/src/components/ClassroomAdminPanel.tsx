@@ -2,9 +2,10 @@
  * （責務）（管理者向け）教室名の新規登録と教室一覧表示。
  */
 import { useContext, useState } from 'react';
+import type { ComponentProps } from 'react';
+
 import { SelectedClassroomContext } from '@/components/AppShell';
 import { useAuthedFetch } from '@/hooks/useAuthedFetch';
-import type { ComponentProps } from 'react';
 
 type Props = {
   getAccessTokenSilently: () => Promise<string>;
@@ -78,9 +79,15 @@ export default function ClassroomAdminPanel({ getAccessTokenSilently }: Props) {
     <section className="space-y-4">
       <h2 className="text-lg font-semibold md:text-xl">教室管理（管理者）</h2>
 
-      <form onSubmit={handleCreate} className="grid grid-cols-1 gap-2 sm:grid-cols-[1fr_auto] sm:items-end">
+      <form
+        onSubmit={handleCreate}
+        className="grid grid-cols-1 gap-2 sm:grid-cols-[1fr_auto] sm:items-end"
+      >
         <div className="space-y-1">
-          <label htmlFor={classroomNameInputId} className="text-sm text-slate-700">
+          <label
+            htmlFor={classroomNameInputId}
+            className="text-sm text-slate-700"
+          >
             教室名
           </label>
           <input
@@ -88,7 +95,7 @@ export default function ClassroomAdminPanel({ getAccessTokenSilently }: Props) {
             value={name}
             onChange={(e) => setName(e.target.value)}
             placeholder="教室名を入力"
-            className="w-full rounded-lg border border-slate-200 bg-slate-200 px-3 py-2 text-slate-900 placeholder:text-slate-500 focus:border-indigo-400 focus:outline-none focus:ring-2 focus:ring-indigo-500/30"
+            className="w-full rounded-lg border border-slate-200 bg-slate-200 px-3 py-2 text-slate-900 placeholder:text-slate-500 focus:border-indigo-400 focus:ring-2 focus:ring-indigo-500/30 focus:outline-none"
             maxLength={100}
           />
         </div>
@@ -123,7 +130,9 @@ export default function ClassroomAdminPanel({ getAccessTokenSilently }: Props) {
               </button>
             </li>
           ))}
-          {classrooms.length === 0 && <li className="text-sm text-slate-500">教室がありません。</li>}
+          {classrooms.length === 0 && (
+            <li className="text-sm text-slate-500">教室がありません。</li>
+          )}
         </ul>
       )}
     </section>
