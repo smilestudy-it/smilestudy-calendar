@@ -508,8 +508,6 @@ describe('presets api', () => {
         },
         env,
       );
-      // 👇👇 これを1行追加して、エラーの「正体」を見る 👇👇
-      console.log('👀 404の正体:', await post.clone().text());
       expect(post.status).toBe(201);
       const get = await app.request(
         '/api/lesson-types/room-1',
