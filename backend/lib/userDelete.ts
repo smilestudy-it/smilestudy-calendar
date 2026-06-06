@@ -14,12 +14,12 @@ async function userDelete(
   if (userIds.length === 0) {
     return c.json({ success: true }, 200);
   }
-  const db = getDb(c.env);
-  const deletedAt = new Date();
-  await db.update(users).set({ deletedAt }).where(inArray(users.id, userIds));
   let managementToken = '';
   try {
     managementToken = await auth0.getAuth0ManagementToken(c.env);
+    const db = getDb(c.env);
+    const deletedAt = new Date();
+    await db.update(users).set({ deletedAt }).where(inArray(users.id, userIds));
     const deletePromises = userIds.map(async (id) => {
       const success = await auth0
         .deleteAuth0User(c.env, managementToken, id)
