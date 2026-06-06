@@ -1,4 +1,9 @@
 -- Custom SQL migration file, put your code below! --
+DROP TRIGGER IF EXISTS prevent_teacher_double_booking_insert;
+DROP TRIGGER IF EXISTS prevent_teacher_double_booking_update;
+DROP TRIGGER IF EXISTS prevent_student_double_booking_insert;
+DROP TRIGGER IF EXISTS prevent_student_double_booking_update;
+
 
 -- 1. 講師のダブルブッキング防止 (INSERT時)
 CREATE TRIGGER prevent_teacher_double_booking_insert
@@ -8,10 +13,10 @@ BEGIN
   SELECT RAISE(ABORT, 'teacher_double_booking')
   WHERE EXISTS (
     SELECT 1 FROM lessons
-    WHERE teacherId = NEW.teacherId
-      AND deletedAt IS NULL
-      AND startAt < NEW.endAt
-      AND endAt > NEW.startAt
+    WHERE teacher_id = NEW.teacher_id
+      AND deleted_at IS NULL
+      AND start_at < NEW.end_at
+      AND end_at > NEW.start_at
   );
 END;
 
@@ -23,11 +28,11 @@ BEGIN
   SELECT RAISE(ABORT, 'teacher_double_booking')
   WHERE EXISTS (
     SELECT 1 FROM lessons
-    WHERE teacherId = NEW.teacherId
+    WHERE teacher_id = NEW.teacher_id
       AND id != NEW.id -- 更新時は自分自身のレコードを除外する
-      AND deletedAt IS NULL
-      AND startAt < NEW.endAt
-      AND endAt > NEW.startAt
+      AND deleted_at IS NULL
+      AND start_at < NEW.end_at
+      AND end_at > NEW.start_at
   );
 END;
 
@@ -39,10 +44,10 @@ BEGIN
   SELECT RAISE(ABORT, 'student_double_booking')
   WHERE EXISTS (
     SELECT 1 FROM lessons
-    WHERE studentId = NEW.studentId
-      AND deletedAt IS NULL
-      AND startAt < NEW.endAt
-      AND endAt > NEW.startAt
+    WHERE student_id = NEW.student_id
+      AND deleted_at IS NULL
+      AND start_at < NEW.end_at
+      AND end_at > NEW.start_at
   );
 END;
 
@@ -54,10 +59,10 @@ BEGIN
   SELECT RAISE(ABORT, 'student_double_booking')
   WHERE EXISTS (
     SELECT 1 FROM lessons
-    WHERE studentId = NEW.studentId
+    WHERE student_id = NEW.student_id
       AND id != NEW.id
-      AND deletedAt IS NULL
-      AND startAt < NEW.endAt
-      AND endAt > NEW.startAt
+      AND deleted_at IS NULL
+      AND start_at < NEW.end_at
+      AND end_at > NEW.start_at
   );
 END;
