@@ -1,7 +1,7 @@
 /*
   lesson追加/削除などのAPIを管理
 */
-import { and, eq, gt, inArray, isNull, lt} from 'drizzle-orm';
+import { and, eq, gt, inArray, isNull, lt } from 'drizzle-orm';
 import { Hono } from 'hono';
 
 import { getDb } from '../db';
@@ -441,7 +441,7 @@ lessonsApp.post('/bulk', auth, loadUser, async (c) => {
       })();
     } catch (err: unknown) {
       console.log('POST /lessons/bulk creates', err);
-      if(err instanceof Error){
+      if (err instanceof Error) {
         const msg = err.message || '';
         if (isD1ForeignKeyViolation(err)) {
           createResults.push({
@@ -449,7 +449,7 @@ lessonsApp.post('/bulk', auth, loadUser, async (c) => {
             message: 'invalid reference',
             ...withCreateRef(item),
           });
-        } else if (msg.includes('teacher_double_booking')){
+        } else if (msg.includes('teacher_double_booking')) {
           createResults.push({
             ok: false,
             message: msg,
@@ -689,10 +689,10 @@ lessonsApp.patch('/:id', auth, loadUser, async (c) => {
     })();
   } catch (err: unknown) {
     console.log('PATCH /lessons/:id', err);
-    if(err instanceof Error){
+    if (err instanceof Error) {
       if (isD1ForeignKeyViolation(err)) {
         return c.json({ message: 'invalid reference' }, 400);
-      }else if(err.message.includes('double_booking')){
+      } else if (err.message.includes('double_booking')) {
         return c.json({ message: err.message }, 409);
       }
     }

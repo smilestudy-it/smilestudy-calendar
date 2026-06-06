@@ -70,10 +70,13 @@ subjectsApp.patch('/:id', auth, loadUser, requireManagerOrAbove, async (c) => {
     return c.json({ message: 'forbidden' }, 403);
   }
   try {
-    await db
+    const res = await db
       .update(subjects)
       .set({ name: input.name })
       .where(and(eq(subjects.id, targetId), isNull(subjects.deletedAt)));
+    if (res.meta.changes === 0) {
+      return c.json({ message: 'subject not found' }, 500);
+    }
   } catch {
     return c.json({ message: 'failed to update subject' }, 500);
   }
@@ -104,10 +107,13 @@ subjectsApp.delete('/:id', auth, loadUser, requireManagerOrAbove, async (c) => {
   }
   const deletedAt = new Date();
   try {
-    await db
+    const res = await db
       .update(subjects)
       .set({ deletedAt })
       .where(and(eq(subjects.id, targetId), isNull(subjects.deletedAt)));
+    if (res.meta.changes === 0) {
+      return c.json({ message: 'subject not found' }, 500);
+    }
   } catch {
     return c.json({ message: 'failed to delete subject' }, 500);
   }
