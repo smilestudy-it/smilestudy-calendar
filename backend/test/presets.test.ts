@@ -597,11 +597,11 @@ describe('presets api', () => {
       ).toBe(true);
     });
 
-    it('PATCH partial time', async () => {
+    it('PUT partial time', async () => {
       const res = await app.request(
         '/api/time-slots/ts-1',
         {
-          method: 'PATCH',
+          method: 'PUT',
           headers: { 'content-type': 'application/json' },
           body: JSON.stringify({ endTime: '19:00' }),
         },

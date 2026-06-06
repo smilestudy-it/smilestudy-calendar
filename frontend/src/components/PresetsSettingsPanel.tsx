@@ -304,7 +304,7 @@ export default function PresetsSettingsPanel({
     setError(null);
     try {
       const res = await authedFetch(`/api/time-slots/${id}`, {
-        method: 'PATCH',
+        method: 'PUT',
         headers: { 'content-type': 'application/json' },
         body: JSON.stringify({
           startTime: toHm(d.start),

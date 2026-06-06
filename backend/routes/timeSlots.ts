@@ -100,7 +100,7 @@ timeSlotsApp.post('', auth, loadUser, requireManagerOrAbove, async (c) => {
   );
 });
 
-timeSlotsApp.patch('/:id', auth, loadUser, requireManagerOrAbove, async (c) => {
+timeSlotsApp.put('/:id', auth, loadUser, requireManagerOrAbove, async (c) => {
   const targetId = c.req.param('id');
   if (!targetId) {
     return c.json({ message: 'id is required' }, 400);
