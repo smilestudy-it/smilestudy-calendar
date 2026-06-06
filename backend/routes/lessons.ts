@@ -1,7 +1,7 @@
 /*
   lesson追加/削除などのAPIを管理
 */
-import { and, eq, gt, inArray, isNull, lt, ne } from 'drizzle-orm';
+import { and, eq, gt, inArray, isNull, lt} from 'drizzle-orm';
 import { Hono } from 'hono';
 
 import { getDb } from '../db';
@@ -425,44 +425,6 @@ lessonsApp.post('/bulk', auth, loadUser, async (c) => {
           }
         }
 
-        const [teacherClash] = await db
-          .select({ id: lessons.id })
-          .from(lessons)
-          .where(
-            and(
-              eq(lessons.teacherId, createInput.teacherId),
-              isNull(lessons.deletedAt),
-              lt(lessons.startAt, createInput.endAt),
-              gt(lessons.endAt, createInput.startAt),
-            ),
-          )
-          .limit(1);
-        if (teacherClash) {
-          return {
-            ok: false as const,
-            reason: 'teacher_double_booking' as const,
-          };
-        }
-
-        const [studentClash] = await db
-          .select({ id: lessons.id })
-          .from(lessons)
-          .where(
-            and(
-              eq(lessons.studentId, createInput.studentId),
-              isNull(lessons.deletedAt),
-              lt(lessons.startAt, createInput.endAt),
-              gt(lessons.endAt, createInput.startAt),
-            ),
-          )
-          .limit(1);
-        if (studentClash) {
-          return {
-            ok: false as const,
-            reason: 'student_double_booking' as const,
-          };
-        }
-
         await db.insert(lessons).values({
           id,
           teacherId: createInput.teacherId,
@@ -477,20 +439,29 @@ lessonsApp.post('/bulk', auth, loadUser, async (c) => {
         });
         return { ok: true as const };
       })();
-    } catch (err) {
+    } catch (err: unknown) {
       console.log('POST /lessons/bulk creates', err);
-      if (isD1ForeignKeyViolation(err)) {
-        createResults.push({
-          ok: false,
-          message: 'invalid reference',
-          ...withCreateRef(item),
-        });
-      } else {
-        createResults.push({
-          ok: false,
-          message: 'failed to create lesson',
-          ...withCreateRef(item),
-        });
+      if(err instanceof Error){
+        const msg = err.message || '';
+        if (isD1ForeignKeyViolation(err)) {
+          createResults.push({
+            ok: false,
+            message: 'invalid reference',
+            ...withCreateRef(item),
+          });
+        } else if (msg.includes('teacher_double_booking')){
+          createResults.push({
+            ok: false,
+            message: msg,
+            ...withCreateRef(item),
+          });
+        } else {
+          createResults.push({
+            ok: false,
+            message: 'failed to create lesson',
+            ...withCreateRef(item),
+          });
+        }
       }
       continue;
     }
@@ -697,46 +668,6 @@ lessonsApp.patch('/:id', auth, loadUser, async (c) => {
         }
       }
 
-      const [teacherClash] = await db
-        .select({ id: lessons.id })
-        .from(lessons)
-        .where(
-          and(
-            eq(lessons.teacherId, mergedTeacherId),
-            isNull(lessons.deletedAt),
-            ne(lessons.id, targetId),
-            lt(lessons.startAt, mergedEndAt),
-            gt(lessons.endAt, mergedStartAt),
-          ),
-        )
-        .limit(1);
-      if (teacherClash) {
-        return {
-          ok: false as const,
-          reason: 'teacher_double_booking' as const,
-        };
-      }
-
-      const [studentClash] = await db
-        .select({ id: lessons.id })
-        .from(lessons)
-        .where(
-          and(
-            eq(lessons.studentId, mergedStudentId),
-            isNull(lessons.deletedAt),
-            ne(lessons.id, targetId),
-            lt(lessons.startAt, mergedEndAt),
-            gt(lessons.endAt, mergedStartAt),
-          ),
-        )
-        .limit(1);
-      if (studentClash) {
-        return {
-          ok: false as const,
-          reason: 'student_double_booking' as const,
-        };
-      }
-
       const result = await db
         .update(lessons)
         .set({
@@ -756,10 +687,14 @@ lessonsApp.patch('/:id', auth, loadUser, async (c) => {
       }
       return { ok: true as const };
     })();
-  } catch (err) {
+  } catch (err: unknown) {
     console.log('PATCH /lessons/:id', err);
-    if (isD1ForeignKeyViolation(err)) {
-      return c.json({ message: 'invalid reference' }, 400);
+    if(err instanceof Error){
+      if (isD1ForeignKeyViolation(err)) {
+        return c.json({ message: 'invalid reference' }, 400);
+      }else if(err.message.includes('double_booking')){
+        return c.json({ message: err.message }, 409);
+      }
     }
     return c.json({ message: 'failed to update lesson' }, 500);
   }
@@ -784,10 +719,6 @@ lessonsApp.patch('/:id', auth, loadUser, async (c) => {
         return c.json({ message: 'subject not found' }, 400);
       case 'lesson_type_invalid':
         return c.json({ message: 'lesson type not found' }, 400);
-      case 'teacher_double_booking':
-        return c.json({ message: 'teacher schedule conflict' }, 409);
-      case 'student_double_booking':
-        return c.json({ message: 'student schedule conflict' }, 409);
       default:
         return c.json({ message: 'failed to update lesson' }, 500);
     }
