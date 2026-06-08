@@ -96,8 +96,8 @@ export default function LessonBulkActionPanel({
     actorRole === 'staff' ? actorUserId : teacherId || teacherOptions[0]?.id;
 
   return (
-    <fieldset className="space-y-4 rounded-lg border border-border p-4">
-      <legend className="px-1 text-sm font-medium text-foreground">
+    <fieldset className="border-border space-y-4 rounded-lg border p-4">
+      <legend className="text-foreground px-1 text-sm font-medium">
         選択中: {selectedCount}件（空き {emptySlotCount} / 登録済み{' '}
         {occupiedSlotCount}）
       </legend>
@@ -124,7 +124,9 @@ export default function LessonBulkActionPanel({
                 {teacherOptions.map((t) => (
                   <SelectItem key={t.id} value={t.id}>
                     {t.lastName} {t.firstName}
-                    {t.role ? `（${ROLE_LABEL_JA[t.role as AppRole] ?? t.role}）` : ''}
+                    {t.role
+                      ? `（${ROLE_LABEL_JA[t.role as AppRole] ?? t.role}）`
+                      : ''}
                   </SelectItem>
                 ))}
               </SelectContent>

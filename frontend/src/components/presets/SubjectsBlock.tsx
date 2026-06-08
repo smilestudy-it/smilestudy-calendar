@@ -80,7 +80,7 @@ export default function SubjectsBlock({
           </li>
         ))}
         {subjects.length === 0 && (
-          <li className="text-sm text-muted-foreground">
+          <li className="text-muted-foreground text-sm">
             科目がまだありません。
           </li>
         )}

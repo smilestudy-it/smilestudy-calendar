@@ -13,7 +13,7 @@ type Props = {
 export default function PresetSection({ title, children }: Props) {
   return (
     <section className="space-y-4">
-      <h3 className="text-base font-semibold text-foreground">{title}</h3>
+      <h3 className="text-foreground text-base font-semibold">{title}</h3>
       {children}
       <Separator />
     </section>

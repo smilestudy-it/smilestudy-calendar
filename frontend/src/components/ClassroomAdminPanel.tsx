@@ -111,13 +111,13 @@ export default function ClassroomAdminPanel({ getAccessTokenSilently }: Props) {
       <Separator />
 
       {isLoadingClassroomsList ? (
-        <p className="text-sm text-muted-foreground">教室一覧を読み込み中...</p>
+        <p className="text-muted-foreground text-sm">教室一覧を読み込み中...</p>
       ) : (
         <ul className="space-y-2">
           {classrooms.map((room) => (
             <li
               key={room.id}
-              className="flex items-center justify-between gap-3 border-b border-border py-2 last:border-b-0"
+              className="border-border flex items-center justify-between gap-3 border-b py-2 last:border-b-0"
             >
               <span>{room.name}</span>
               <Button
@@ -131,7 +131,9 @@ export default function ClassroomAdminPanel({ getAccessTokenSilently }: Props) {
             </li>
           ))}
           {classrooms.length === 0 && (
-            <li className="text-sm text-muted-foreground">教室がありません。</li>
+            <li className="text-muted-foreground text-sm">
+              教室がありません。
+            </li>
           )}
         </ul>
       )}

@@ -15,7 +15,7 @@ export default function StudentManagementPage({
 }: Props) {
   if (!currentUser) {
     return (
-      <p className="text-sm text-foreground">
+      <p className="text-foreground text-sm">
         ユーザー情報を取得できませんでした。
       </p>
     );

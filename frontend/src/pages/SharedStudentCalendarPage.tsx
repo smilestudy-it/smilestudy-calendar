@@ -128,7 +128,7 @@ export default function SharedStudentCalendarPage() {
     return (
       <div className="mx-auto max-w-lg space-y-3 text-center">
         <h1 className="text-lg font-semibold">共有カレンダー</h1>
-        <p className="text-sm text-muted-foreground">
+        <p className="text-muted-foreground text-sm">
           URL に <span className="font-mono">student_id</span>{' '}
           パラメータが必要です。
         </p>
@@ -140,21 +140,21 @@ export default function SharedStudentCalendarPage() {
     <section className="mx-auto max-w-6xl space-y-6">
       <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h1 className="text-lg font-semibold text-foreground md:text-xl">
+          <h1 className="text-foreground text-lg font-semibold md:text-xl">
             共有カレンダー{studentName ? `(${studentName})` : ''}
           </h1>
         </div>
       </div>
 
       {listError && (
-        <p className="text-sm text-destructive" role="alert">
+        <p className="text-destructive text-sm" role="alert">
           {listError}
         </p>
       )}
 
       <div className="space-y-4">
         <div className="flex flex-wrap items-center justify-between gap-2">
-          <p className="text-sm text-foreground">
+          <p className="text-foreground text-sm">
             {monthStart.format('YYYY年M月')}
           </p>
           <div className="flex gap-2">
@@ -190,7 +190,9 @@ export default function SharedStudentCalendarPage() {
         </div>
 
         {isLoadingMonth ? (
-          <p className="text-sm text-muted-foreground">月のコマを読み込み中...</p>
+          <p className="text-muted-foreground text-sm">
+            月のコマを読み込み中...
+          </p>
         ) : (
           <MonthCalendar
             focusDate={focusDate}

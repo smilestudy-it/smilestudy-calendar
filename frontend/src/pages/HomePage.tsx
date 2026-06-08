@@ -3,8 +3,8 @@
  */
 import { useContext } from 'react';
 
-import { Alert, AlertDescription } from '@/components/ui/alert';
 import { SelectedClassroomContext } from '@/components/AppShell';
+import { Alert, AlertDescription } from '@/components/ui/alert';
 import type { CurrentUser } from '@/types/currentUser';
 
 type Props = {
@@ -27,7 +27,7 @@ export default function HomePage({ currentUser }: Props) {
           <h2 className="text-lg font-semibold md:text-xl">
             教室を選択してください
           </h2>
-          <p className="text-sm text-muted-foreground">
+          <p className="text-muted-foreground text-sm">
             管理する教室を選んでください。
           </p>
         </div>
@@ -46,7 +46,7 @@ export default function HomePage({ currentUser }: Props) {
   return (
     <section className="space-y-4">
       <h2 className="text-lg font-semibold md:text-xl">ホーム</h2>
-      <p className="text-sm text-foreground">
+      <p className="text-foreground text-sm">
         左上のメニューから、利用したい画面を選択してください。
       </p>
     </section>

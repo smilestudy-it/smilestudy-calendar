@@ -331,13 +331,13 @@ export default function StudentManagementPanel({
   return (
     <section className="space-y-8">
       <header className="space-y-2">
-        <p className="text-xs font-semibold tracking-wider text-muted-foreground uppercase">
+        <p className="text-muted-foreground text-xs font-semibold tracking-wider uppercase">
           Students
         </p>
         <h2 className="text-xl font-bold tracking-tight md:text-2xl">
           生徒管理
         </h2>
-        <p className="max-w-2xl text-sm leading-relaxed text-muted-foreground">
+        <p className="text-muted-foreground max-w-2xl text-sm leading-relaxed">
           {canManageStudents
             ? '教室ごとに生徒を登録・一覧・削除できます。出生年はカレンダー年度の参照用として保存されます。'
             : '所属教室の生徒一覧を閲覧できます（登録・削除は教室長以上のみ）。'}
@@ -376,7 +376,7 @@ export default function StudentManagementPanel({
                   </SelectContent>
                 </Select>
                 {errors.classroomId?.message && (
-                  <p className="text-sm text-destructive">
+                  <p className="text-destructive text-sm">
                     {errors.classroomId.message}
                   </p>
                 )}
@@ -393,7 +393,9 @@ export default function StudentManagementPanel({
                 maxLength={100}
               />
               {errors.name?.message && (
-                <p className="text-sm text-destructive">{errors.name.message}</p>
+                <p className="text-destructive text-sm">
+                  {errors.name.message}
+                </p>
               )}
             </div>
 
@@ -407,7 +409,7 @@ export default function StudentManagementPanel({
                 placeholder="student@example.com"
               />
               {errors.email?.message && (
-                <p className="text-sm text-destructive">
+                <p className="text-destructive text-sm">
                   {errors.email.message}
                 </p>
               )}
@@ -424,7 +426,7 @@ export default function StudentManagementPanel({
                 {...register('birthYear', { valueAsNumber: true })}
               />
               {errors.birthYear?.message && (
-                <p className="text-sm text-destructive">
+                <p className="text-destructive text-sm">
                   {errors.birthYear.message}
                 </p>
               )}
@@ -481,15 +483,15 @@ export default function StudentManagementPanel({
         </div>
 
         {isLoadingStudents ? (
-          <p className="text-sm text-muted-foreground">読み込み中…</p>
+          <p className="text-muted-foreground text-sm">読み込み中…</p>
         ) : !activeClassroomId ? (
-          <p className="text-sm text-muted-foreground">
+          <p className="text-muted-foreground text-sm">
             {isAdmin
               ? '教室を選択すると生徒が表示されます。'
               : '所属教室が割り当てられていないため、生徒一覧を表示できません。'}
           </p>
         ) : students.length === 0 ? (
-          <p className="border border-dashed border-border px-4 py-8 text-center text-sm text-muted-foreground">
+          <p className="border-border text-muted-foreground border border-dashed px-4 py-8 text-center text-sm">
             この教室に登録された生徒はまだいません。
           </p>
         ) : (
@@ -499,7 +501,7 @@ export default function StudentManagementPanel({
                 {shareCopyError}
               </p>
             ) : null}
-            <ul className="divide-y divide-border">
+            <ul className="divide-border divide-y">
               {students.map((row) => (
                 <li
                   key={row.id}
@@ -507,10 +509,10 @@ export default function StudentManagementPanel({
                 >
                   <div className="min-w-0 space-y-1">
                     <p className="font-medium">{row.name}</p>
-                    <p className="truncate text-sm text-muted-foreground">
+                    <p className="text-muted-foreground truncate text-sm">
                       {row.email}
                     </p>
-                    <p className="text-xs text-muted-foreground">
+                    <p className="text-muted-foreground text-xs">
                       出生年: {row.birthYear}
                     </p>
                   </div>

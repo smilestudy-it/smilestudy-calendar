@@ -80,7 +80,7 @@ export default function LessonTypesBlock({
           </li>
         ))}
         {lessonTypes.length === 0 && (
-          <li className="text-sm text-muted-foreground">
+          <li className="text-muted-foreground text-sm">
             授業種別がまだありません。
           </li>
         )}

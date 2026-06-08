@@ -498,7 +498,7 @@ export default function CalendarBulkEditPage({
 
   if (!currentUser) {
     return (
-      <p className="text-sm text-foreground">この画面にアクセスできません。</p>
+      <p className="text-foreground text-sm">この画面にアクセスできません。</p>
     );
   }
 
@@ -507,7 +507,7 @@ export default function CalendarBulkEditPage({
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h2 className="text-lg font-semibold md:text-xl">週コマ編集</h2>
-          <p className="text-sm text-muted-foreground">
+          <p className="text-muted-foreground text-sm">
             教室: {activeClassroom?.name || '未選択'}
           </p>
         </div>
@@ -526,7 +526,7 @@ export default function CalendarBulkEditPage({
       {activeClassroom && (
         <>
           <div className="flex flex-wrap items-center justify-between gap-2">
-            <p className="text-sm text-foreground">
+            <p className="text-foreground text-sm">
               {weekStart.format('YYYY/M/D')} 週（日曜始まり）
             </p>
             <div className="flex gap-2">
@@ -558,7 +558,7 @@ export default function CalendarBulkEditPage({
           </div>
 
           {isLoading ? (
-            <p className="text-sm text-muted-foreground">読み込み中...</p>
+            <p className="text-muted-foreground text-sm">読み込み中...</p>
           ) : timeSlots.length === 0 ? (
             <p className="text-sm text-amber-700">
               時間枠が未設定です。プリセット設定で時間枠を追加してください。
@@ -576,7 +576,7 @@ export default function CalendarBulkEditPage({
             />
           )}
 
-          <p className="text-xs text-muted-foreground">
+          <p className="text-muted-foreground text-xs">
             セルをクリックまたはドラッグで複数選択。コマがある枠は「詳細」で下部パネルを開けます。
           </p>
 

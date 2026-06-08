@@ -76,7 +76,7 @@ export default function LessonDeletePanel({
         <div className="min-w-0 flex-1 space-y-2">
           <p className="text-sm font-medium">コマの詳細</p>
           <p className="text-sm">{event.title}</p>
-          <p className="text-xs text-muted-foreground">
+          <p className="text-muted-foreground text-xs">
             {event.start ? dayjs(event.start).format('YYYY/MM/DD HH:mm') : '-'}{' '}
             – {event.end ? dayjs(event.end).format('HH:mm') : '-'}
           </p>

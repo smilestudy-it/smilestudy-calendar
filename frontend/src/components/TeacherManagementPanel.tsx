@@ -347,7 +347,7 @@ export default function TeacherManagementPanel({
               </SelectContent>
             </Select>
             {errors.role?.message && (
-              <p className="text-sm text-destructive">{errors.role.message}</p>
+              <p className="text-destructive text-sm">{errors.role.message}</p>
             )}
           </div>
 
@@ -373,7 +373,7 @@ export default function TeacherManagementPanel({
                 </SelectContent>
               </Select>
               {errors.classroomId?.message && (
-                <p className="text-sm text-destructive">
+                <p className="text-destructive text-sm">
                   {errors.classroomId.message}
                 </p>
               )}
@@ -390,7 +390,7 @@ export default function TeacherManagementPanel({
               maxLength={100}
             />
             {errors.lastName?.message && (
-              <p className="text-sm text-destructive">
+              <p className="text-destructive text-sm">
                 {errors.lastName.message}
               </p>
             )}
@@ -405,7 +405,7 @@ export default function TeacherManagementPanel({
               maxLength={100}
             />
             {errors.firstName?.message && (
-              <p className="text-sm text-destructive">
+              <p className="text-destructive text-sm">
                 {errors.firstName.message}
               </p>
             )}
@@ -420,9 +420,7 @@ export default function TeacherManagementPanel({
               placeholder="email@example.com"
             />
             {errors.email?.message && (
-              <p className="text-sm text-destructive">
-                {errors.email.message}
-              </p>
+              <p className="text-destructive text-sm">{errors.email.message}</p>
             )}
           </div>
           <div className="space-y-2 md:col-span-2">
@@ -435,9 +433,7 @@ export default function TeacherManagementPanel({
               className="h-10 w-full p-1"
             />
             {errors.color?.message && (
-              <p className="text-sm text-destructive">
-                {errors.color.message}
-              </p>
+              <p className="text-destructive text-sm">{errors.color.message}</p>
             )}
           </div>
           <Button
@@ -460,11 +456,11 @@ export default function TeacherManagementPanel({
           <section className="space-y-4">
             <h3 className="text-base font-semibold">管理者一覧</h3>
             {isLoadingAdmins ? (
-              <p className="text-sm text-muted-foreground">
+              <p className="text-muted-foreground text-sm">
                 管理者一覧を読み込み中...
               </p>
             ) : (
-              <ul className="divide-y divide-border">
+              <ul className="divide-border divide-y">
                 {adminUsers.map((row) => (
                   <li
                     key={row.id}
@@ -475,7 +471,7 @@ export default function TeacherManagementPanel({
                         {row.lastName} {row.firstName}
                       </p>
                       <p className="text-muted-foreground">{row.email}</p>
-                      <p className="text-xs text-muted-foreground">
+                      <p className="text-muted-foreground text-xs">
                         role: {row.role}
                       </p>
                     </div>
@@ -492,7 +488,7 @@ export default function TeacherManagementPanel({
                   </li>
                 ))}
                 {adminUsers.length === 0 && (
-                  <li className="text-sm text-muted-foreground">
+                  <li className="text-muted-foreground text-sm">
                     管理者がいません。
                   </li>
                 )}
@@ -528,11 +524,11 @@ export default function TeacherManagementPanel({
           </div>
         )}
         {isLoadingUsers ? (
-          <p className="text-sm text-muted-foreground">
+          <p className="text-muted-foreground text-sm">
             講師一覧を読み込み中...
           </p>
         ) : (
-          <ul className="divide-y divide-border">
+          <ul className="divide-border divide-y">
             {users.map((row) => (
               <li
                 key={row.id}
@@ -543,7 +539,7 @@ export default function TeacherManagementPanel({
                     {row.lastName} {row.firstName}
                   </p>
                   <p className="text-muted-foreground">{row.email}</p>
-                  <p className="text-xs text-muted-foreground">
+                  <p className="text-muted-foreground text-xs">
                     role: {row.role}
                   </p>
                 </div>
@@ -560,7 +556,7 @@ export default function TeacherManagementPanel({
               </li>
             ))}
             {users.length === 0 && (
-              <li className="text-sm text-muted-foreground">
+              <li className="text-muted-foreground text-sm">
                 講師がいません。
               </li>
             )}

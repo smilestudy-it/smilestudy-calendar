@@ -36,8 +36,8 @@ import {
 } from '@/components/ui/sheet';
 import { ROLE_LABEL_JA } from '@/constants/roles';
 import { useAuthedFetch } from '@/hooks/useAuthedFetch';
-import type { AppRole } from '@/types/role';
 import type { CurrentUser } from '@/types/currentUser';
+import type { AppRole } from '@/types/role';
 
 import LogoutButton from './ui/LogoutButton';
 
@@ -203,9 +203,7 @@ export default function AppShell({
     }`;
 
   const roleLabel =
-    role in ROLE_LABEL_JA
-      ? ROLE_LABEL_JA[role as AppRole]
-      : role;
+    role in ROLE_LABEL_JA ? ROLE_LABEL_JA[role as AppRole] : role;
 
   return (
     <SelectedClassroomContext.Provider
@@ -219,7 +217,7 @@ export default function AppShell({
         refreshClassrooms,
       }}
     >
-      <div className="min-h-screen bg-background text-foreground">
+      <div className="bg-background text-foreground min-h-screen">
         <div className="mx-auto w-full max-w-5xl space-y-6 px-4 py-8">
           <div className="flex items-center justify-between gap-3">
             <Button
@@ -239,7 +237,7 @@ export default function AppShell({
           </div>
 
           {isLoadingCurrentUser ? (
-            <p className="text-sm text-muted-foreground">
+            <p className="text-muted-foreground text-sm">
               ユーザー情報を読み込み中...
             </p>
           ) : currentUserError ? (
@@ -253,13 +251,13 @@ export default function AppShell({
 
         <Sheet open={isMenuOpen} onOpenChange={setIsMenuOpen}>
           <SheetContent side="left" className="w-80 gap-0 p-0">
-            <SheetHeader className="border-b border-border p-6 text-left">
+            <SheetHeader className="border-border border-b p-6 text-left">
               <SheetTitle>メニュー</SheetTitle>
             </SheetHeader>
 
             <div className="flex min-h-0 flex-1 flex-col overflow-y-auto">
               <div className="space-y-2 p-6">
-                <div className="text-sm text-muted-foreground">
+                <div className="text-muted-foreground text-sm">
                   {userName && <div>{userName}</div>}
                   {userEmail && <div>{userEmail}</div>}
                 </div>
@@ -286,9 +284,7 @@ export default function AppShell({
                       <SelectTrigger id="drawer-classroom">
                         <SelectValue
                           placeholder={
-                            isLoadingClassrooms
-                              ? '読み込み中...'
-                              : '教室を選択'
+                            isLoadingClassrooms ? '読み込み中...' : '教室を選択'
                           }
                         />
                       </SelectTrigger>

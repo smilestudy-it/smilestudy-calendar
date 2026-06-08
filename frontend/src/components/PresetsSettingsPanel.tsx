@@ -6,6 +6,11 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import LessonTypesBlock from '@/components/presets/LessonTypesBlock';
 import SubjectsBlock from '@/components/presets/SubjectsBlock';
 import TimeSlotsBlock from '@/components/presets/TimeSlotsBlock';
+import {
+  presetMutationNetworkError,
+  readPresetApiError,
+  toHm,
+} from '@/components/presets/presetFormUtils';
 import { FormErrorAlert } from '@/components/ui/form-error-alert';
 import { Label } from '@/components/ui/label';
 import {
@@ -15,11 +20,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import {
-  presetMutationNetworkError,
-  readPresetApiError,
-  toHm,
-} from '@/components/presets/presetFormUtils';
 import { useAuthedFetch } from '@/hooks/useAuthedFetch';
 import { useClassroomPresetsData } from '@/hooks/useClassroomPresetsData';
 import type {
@@ -400,7 +400,7 @@ export default function PresetsSettingsPanel({
 
   if (!isAdmin && !currentUser.classroomId) {
     return (
-      <p className="text-sm text-muted-foreground">
+      <p className="text-muted-foreground text-sm">
         所属教室が割り当てられていないため、プリセットを設定できません。
       </p>
     );
@@ -409,13 +409,13 @@ export default function PresetsSettingsPanel({
   return (
     <section className="space-y-8">
       <header className="space-y-2">
-        <p className="text-xs font-semibold tracking-wider text-muted-foreground uppercase">
+        <p className="text-muted-foreground text-xs font-semibold tracking-wider uppercase">
           Presets
         </p>
         <h2 className="text-xl font-bold tracking-tight md:text-2xl">
           授業プリセット
         </h2>
-        <p className="max-w-2xl text-sm leading-relaxed text-muted-foreground">
+        <p className="text-muted-foreground max-w-2xl text-sm leading-relaxed">
           科目・授業種別・時間枠の選択肢を教室ごとに管理します。無効化した項目は一覧に表示されず、新規コマで選べなくなります。
         </p>
       </header>
@@ -445,11 +445,11 @@ export default function PresetsSettingsPanel({
       <FormErrorAlert message={error} />
 
       {!activeClassroomId ? (
-        <p className="text-sm text-muted-foreground">
+        <p className="text-muted-foreground text-sm">
           教室を選択するとプリセットを編集できます。
         </p>
       ) : isLoadingPresets ? (
-        <p className="text-sm text-muted-foreground">読み込み中…</p>
+        <p className="text-muted-foreground text-sm">読み込み中…</p>
       ) : (
         <div className="space-y-10">
           <SubjectsBlock

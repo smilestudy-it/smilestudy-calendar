@@ -16,7 +16,7 @@ function Calendar({ className, ...props }: CalendarProps) {
     <DayPicker
       locale={ja}
       className={cn(
-        'rounded-lg border border-border bg-background p-3 text-foreground',
+        'border-border bg-background text-foreground rounded-lg border p-3',
         className,
       )}
       {...props}

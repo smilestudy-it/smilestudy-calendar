@@ -15,7 +15,7 @@ export default function ClassroomPage({
 }: Props) {
   if (currentUser?.role !== 'admin') {
     return (
-      <p className="text-sm text-foreground">
+      <p className="text-foreground text-sm">
         管理者のみ教室管理機能を利用できます。
       </p>
     );

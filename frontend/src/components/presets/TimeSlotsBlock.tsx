@@ -123,7 +123,7 @@ export default function TimeSlotsBlock({
           );
         })}
         {timeSlots.length === 0 && (
-          <li className="text-sm text-muted-foreground">
+          <li className="text-muted-foreground text-sm">
             時間枠がまだありません。
           </li>
         )}

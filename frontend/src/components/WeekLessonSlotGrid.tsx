@@ -160,20 +160,20 @@ export default function WeekLessonSlotGrid({
   };
 
   return (
-    <div className="overflow-x-auto rounded-lg border border-border bg-background">
+    <div className="border-border bg-background overflow-x-auto rounded-lg border">
       <table className="w-full min-w-[720px] border-collapse text-sm select-none">
         <thead>
-          <tr className="border-b border-border bg-muted">
-            <th className="sticky left-0 z-10 border-r border-border bg-muted px-2 py-2 text-left text-xs font-medium text-muted-foreground">
+          <tr className="border-border bg-muted border-b">
+            <th className="border-border bg-muted text-muted-foreground sticky left-0 z-10 border-r px-2 py-2 text-left text-xs font-medium">
               時間枠
             </th>
             {days.map((d, idx) => (
               <th
                 key={dateKeyLocal(d)}
-                className="min-w-[88px] border-r border-border px-1 py-2 text-center text-xs font-medium last:border-r-0"
+                className="border-border min-w-[88px] border-r px-1 py-2 text-center text-xs font-medium last:border-r-0"
               >
                 <div>{WEEKDAY_LABELS[idx]}</div>
-                <div className="font-normal text-muted-foreground">
+                <div className="text-muted-foreground font-normal">
                   {dayjs(d).format('M/D')}
                 </div>
               </th>
@@ -184,9 +184,9 @@ export default function WeekLessonSlotGrid({
           {sortedSlots.map((slot) => (
             <tr
               key={slot.id}
-              className="border-b border-border last:border-b-0"
+              className="border-border border-b last:border-b-0"
             >
-              <td className="sticky left-0 z-10 border-r border-border bg-muted/90 px-2 py-1.5 text-xs text-muted-foreground">
+              <td className="border-border bg-muted/90 text-muted-foreground sticky left-0 z-10 border-r px-2 py-1.5 text-xs">
                 {slot.startTime}–{slot.endTime}
               </td>
               {days.map((day) => {
@@ -198,16 +198,14 @@ export default function WeekLessonSlotGrid({
                 return (
                   <td
                     key={key}
-                    className={`border-r border-border p-0 align-top last:border-r-0 ${
-                      selected
-                        ? 'bg-accent ring-1 ring-ring ring-inset'
-                        : ''
+                    className={`border-border border-r p-0 align-top last:border-r-0 ${
+                      selected ? 'bg-accent ring-ring ring-1 ring-inset' : ''
                     } ${painted ? 'bg-muted/60' : ''}`}
                   >
                     <div className="flex min-h-[52px] w-full flex-col">
                       <button
                         type="button"
-                        className="flex flex-1 flex-col items-stretch justify-center gap-0.5 px-1 py-1 text-left text-xs hover:bg-muted/80"
+                        className="hover:bg-muted/80 flex flex-1 flex-col items-stretch justify-center gap-0.5 px-1 py-1 text-left text-xs"
                         onMouseDown={(e) => {
                           e.preventDefault();
                           onCellMouseDown(key);
@@ -219,7 +217,7 @@ export default function WeekLessonSlotGrid({
                             <span className="truncate font-medium">
                               {lesson.teacherDisplay}
                             </span>
-                            <span className="truncate text-muted-foreground">
+                            <span className="text-muted-foreground truncate">
                               {lesson.studentDisplay}
                             </span>
                           </>
@@ -230,7 +228,7 @@ export default function WeekLessonSlotGrid({
                       {lesson ? (
                         <button
                           type="button"
-                          className="border-t border-border px-1 py-0.5 text-center text-[10px] text-primary hover:bg-muted"
+                          className="border-border text-primary hover:bg-muted border-t px-1 py-0.5 text-center text-[10px]"
                           onMouseDown={(e) => {
                             e.preventDefault();
                             e.stopPropagation();

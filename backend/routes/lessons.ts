@@ -22,9 +22,9 @@ import {
 import { isD1ForeignKeyViolation } from '../lib/sqliteConstraint';
 import {
   validateBulkLessonsInput,
+  validateCreateLessonInput,
   validateLessonRangeQuery,
   validatePatchLessonInput,
-  validateCreateLessonInput
 } from '../lib/validators';
 import {
   auth,
@@ -123,40 +123,61 @@ lessonsApp.get(
   },
 );
 
-lessonsApp.post('/', auth, loadUser, async(c) =>{
+lessonsApp.post('/', auth, loadUser, async (c) => {
   const actor = c.var.currentUser;
   const body = await c.req.json<unknown>().catch(() => null);
-  const {input, error} = validateCreateLessonInput(body);
+  const { input, error } = validateCreateLessonInput(body);
   if (!input) {
     return c.json({ message: error ?? 'invalid request' }, 400);
   }
-  if ((actor.role !== 'admin' && actor.classroomId !== input.classroomId) || (actor.role === 'staff' && actor.id !== input.teacherId)) {
+  if (
+    (actor.role !== 'admin' && actor.classroomId !== input.classroomId) ||
+    (actor.role === 'staff' && actor.id !== input.teacherId)
+  ) {
     return c.json({ message: 'forbidden' }, 403);
   }
 
   const db = getDb(c.env);
 
-  const [classroom] = await db.select().from(classrooms).where(and(eq(classrooms.id, input.classroomId), isNull(classrooms.deletedAt))).limit(1);
-  if(!classroom){
+  const [classroom] = await db
+    .select()
+    .from(classrooms)
+    .where(
+      and(eq(classrooms.id, input.classroomId), isNull(classrooms.deletedAt)),
+    )
+    .limit(1);
+  if (!classroom) {
     return c.json({ message: 'classroom not found' }, 404);
   }
-  if(input.subjectId){
-    const [row] = await db.select().from(subjects).where(and(eq(subjects.id, input.subjectId), isNull(subjects.deletedAt))).limit(1);
-    if(!row){
+  if (input.subjectId) {
+    const [row] = await db
+      .select()
+      .from(subjects)
+      .where(and(eq(subjects.id, input.subjectId), isNull(subjects.deletedAt)))
+      .limit(1);
+    if (!row) {
       return c.json({ message: 'invalid subject' }, 400);
     }
   }
-  if(input.lessonTypeId){
-    const [row] = await db.select().from(lessonTypes).where(and(eq(lessonTypes.id, input.lessonTypeId), isNull(lessonTypes.deletedAt))).limit(1);
-    if(!row){
+  if (input.lessonTypeId) {
+    const [row] = await db
+      .select()
+      .from(lessonTypes)
+      .where(
+        and(
+          eq(lessonTypes.id, input.lessonTypeId),
+          isNull(lessonTypes.deletedAt),
+        ),
+      )
+      .limit(1);
+    if (!row) {
       return c.json({ message: 'invalid lesson type' }, 400);
     }
   }
 
   const id = crypto.randomUUID();
 
-
-  try{
+  try {
     const res = await db.insert(lessons).values({
       id,
       teacherId: input.teacherId,
@@ -167,17 +188,17 @@ lessonsApp.post('/', auth, loadUser, async(c) =>{
       startAt: input.startAt,
       endAt: input.endAt,
       deletedAt: null,
-    })
-    if(res.meta.changes === 0){
+    });
+    if (res.meta.changes === 0) {
       return c.json({ message: 'failed to create lessons' }, 500);
     }
-  }catch (err: unknown){
-    if(err instanceof Error){
-      return c.json({ message:  err.message}, 500);
+  } catch (err: unknown) {
+    if (err instanceof Error) {
+      return c.json({ message: err.message }, 500);
     }
     return c.json({ message: 'internal server error' }, 500);
   }
-  return c.json({success: true, id}, 200);
+  return c.json({ success: true, id }, 200);
 });
 
 type CreateLessonTxResult =
@@ -797,6 +818,5 @@ lessonsApp.patch('/:id', auth, loadUser, async (c) => {
     200,
   );
 });
-
 
 export default lessonsApp;
