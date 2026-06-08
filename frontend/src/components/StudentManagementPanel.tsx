@@ -8,6 +8,18 @@ import type { Resolver, SubmitHandler } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 
+import { Button } from '@/components/ui/button';
+import { FormErrorAlert } from '@/components/ui/form-error-alert';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
+import { Separator } from '@/components/ui/separator';
 import { useAuthedFetch } from '@/hooks/useAuthedFetch';
 
 import type { CurrentUser } from '../types/currentUser';
@@ -318,193 +330,166 @@ export default function StudentManagementPanel({
 
   return (
     <section className="space-y-8">
-      <header className="space-y-2 border-b border-slate-200 pb-6">
-        <p className="text-xs font-semibold tracking-wider text-emerald-600 uppercase">
+      <header className="space-y-2">
+        <p className="text-xs font-semibold tracking-wider text-muted-foreground uppercase">
           Students
         </p>
-        <h2 className="text-xl font-bold tracking-tight text-slate-900 md:text-2xl">
+        <h2 className="text-xl font-bold tracking-tight md:text-2xl">
           生徒管理
         </h2>
-        <p className="max-w-2xl text-sm leading-relaxed text-slate-500">
+        <p className="max-w-2xl text-sm leading-relaxed text-muted-foreground">
           {canManageStudents
             ? '教室ごとに生徒を登録・一覧・削除できます。出生年はカレンダー年度の参照用として保存されます。'
             : '所属教室の生徒一覧を閲覧できます（登録・削除は教室長以上のみ）。'}
         </p>
       </header>
 
+      <Separator />
+
       {canManageStudents && (
-        <section className="space-y-4 rounded-xl border border-slate-200/80 bg-gradient-to-br from-slate-50 to-slate-100 p-4 shadow-lg ring-1 ring-emerald-500/10 md:p-5">
-          <h3 className="text-base font-semibold text-slate-900">生徒を登録</h3>
+        <section className="space-y-4">
+          <h3 className="text-base font-semibold">生徒を登録</h3>
           <form
             onSubmit={handleSubmit(handleCreateStudent)}
-            className="grid grid-cols-1 gap-3 md:grid-cols-2 md:gap-4"
+            className="grid grid-cols-1 gap-4 md:grid-cols-2"
           >
             {isAdmin && (
-              <div className="md:col-span-2">
-                <label
-                  htmlFor="student-classroom"
-                  className="mb-1 block text-sm text-slate-700"
-                >
-                  所属教室
-                </label>
-                <select
-                  id="student-classroom"
-                  aria-label="登録先の所属教室"
-                  {...register('classroomId', {
-                    onChange: (e) => setSelectedClassroomId(e.target.value),
-                  })}
+              <div className="space-y-2 md:col-span-2">
+                <Label htmlFor="student-classroom">所属教室</Label>
+                <Select
+                  value={watch('classroomId') ?? ''}
+                  onValueChange={(v) => {
+                    setValue('classroomId', v, { shouldValidate: true });
+                    setSelectedClassroomId(v);
+                  }}
                   disabled={isLoadingClassrooms}
-                  className="w-full rounded-lg border border-slate-200 bg-slate-200/80 px-3 py-2.5 text-slate-900 focus:border-emerald-500/60 focus:ring-2 focus:ring-emerald-500/25 focus:outline-none"
                 >
-                  <option value="">教室を選択</option>
-                  {classrooms.map((c) => (
-                    <option key={c.id} value={c.id}>
-                      {c.name}
-                    </option>
-                  ))}
-                </select>
+                  <SelectTrigger id="student-classroom">
+                    <SelectValue placeholder="教室を選択" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {classrooms.map((c) => (
+                      <SelectItem key={c.id} value={c.id}>
+                        {c.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
                 {errors.classroomId?.message && (
-                  <p className="mt-1 text-sm text-rose-600">
+                  <p className="text-sm text-destructive">
                     {errors.classroomId.message}
                   </p>
                 )}
               </div>
             )}
 
-            <div className="md:col-span-2">
-              <label
-                htmlFor="student-name"
-                className="mb-1 block text-sm text-slate-700"
-              >
-                氏名
-              </label>
-              <input
+            <div className="space-y-2 md:col-span-2">
+              <Label htmlFor="student-name">氏名</Label>
+              <Input
                 id="student-name"
                 aria-label="氏名"
                 {...register('name')}
                 placeholder="山田 太郎"
                 maxLength={100}
-                className="w-full rounded-lg border border-slate-200 bg-slate-200/80 px-3 py-2.5 text-slate-900 placeholder:text-slate-500 focus:border-emerald-500/60 focus:ring-2 focus:ring-emerald-500/25 focus:outline-none"
               />
               {errors.name?.message && (
-                <p className="mt-1 text-sm text-rose-600">
-                  {errors.name.message}
-                </p>
+                <p className="text-sm text-destructive">{errors.name.message}</p>
               )}
             </div>
 
-            <div>
-              <label
-                htmlFor="student-email"
-                className="mb-1 block text-sm text-slate-700"
-              >
-                メールアドレス
-              </label>
-              <input
+            <div className="space-y-2">
+              <Label htmlFor="student-email">メールアドレス</Label>
+              <Input
                 id="student-email"
                 type="email"
                 aria-label="メールアドレス"
                 {...register('email')}
                 placeholder="student@example.com"
-                className="w-full rounded-lg border border-slate-200 bg-slate-200/80 px-3 py-2.5 text-slate-900 placeholder:text-slate-500 focus:border-emerald-500/60 focus:ring-2 focus:ring-emerald-500/25 focus:outline-none"
               />
               {errors.email?.message && (
-                <p className="mt-1 text-sm text-rose-600">
+                <p className="text-sm text-destructive">
                   {errors.email.message}
                 </p>
               )}
             </div>
 
-            <div>
-              <label
-                htmlFor="student-birth-year"
-                className="mb-1 block text-sm text-slate-700"
-              >
-                出生年度（西暦）
-              </label>
-              <input
+            <div className="space-y-2">
+              <Label htmlFor="student-birth-year">出生年度（西暦）</Label>
+              <Input
                 id="student-birth-year"
                 type="number"
                 aria-label="出生年"
                 min={1900}
                 max={currentYear}
                 {...register('birthYear', { valueAsNumber: true })}
-                className="w-full rounded-lg border border-slate-200 bg-slate-200/80 px-3 py-2.5 text-slate-900 focus:border-emerald-500/60 focus:ring-2 focus:ring-emerald-500/25 focus:outline-none"
               />
               {errors.birthYear?.message && (
-                <p className="mt-1 text-sm text-rose-600">
+                <p className="text-sm text-destructive">
                   {errors.birthYear.message}
                 </p>
               )}
             </div>
 
-            <button
+            <Button
               type="submit"
               disabled={
                 isSubmitting ||
                 (isAdmin && !targetClassroomIdForForm) ||
                 (!isAdmin && !currentUser.classroomId)
               }
-              className="rounded-lg bg-emerald-600 px-4 py-2.5 text-sm font-semibold text-white shadow-md shadow-emerald-900/30 transition hover:bg-emerald-500 disabled:cursor-not-allowed disabled:opacity-50 md:col-span-2"
+              className="md:col-span-2"
             >
               {isSubmitting ? '登録中…' : '生徒を登録'}
-            </button>
+            </Button>
           </form>
         </section>
       )}
 
-      {error && (
-        <p
-          className="rounded-lg border border-rose-500/30 bg-rose-100/40 px-3 py-2 text-sm text-rose-700"
-          role="alert"
-        >
-          {error}
-        </p>
-      )}
+      <FormErrorAlert message={error} />
 
-      <section className="space-y-4 rounded-xl border border-slate-200/80 bg-slate-100/50 p-4 md:p-5">
+      <Separator />
+
+      <section className="space-y-4">
         <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
-          <h3 className="text-base font-semibold text-slate-900">生徒一覧</h3>
+          <h3 className="text-base font-semibold">生徒一覧</h3>
           {isAdmin && (
-            <div className="w-full max-w-xs space-y-1">
-              <label
-                htmlFor="list-classroom"
-                className="text-xs text-slate-500"
-              >
+            <div className="w-full max-w-xs space-y-2">
+              <Label htmlFor="list-classroom" className="text-xs">
                 表示する教室
-              </label>
-              <select
-                id="list-classroom"
-                className="w-full rounded-lg border border-slate-200 bg-slate-200 px-3 py-2 text-sm text-slate-900 focus:border-emerald-500/60 focus:ring-2 focus:ring-emerald-500/25 focus:outline-none"
+              </Label>
+              <Select
                 value={selectedClassroomId}
-                onChange={(e) => {
-                  const v = e.target.value;
+                onValueChange={(v) => {
                   setSelectedClassroomId(v);
                   setValue('classroomId', v, { shouldValidate: true });
                 }}
                 disabled={isLoadingClassrooms}
               >
-                <option value="">教室を選択</option>
-                {classrooms.map((c) => (
-                  <option key={c.id} value={c.id}>
-                    {c.name}
-                  </option>
-                ))}
-              </select>
+                <SelectTrigger id="list-classroom">
+                  <SelectValue placeholder="教室を選択" />
+                </SelectTrigger>
+                <SelectContent>
+                  {classrooms.map((c) => (
+                    <SelectItem key={c.id} value={c.id}>
+                      {c.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
           )}
         </div>
 
         {isLoadingStudents ? (
-          <p className="text-sm text-slate-500">読み込み中…</p>
+          <p className="text-sm text-muted-foreground">読み込み中…</p>
         ) : !activeClassroomId ? (
-          <p className="text-sm text-slate-500">
+          <p className="text-sm text-muted-foreground">
             {isAdmin
               ? '教室を選択すると生徒が表示されます。'
               : '所属教室が割り当てられていないため、生徒一覧を表示できません。'}
           </p>
         ) : students.length === 0 ? (
-          <p className="rounded-lg border border-dashed border-slate-200 bg-slate-50/40 px-4 py-8 text-center text-sm text-slate-500">
+          <p className="border border-dashed border-border px-4 py-8 text-center text-sm text-muted-foreground">
             この教室に登録された生徒はまだいません。
           </p>
         ) : (
@@ -514,39 +499,41 @@ export default function StudentManagementPanel({
                 {shareCopyError}
               </p>
             ) : null}
-            <ul className="space-y-2">
+            <ul className="divide-y divide-border">
               {students.map((row) => (
                 <li
                   key={row.id}
-                  className="flex flex-col gap-3 rounded-xl border border-slate-200 bg-slate-50/60 p-4 sm:flex-row sm:items-center sm:justify-between"
+                  className="flex flex-col gap-3 py-4 sm:flex-row sm:items-center sm:justify-between"
                 >
                   <div className="min-w-0 space-y-1">
-                    <p className="font-medium text-slate-900">{row.name}</p>
-                    <p className="truncate text-sm text-slate-500">
+                    <p className="font-medium">{row.name}</p>
+                    <p className="truncate text-sm text-muted-foreground">
                       {row.email}
                     </p>
-                    <p className="text-xs text-slate-500">
+                    <p className="text-xs text-muted-foreground">
                       出生年: {row.birthYear}
                     </p>
                   </div>
                   <div className="flex shrink-0 flex-wrap items-center gap-2">
-                    <button
+                    <Button
                       type="button"
-                      className="rounded-lg border border-slate-600 bg-slate-100/80 px-3 py-2 text-sm font-medium text-slate-800 transition hover:bg-slate-200/80"
+                      variant="outline"
+                      size="sm"
                       onClick={() => void handleCopyShareLink(row.id)}
                     >
                       {copiedShareStudentId === row.id
                         ? 'コピーしました'
                         : '共有リンクをコピー'}
-                    </button>
+                    </Button>
                     {canManageStudents && (
-                      <button
+                      <Button
                         type="button"
-                        className="rounded-lg border border-rose-200/60 bg-rose-100/50 px-3 py-2 text-sm font-medium text-rose-700 transition hover:bg-rose-100/60"
+                        variant="destructive"
+                        size="sm"
                         onClick={() => void handleDeleteStudent(row.id)}
                       >
                         削除
-                      </button>
+                      </Button>
                     )}
                   </div>
                 </li>

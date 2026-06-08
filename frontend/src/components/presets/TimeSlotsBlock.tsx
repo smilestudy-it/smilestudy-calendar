@@ -1,6 +1,9 @@
 /**
  * （責務）教室ごとの時間枠の追加・開始終了編集・無効化 UI。
  */
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
 import type { TimeSlotListItem } from '@/types/api';
 
 import PresetSection from './PresetSection';
@@ -22,9 +25,6 @@ type Props = {
   onDisable: (id: string) => void;
 };
 
-/**
- * 教室ごとの「時間枠」一覧: 追加用 time input + 行の開始終了編集
- */
 export default function TimeSlotsBlock({
   timeSlots,
   newSlotStart,
@@ -40,44 +40,27 @@ export default function TimeSlotsBlock({
   return (
     <PresetSection title="時間枠">
       <form onSubmit={onAdd} className="flex flex-wrap items-end gap-2">
-        <div>
-          <label
-            htmlFor="new-slot-start"
-            className="mb-1 block text-xs text-slate-500"
-          >
-            開始
-          </label>
-          <input
+        <div className="space-y-2">
+          <Label htmlFor="new-slot-start">開始</Label>
+          <Input
             id="new-slot-start"
             type="time"
             value={newSlotStart}
             onChange={(e) => onNewSlotStartChange(e.target.value)}
-            className="rounded-lg border border-slate-200 bg-slate-200/80 px-3 py-2 text-slate-900"
           />
         </div>
-        <div>
-          <label
-            htmlFor="new-slot-end"
-            className="mb-1 block text-xs text-slate-500"
-          >
-            終了
-          </label>
-          <input
+        <div className="space-y-2">
+          <Label htmlFor="new-slot-end">終了</Label>
+          <Input
             id="new-slot-end"
             type="time"
             value={newSlotEnd}
             onChange={(e) => onNewSlotEndChange(e.target.value)}
-            className="rounded-lg border border-slate-200 bg-slate-200/80 px-3 py-2 text-slate-900"
           />
         </div>
-        <button
-          type="submit"
-          className="rounded-lg bg-cyan-600 px-4 py-2 text-sm font-semibold text-white hover:bg-cyan-500"
-        >
-          追加
-        </button>
+        <Button type="submit">追加</Button>
       </form>
-      <ul className="mt-4 space-y-2">
+      <ul className="space-y-3">
         {timeSlots.map((row) => {
           const d = draftSlots[row.id] ?? {
             start: row.startTime,
@@ -86,14 +69,12 @@ export default function TimeSlotsBlock({
           return (
             <li
               key={row.id}
-              className="flex flex-col gap-2 rounded-xl border border-slate-200 bg-slate-50/60 p-3 sm:flex-row sm:items-end"
+              className="flex flex-col gap-2 sm:flex-row sm:items-end"
             >
               <div className="flex flex-wrap gap-2">
-                <div>
-                  <span className="mb-1 block text-xs text-slate-500">
-                    開始
-                  </span>
-                  <input
+                <div className="space-y-2">
+                  <Label className="text-xs">開始</Label>
+                  <Input
                     type="time"
                     aria-label={`時間枠開始 ${row.id}`}
                     value={d.start}
@@ -103,14 +84,11 @@ export default function TimeSlotsBlock({
                         [row.id]: { ...d, start: e.target.value },
                       }))
                     }
-                    className="rounded-lg border border-slate-200 bg-slate-200/80 px-3 py-2 text-slate-900"
                   />
                 </div>
-                <div>
-                  <span className="mb-1 block text-xs text-slate-500">
-                    終了
-                  </span>
-                  <input
+                <div className="space-y-2">
+                  <Label className="text-xs">終了</Label>
+                  <Input
                     type="time"
                     aria-label={`時間枠終了 ${row.id}`}
                     value={d.end}
@@ -120,31 +98,34 @@ export default function TimeSlotsBlock({
                         [row.id]: { ...d, end: e.target.value },
                       }))
                     }
-                    className="rounded-lg border border-slate-200 bg-slate-200/80 px-3 py-2 text-slate-900"
                   />
                 </div>
               </div>
               <div className="flex shrink-0 flex-wrap gap-2 sm:ml-auto">
-                <button
+                <Button
                   type="button"
-                  className="rounded-lg border border-slate-600 px-3 py-1.5 text-sm text-slate-800 hover:bg-slate-300"
+                  variant="outline"
+                  size="sm"
                   onClick={() => void onPatch(row.id)}
                 >
                   更新
-                </button>
-                <button
+                </Button>
+                <Button
                   type="button"
-                  className="rounded-lg border border-rose-200/60 bg-rose-100/50 px-3 py-1.5 text-sm text-rose-700 hover:bg-rose-100/60"
+                  variant="destructive"
+                  size="sm"
                   onClick={() => void onDisable(row.id)}
                 >
                   無効化
-                </button>
+                </Button>
               </div>
             </li>
           );
         })}
         {timeSlots.length === 0 && (
-          <li className="text-sm text-slate-500">時間枠がまだありません。</li>
+          <li className="text-sm text-muted-foreground">
+            時間枠がまだありません。
+          </li>
         )}
       </ul>
     </PresetSection>

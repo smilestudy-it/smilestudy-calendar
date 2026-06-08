@@ -211,7 +211,7 @@ export default function CalendarPage({
 
   if (!currentUser) {
     return (
-      <p className="text-sm text-slate-700">この画面にアクセスできません。</p>
+      <p className="text-sm text-foreground">この画面にアクセスできません。</p>
     );
   }
 
@@ -223,7 +223,7 @@ export default function CalendarPage({
         <div>
           <h2 className="text-lg font-semibold md:text-xl">カレンダー</h2>
           {isAdmin && (
-            <p className="text-sm text-slate-500">
+            <p className="text-sm text-muted-foreground">
               現在の教室: {activeClassroom?.name || '未選択'}
             </p>
           )}
@@ -248,7 +248,7 @@ export default function CalendarPage({
       <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_auto]">
         <div className="space-y-4">
           <div className="flex flex-wrap items-center justify-between gap-2">
-            <p className="text-sm text-slate-700">
+            <p className="text-sm text-foreground">
               {monthStart.format('YYYY年M月')}
             </p>
             <div className="flex gap-2">
@@ -284,10 +284,9 @@ export default function CalendarPage({
           </div>
 
           {isLoadingMonth ? (
-            <p className="text-sm text-slate-500">月のコマを読み込み中...</p>
+            <p className="text-sm text-muted-foreground">月のコマを読み込み中...</p>
           ) : (
-            <div className="rounded-xl border border-slate-200 bg-slate-50/40 p-3">
-              <MonthCalendar
+            <MonthCalendar
                 focusDate={focusDate}
                 events={calendarEvents}
                 onFocusDateChange={setFocusDate}
@@ -317,7 +316,6 @@ export default function CalendarPage({
                   });
                 }}
               />
-            </div>
           )}
         </div>
       </div>

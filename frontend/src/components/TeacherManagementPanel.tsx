@@ -9,6 +9,18 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 
 import type { User } from '@/../../shared/type';
+import { Button } from '@/components/ui/button';
+import { FormErrorAlert } from '@/components/ui/form-error-alert';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
+import { Separator } from '@/components/ui/separator';
 import { useAuthedFetch } from '@/hooks/useAuthedFetch';
 
 import type { CurrentUser } from '../types/currentUser';
@@ -304,235 +316,253 @@ export default function TeacherManagementPanel({
   };
 
   return (
-    <section className="space-y-6 rounded-xl border border-slate-200 bg-slate-50/50 p-4">
+    <section className="space-y-8">
       <h2 className="text-lg font-semibold md:text-xl">
         講師管理（教室長以上）
       </h2>
 
-      <section className="space-y-3 rounded-lg border border-slate-200 bg-slate-100/60 p-3">
+      <section className="space-y-4">
         <h3 className="text-base font-semibold">講師招待</h3>
         <form
           onSubmit={handleSubmit(handleInvite)}
-          className="grid grid-cols-1 gap-2 md:grid-cols-2"
+          className="grid grid-cols-1 gap-4 md:grid-cols-2"
         >
-          <label
-            className="text-sm text-slate-700 md:col-span-2"
-            htmlFor="invite-role"
-          >
-            権限
-          </label>
-          <div className="md:col-span-2">
-            <select
-              id="invite-role"
-              aria-label="招待する権限"
-              {...register('role')}
-              className="w-full rounded-lg border border-slate-200 bg-slate-200 px-3 py-2 text-slate-900 focus:border-indigo-400 focus:ring-2 focus:ring-indigo-500/30 focus:outline-none"
+          <div className="space-y-2 md:col-span-2">
+            <Label htmlFor="invite-role">権限</Label>
+            <Select
+              value={watch('role')}
+              onValueChange={(v) =>
+                setValue('role', v as InviteFormValues['role'], {
+                  shouldValidate: true,
+                })
+              }
             >
-              {isAdmin && <option value="admin">管理者</option>}
-              <option value="manager">教室長</option>
-              <option value="staff">講師</option>
-            </select>
+              <SelectTrigger id="invite-role">
+                <SelectValue placeholder="権限を選択" />
+              </SelectTrigger>
+              <SelectContent>
+                {isAdmin && <SelectItem value="admin">管理者</SelectItem>}
+                <SelectItem value="manager">教室長</SelectItem>
+                <SelectItem value="staff">講師</SelectItem>
+              </SelectContent>
+            </Select>
             {errors.role?.message && (
-              <p className="mt-1 text-sm text-rose-600">
-                {errors.role.message}
-              </p>
+              <p className="text-sm text-destructive">{errors.role.message}</p>
             )}
           </div>
 
           {isAdmin && requiresClassroom && (
-            <>
-              <label
-                className="text-sm text-slate-700 md:col-span-2"
-                htmlFor="invite-classroom"
+            <div className="space-y-2 md:col-span-2">
+              <Label htmlFor="invite-classroom">所属教室</Label>
+              <Select
+                value={watch('classroomId') ?? ''}
+                onValueChange={(v) =>
+                  setValue('classroomId', v, { shouldValidate: true })
+                }
+                disabled={isLoadingClassrooms}
               >
-                所属教室
-              </label>
-              <div className="md:col-span-2">
-                <select
-                  id="invite-classroom"
-                  aria-label="招待先の所属教室"
-                  {...register('classroomId')}
-                  disabled={isLoadingClassrooms}
-                  className="w-full rounded-lg border border-slate-200 bg-slate-200 px-3 py-2 text-slate-900 focus:border-indigo-400 focus:ring-2 focus:ring-indigo-500/30 focus:outline-none"
-                >
-                  <option value="">教室を選択してください</option>
+                <SelectTrigger id="invite-classroom">
+                  <SelectValue placeholder="教室を選択してください" />
+                </SelectTrigger>
+                <SelectContent>
                   {classrooms.map((classroom) => (
-                    <option key={classroom.id} value={classroom.id}>
+                    <SelectItem key={classroom.id} value={classroom.id}>
                       {classroom.name}
-                    </option>
+                    </SelectItem>
                   ))}
-                </select>
-                {errors.classroomId?.message && (
-                  <p className="mt-1 text-sm text-rose-600">
-                    {errors.classroomId.message}
-                  </p>
-                )}
-              </div>
-            </>
+                </SelectContent>
+              </Select>
+              {errors.classroomId?.message && (
+                <p className="text-sm text-destructive">
+                  {errors.classroomId.message}
+                </p>
+              )}
+            </div>
           )}
 
-          <div>
-            <input
+          <div className="space-y-2">
+            <Label htmlFor="invite-last-name">姓</Label>
+            <Input
+              id="invite-last-name"
               aria-label="姓"
               {...register('lastName')}
               placeholder="姓"
               maxLength={100}
-              className="w-full rounded-lg border border-slate-200 bg-slate-200 px-3 py-2 text-slate-900 placeholder:text-slate-500 focus:border-indigo-400 focus:ring-2 focus:ring-indigo-500/30 focus:outline-none"
             />
             {errors.lastName?.message && (
-              <p className="mt-1 text-sm text-rose-600">
+              <p className="text-sm text-destructive">
                 {errors.lastName.message}
               </p>
             )}
           </div>
-          <div>
-            <input
+          <div className="space-y-2">
+            <Label htmlFor="invite-first-name">名</Label>
+            <Input
+              id="invite-first-name"
               aria-label="名"
               {...register('firstName')}
               placeholder="名"
               maxLength={100}
-              className="w-full rounded-lg border border-slate-200 bg-slate-200 px-3 py-2 text-slate-900 placeholder:text-slate-500 focus:border-indigo-400 focus:ring-2 focus:ring-indigo-500/30 focus:outline-none"
             />
             {errors.firstName?.message && (
-              <p className="mt-1 text-sm text-rose-600">
+              <p className="text-sm text-destructive">
                 {errors.firstName.message}
               </p>
             )}
           </div>
-          <div className="md:col-span-2">
-            <input
+          <div className="space-y-2 md:col-span-2">
+            <Label htmlFor="invite-email">メールアドレス</Label>
+            <Input
+              id="invite-email"
               aria-label="メールアドレス"
               type="email"
               {...register('email')}
               placeholder="email@example.com"
-              className="w-full rounded-lg border border-slate-200 bg-slate-200 px-3 py-2 text-slate-900 placeholder:text-slate-500 focus:border-indigo-400 focus:ring-2 focus:ring-indigo-500/30 focus:outline-none"
             />
             {errors.email?.message && (
-              <p className="mt-1 text-sm text-rose-600">
+              <p className="text-sm text-destructive">
                 {errors.email.message}
               </p>
             )}
           </div>
-          <div className="md:col-span-2">
-            <input
+          <div className="space-y-2 md:col-span-2">
+            <Label htmlFor="invite-color">表示カラー</Label>
+            <Input
+              id="invite-color"
               aria-label="表示カラー"
               type="color"
               {...register('color')}
-              className="h-10 w-full rounded-lg border border-slate-200 bg-slate-200 px-2 py-1"
+              className="h-10 w-full p-1"
             />
             {errors.color?.message && (
-              <p className="mt-1 text-sm text-rose-600">
+              <p className="text-sm text-destructive">
                 {errors.color.message}
               </p>
             )}
           </div>
-          <button
+          <Button
             type="submit"
-            className="rounded-lg bg-indigo-700 px-4 py-2 font-semibold text-white transition hover:bg-indigo-600 disabled:cursor-not-allowed disabled:opacity-60 md:col-span-2"
+            className="md:col-span-2"
             disabled={
               isSubmitting || (requiresClassroom && !inviteTargetClassroomId)
             }
           >
             {isSubmitting ? '招待中...' : '講師を招待する'}
-          </button>
+          </Button>
         </form>
       </section>
 
-      {error && <p className="text-sm text-rose-600">{error}</p>}
+      <FormErrorAlert message={error} />
 
       {canListAdmins && (
-        <section className="space-y-3 rounded-lg border border-slate-200 bg-slate-100/60 p-3">
-          <h3 className="text-base font-semibold">管理者一覧</h3>
-          {isLoadingAdmins ? (
-            <p className="text-sm text-slate-500">管理者一覧を読み込み中...</p>
-          ) : (
-            <ul className="space-y-2">
-              {adminUsers.map((row) => (
-                <li
-                  key={row.id}
-                  className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-slate-200 bg-slate-50/60 px-3 py-2"
-                >
-                  <div className="space-y-0.5 text-sm">
-                    <p className="font-medium text-slate-900">
-                      {row.lastName} {row.firstName}
-                    </p>
-                    <p className="text-slate-700">{row.email}</p>
-                    <p className="text-xs text-slate-500">role: {row.role}</p>
-                  </div>
-                  {isAdmin && row.id !== currentUser.id && (
-                    <button
-                      type="button"
-                      className="rounded-lg bg-rose-500 px-3 py-1.5 text-sm font-semibold text-white transition hover:bg-rose-400"
-                      onClick={() => void handleDelete(row.id)}
-                    >
-                      削除
-                    </button>
-                  )}
-                </li>
-              ))}
-              {adminUsers.length === 0 && (
-                <li className="text-sm text-slate-500">管理者がいません。</li>
-              )}
-            </ul>
-          )}
-        </section>
+        <>
+          <Separator />
+          <section className="space-y-4">
+            <h3 className="text-base font-semibold">管理者一覧</h3>
+            {isLoadingAdmins ? (
+              <p className="text-sm text-muted-foreground">
+                管理者一覧を読み込み中...
+              </p>
+            ) : (
+              <ul className="divide-y divide-border">
+                {adminUsers.map((row) => (
+                  <li
+                    key={row.id}
+                    className="flex flex-wrap items-center justify-between gap-3 py-3"
+                  >
+                    <div className="space-y-0.5 text-sm">
+                      <p className="font-medium">
+                        {row.lastName} {row.firstName}
+                      </p>
+                      <p className="text-muted-foreground">{row.email}</p>
+                      <p className="text-xs text-muted-foreground">
+                        role: {row.role}
+                      </p>
+                    </div>
+                    {isAdmin && row.id !== currentUser.id && (
+                      <Button
+                        type="button"
+                        variant="destructive"
+                        size="sm"
+                        onClick={() => void handleDelete(row.id)}
+                      >
+                        削除
+                      </Button>
+                    )}
+                  </li>
+                ))}
+                {adminUsers.length === 0 && (
+                  <li className="text-sm text-muted-foreground">
+                    管理者がいません。
+                  </li>
+                )}
+              </ul>
+            )}
+          </section>
+        </>
       )}
 
-      <section className="space-y-3 rounded-lg border border-slate-200 bg-slate-100/60 p-3">
+      <Separator />
+
+      <section className="space-y-4">
         <h3 className="text-base font-semibold">講師一覧・削除</h3>
         {isAdmin && (
-          <div className="space-y-1">
-            <label
-              htmlFor="target-classroom"
-              className="text-sm text-slate-700"
-            >
-              一覧対象教室
-            </label>
-            <select
-              id="target-classroom"
-              className="w-full rounded-lg border border-slate-200 bg-slate-200 px-3 py-2 text-slate-900 focus:border-indigo-400 focus:ring-2 focus:ring-indigo-500/30 focus:outline-none"
+          <div className="max-w-md space-y-2">
+            <Label htmlFor="target-classroom">一覧対象教室</Label>
+            <Select
               value={selectedClassroomId}
-              onChange={(event) => setSelectedClassroomId(event.target.value)}
+              onValueChange={setSelectedClassroomId}
               disabled={isLoadingClassrooms}
             >
-              <option value="">教室を選択してください</option>
-              {classrooms.map((classroom) => (
-                <option key={classroom.id} value={classroom.id}>
-                  {classroom.name}
-                </option>
-              ))}
-            </select>
+              <SelectTrigger id="target-classroom">
+                <SelectValue placeholder="教室を選択してください" />
+              </SelectTrigger>
+              <SelectContent>
+                {classrooms.map((classroom) => (
+                  <SelectItem key={classroom.id} value={classroom.id}>
+                    {classroom.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           </div>
         )}
         {isLoadingUsers ? (
-          <p className="text-sm text-slate-500">講師一覧を読み込み中...</p>
+          <p className="text-sm text-muted-foreground">
+            講師一覧を読み込み中...
+          </p>
         ) : (
-          <ul className="space-y-2">
+          <ul className="divide-y divide-border">
             {users.map((row) => (
               <li
                 key={row.id}
-                className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-slate-200 bg-slate-50/60 px-3 py-2"
+                className="flex flex-wrap items-center justify-between gap-3 py-3"
               >
                 <div className="space-y-0.5 text-sm">
-                  <p className="font-medium text-slate-900">
+                  <p className="font-medium">
                     {row.lastName} {row.firstName}
                   </p>
-                  <p className="text-slate-700">{row.email}</p>
-                  <p className="text-xs text-slate-500">role: {row.role}</p>
+                  <p className="text-muted-foreground">{row.email}</p>
+                  <p className="text-xs text-muted-foreground">
+                    role: {row.role}
+                  </p>
                 </div>
                 {row.id !== currentUser.id && (
-                  <button
+                  <Button
                     type="button"
-                    className="rounded-lg bg-rose-500 px-3 py-1.5 text-sm font-semibold text-white transition hover:bg-rose-400"
+                    variant="destructive"
+                    size="sm"
                     onClick={() => void handleDelete(row.id)}
                   >
                     削除
-                  </button>
+                  </Button>
                 )}
               </li>
             ))}
             {users.length === 0 && (
-              <li className="text-sm text-slate-500">講師がいません。</li>
+              <li className="text-sm text-muted-foreground">
+                講師がいません。
+              </li>
             )}
           </ul>
         )}

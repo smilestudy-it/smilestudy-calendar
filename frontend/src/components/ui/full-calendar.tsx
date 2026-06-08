@@ -124,7 +124,7 @@ export default function MonthCalendar({
       }}
       dayCellClassNames={(arg) =>
         selectedDate && arg.date.toDateString() === selectedDate.toDateString()
-          ? ['bg-indigo-50', 'ring-1', 'ring-indigo-300', 'rounded-md']
+          ? ['bg-accent', 'ring-1', 'ring-ring', 'rounded-md']
           : []
       }
       dayCellDidMount={(arg) => {

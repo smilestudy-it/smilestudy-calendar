@@ -18,7 +18,7 @@ export default function PresetsSettingsPage({
     (currentUser.role !== 'admin' && currentUser.role !== 'manager')
   ) {
     return (
-      <p className="text-sm text-slate-700">
+      <p className="text-sm text-foreground">
         教室長以上が授業プリセット設定を利用できます。
       </p>
     );

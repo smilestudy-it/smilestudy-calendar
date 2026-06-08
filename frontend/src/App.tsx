@@ -20,7 +20,7 @@ const StudentManagementPage = lazy(
 );
 const PresetsSettingsPage = lazy(() => import('./pages/PresetsSettingsPage'));
 const CalendarPage = lazy(() => import('./pages/CalendarPage'));
-const CalendarBulkEditPage = lazy(() => import('./pages/CalendarBulkEditPage'));
+const CalendarBulkEditPage = lazy(() => import('./pages/CalendarEditPage'));
 const SharedStudentCalendarPage = lazy(
   () => import('./pages/SharedStudentCalendarPage'),
 );

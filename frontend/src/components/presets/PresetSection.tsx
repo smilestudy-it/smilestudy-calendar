@@ -3,20 +3,19 @@
  */
 import type { ReactNode } from 'react';
 
+import { Separator } from '@/components/ui/separator';
+
 type Props = {
-  /** セクション見出し */
   title: string;
   children: ReactNode;
 };
 
-/**
- * 授業プリセット内の折り畳まない枠（科目 / 授業種別 / 時間枠で共通）
- */
 export default function PresetSection({ title, children }: Props) {
   return (
-    <section className="rounded-xl border border-slate-200/80 bg-slate-100/40 p-4 md:p-5">
-      <h3 className="mb-4 text-base font-semibold text-slate-900">{title}</h3>
+    <section className="space-y-4">
+      <h3 className="text-base font-semibold text-foreground">{title}</h3>
       {children}
+      <Separator />
     </section>
   );
 }

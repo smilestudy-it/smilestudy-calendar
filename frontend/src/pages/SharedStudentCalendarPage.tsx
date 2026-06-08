@@ -126,10 +126,10 @@ export default function SharedStudentCalendarPage() {
 
   if (!studentId) {
     return (
-      <div className="mx-auto max-w-lg rounded-2xl border border-slate-200 bg-slate-100/80 p-8 text-center shadow-xl">
-        <h1 className="text-lg font-semibold text-slate-900">共有カレンダー</h1>
-        <p className="mt-3 text-sm text-slate-500">
-          URL に <span className="font-mono text-slate-700">student_id</span>{' '}
+      <div className="mx-auto max-w-lg space-y-3 text-center">
+        <h1 className="text-lg font-semibold">共有カレンダー</h1>
+        <p className="text-sm text-muted-foreground">
+          URL に <span className="font-mono">student_id</span>{' '}
           パラメータが必要です。
         </p>
       </div>
@@ -140,17 +140,21 @@ export default function SharedStudentCalendarPage() {
     <section className="mx-auto max-w-6xl space-y-6">
       <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h1 className="text-lg font-semibold text-slate-900 md:text-xl">
+          <h1 className="text-lg font-semibold text-foreground md:text-xl">
             共有カレンダー{studentName ? `(${studentName})` : ''}
           </h1>
         </div>
       </div>
 
-      {listError && <p className="text-sm text-rose-600">{listError}</p>}
+      {listError && (
+        <p className="text-sm text-destructive" role="alert">
+          {listError}
+        </p>
+      )}
 
       <div className="space-y-4">
         <div className="flex flex-wrap items-center justify-between gap-2">
-          <p className="text-sm text-slate-700">
+          <p className="text-sm text-foreground">
             {monthStart.format('YYYY年M月')}
           </p>
           <div className="flex gap-2">
@@ -186,15 +190,13 @@ export default function SharedStudentCalendarPage() {
         </div>
 
         {isLoadingMonth ? (
-          <p className="text-sm text-slate-500">月のコマを読み込み中...</p>
+          <p className="text-sm text-muted-foreground">月のコマを読み込み中...</p>
         ) : (
-          <div className="rounded-xl border border-slate-200 bg-slate-50/40 p-3">
-            <MonthCalendar
-              focusDate={focusDate}
-              events={calendarEvents}
-              onFocusDateChange={setFocusDate}
-            />
-          </div>
+          <MonthCalendar
+            focusDate={focusDate}
+            events={calendarEvents}
+            onFocusDateChange={setFocusDate}
+          />
         )}
       </div>
     </section>

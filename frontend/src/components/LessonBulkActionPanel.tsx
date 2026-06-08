@@ -1,8 +1,9 @@
 /**
- * （責務）週編集ページの一括操作バー（登録・削除）。
+ * （責務）週編集ページの一括操作（登録・削除）。
  */
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 
+import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import {
@@ -35,7 +36,7 @@ type Props = {
   subjects: PresetRow[];
   lessonTypes: PresetRow[];
   actorUserId: string;
-  actorRole: AppRole | null;
+  actorRole: AppRole;
   isSubmitting: boolean;
   error: string | null;
   onClearSelection: () => void;
@@ -47,6 +48,8 @@ type Props = {
   }) => void;
   onDelete: () => void;
 };
+
+const NONE = '_none';
 
 export default function LessonBulkActionPanel({
   selectedCount,
@@ -66,8 +69,15 @@ export default function LessonBulkActionPanel({
 }: Props) {
   const [teacherId, setTeacherId] = useState('');
   const [studentId, setStudentId] = useState('');
-  const [subjectId, setSubjectId] = useState('');
-  const [lessonTypeId, setLessonTypeId] = useState('');
+  const [subjectId, setSubjectId] = useState(NONE);
+  const [lessonTypeId, setLessonTypeId] = useState(NONE);
+
+  const teacherOptions = useMemo(() => {
+    if (actorRole === 'staff') {
+      return teachers.filter((t) => t.id === actorUserId);
+    }
+    return teachers;
+  }, [actorRole, actorUserId, teachers]);
 
   const canCreate =
     selectedCount > 0 &&
@@ -82,149 +92,142 @@ export default function LessonBulkActionPanel({
     return null;
   }
 
+  const effectiveTeacherId =
+    actorRole === 'staff' ? actorUserId : teacherId || teacherOptions[0]?.id;
+
   return (
-    <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
-      <div className="flex flex-col gap-3">
-        <div className="flex flex-wrap items-center justify-between gap-2">
-          <p className="text-sm font-medium text-slate-900">
-            選択中: {selectedCount} 枠（空き {emptySlotCount} / 登録済み{' '}
-            {occupiedSlotCount}）
-          </p>
+    <fieldset className="space-y-4 rounded-lg border border-border p-4">
+      <legend className="px-1 text-sm font-medium text-foreground">
+        選択中: {selectedCount}件（空き {emptySlotCount} / 登録済み{' '}
+        {occupiedSlotCount}）
+      </legend>
+
+      {error && (
+        <Alert variant="destructive">
+          <AlertDescription>{error}</AlertDescription>
+        </Alert>
+      )}
+
+      {canCreate && (
+        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+          <div className="grid gap-1.5">
+            <Label>講師</Label>
+            <Select
+              value={effectiveTeacherId}
+              disabled={isSubmitting || actorRole === 'staff'}
+              onValueChange={setTeacherId}
+            >
+              <SelectTrigger>
+                <SelectValue placeholder="講師を選択" />
+              </SelectTrigger>
+              <SelectContent>
+                {teacherOptions.map((t) => (
+                  <SelectItem key={t.id} value={t.id}>
+                    {t.lastName} {t.firstName}
+                    {t.role ? `（${ROLE_LABEL_JA[t.role as AppRole] ?? t.role}）` : ''}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="grid gap-1.5">
+            <Label>生徒</Label>
+            <Select
+              value={studentId}
+              disabled={isSubmitting}
+              onValueChange={setStudentId}
+            >
+              <SelectTrigger>
+                <SelectValue placeholder="生徒を選択" />
+              </SelectTrigger>
+              <SelectContent>
+                {students.map((s) => (
+                  <SelectItem key={s.id} value={s.id}>
+                    {s.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="grid gap-1.5">
+            <Label>科目（任意）</Label>
+            <Select
+              value={subjectId}
+              disabled={isSubmitting}
+              onValueChange={setSubjectId}
+            >
+              <SelectTrigger>
+                <SelectValue placeholder="なし" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value={NONE}>なし</SelectItem>
+                {subjects.map((s) => (
+                  <SelectItem key={s.id} value={s.id}>
+                    {s.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="grid gap-1.5">
+            <Label>授業種別（任意）</Label>
+            <Select
+              value={lessonTypeId}
+              disabled={isSubmitting}
+              onValueChange={setLessonTypeId}
+            >
+              <SelectTrigger>
+                <SelectValue placeholder="なし" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value={NONE}>なし</SelectItem>
+                {lessonTypes.map((s) => (
+                  <SelectItem key={s.id} value={s.id}>
+                    {s.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+        </div>
+      )}
+
+      <div className="flex flex-wrap gap-2">
+        {canCreate && (
           <Button
             type="button"
-            variant="outline"
-            size="sm"
-            onClick={onClearSelection}
-            disabled={isSubmitting}
+            disabled={isSubmitting || !effectiveTeacherId || !studentId}
+            onClick={() =>
+              onCreate({
+                teacherId: effectiveTeacherId,
+                studentId,
+                subjectId: subjectId === NONE ? '' : subjectId,
+                lessonTypeId: lessonTypeId === NONE ? '' : lessonTypeId,
+              })
+            }
           >
-            選択をクリア
+            {isSubmitting ? '処理中...' : '選択枠に一括登録'}
           </Button>
-        </div>
-
-        {error && <p className="text-xs text-rose-600">{error}</p>}
-
-        {!canCreate && !canDelete && (
-          <p className="text-xs text-amber-700">
-            空き枠だけ、または登録済み枠だけをまとめて選んでください（混在は不可）。
-          </p>
         )}
-
-        {canCreate && (
-          <div className="grid gap-3 border-t border-slate-100 pt-3 sm:grid-cols-2">
-            <div className="grid gap-1.5">
-              <Label className="text-xs">講師</Label>
-              <Select value={teacherId} onValueChange={setTeacherId}>
-                <SelectTrigger className="h-9 text-sm">
-                  <SelectValue placeholder="選択" />
-                </SelectTrigger>
-                <SelectContent>
-                  {teachers.map((t) => {
-                    const roleLabel =
-                      t.role === 'admin' || t.role === 'manager'
-                        ? ROLE_LABEL_JA[t.role as 'admin' | 'manager']
-                        : null;
-                    const staffLocked =
-                      actorRole === 'staff' && t.id !== actorUserId;
-                    return (
-                      <SelectItem
-                        key={t.id}
-                        value={t.id}
-                        disabled={staffLocked}
-                      >
-                        {t.lastName} {t.firstName}
-                        {roleLabel ? `（${roleLabel}）` : ''}
-                      </SelectItem>
-                    );
-                  })}
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="grid gap-1.5">
-              <Label className="text-xs">生徒</Label>
-              <Select value={studentId} onValueChange={setStudentId}>
-                <SelectTrigger className="h-9 text-sm">
-                  <SelectValue placeholder="選択" />
-                </SelectTrigger>
-                <SelectContent>
-                  {students.map((s) => (
-                    <SelectItem key={s.id} value={s.id}>
-                      {s.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="grid gap-1.5">
-              <Label className="text-xs">科目（任意）</Label>
-              <Select
-                value={subjectId || '_none'}
-                onValueChange={(v) => setSubjectId(v === '_none' ? '' : v)}
-              >
-                <SelectTrigger className="h-9 text-sm">
-                  <SelectValue placeholder="なし" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="_none">なし</SelectItem>
-                  {subjects.map((s) => (
-                    <SelectItem key={s.id} value={s.id}>
-                      {s.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="grid gap-1.5">
-              <Label className="text-xs">授業種別（任意）</Label>
-              <Select
-                value={lessonTypeId || '_none'}
-                onValueChange={(v) => setLessonTypeId(v === '_none' ? '' : v)}
-              >
-                <SelectTrigger className="h-9 text-sm">
-                  <SelectValue placeholder="なし" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="_none">なし</SelectItem>
-                  {lessonTypes.map((s) => (
-                    <SelectItem key={s.id} value={s.id}>
-                      {s.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="sm:col-span-2">
-              <Button
-                type="button"
-                className="w-full sm:w-auto"
-                disabled={isSubmitting || !teacherId || !studentId}
-                onClick={() =>
-                  onCreate({
-                    teacherId,
-                    studentId,
-                    subjectId,
-                    lessonTypeId,
-                  })
-                }
-              >
-                {isSubmitting ? '実行中...' : '選択枠をこの内容で登録'}
-              </Button>
-            </div>
-          </div>
-        )}
-
         {canDelete && (
-          <div className="flex flex-wrap gap-2 border-t border-slate-100 pt-3">
-            <Button
-              type="button"
-              className="bg-rose-700 text-white hover:bg-rose-600"
-              disabled={isSubmitting}
-              onClick={onDelete}
-            >
-              {isSubmitting ? '実行中...' : '選択コマを削除'}
-            </Button>
-          </div>
+          <Button
+            type="button"
+            variant="destructive"
+            disabled={isSubmitting}
+            onClick={() => onDelete()}
+          >
+            {isSubmitting ? '処理中...' : '選択コマを一括削除'}
+          </Button>
         )}
+        <Button
+          type="button"
+          variant="outline"
+          disabled={isSubmitting}
+          onClick={onClearSelection}
+        >
+          選択をクリア
+        </Button>
       </div>
-    </div>
+    </fieldset>
   );
 }

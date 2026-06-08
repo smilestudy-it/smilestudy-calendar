@@ -175,10 +175,10 @@ export default function CalendarBulkEditPage({
         const userQs = new URLSearchParams({ includeAdmins: '1' });
         const [lRes, tsRes, uRes, sRes, subRes, ltRes] = await Promise.all([
           authedFetch(
-            `/api/classrooms/${encodeURIComponent(activeClassroom.id)}/lessons?${qs}`,
+            `/api/lessons/${encodeURIComponent(activeClassroom.id)}?${qs}`,
           ),
           authedFetch(
-            `/api/classrooms/${encodeURIComponent(activeClassroom.id)}/time-slots`,
+            `/api/time-slots/${encodeURIComponent(activeClassroom.id)}`,
           ),
           authedFetch(
             `/api/users/${encodeURIComponent(activeClassroom.id)}?${userQs}`,
@@ -187,10 +187,10 @@ export default function CalendarBulkEditPage({
             `/api/students/${encodeURIComponent(activeClassroom.id)}`,
           ),
           authedFetch(
-            `/api/classrooms/${encodeURIComponent(activeClassroom.id)}/subjects`,
+            `/api/subjects/${encodeURIComponent(activeClassroom.id)}`,
           ),
           authedFetch(
-            `/api/classrooms/${encodeURIComponent(activeClassroom.id)}/lesson-types`,
+            `/api/lesson-types/${encodeURIComponent(activeClassroom.id)}`,
           ),
         ]);
         if (disposed) {
@@ -498,7 +498,7 @@ export default function CalendarBulkEditPage({
 
   if (!currentUser) {
     return (
-      <p className="text-sm text-slate-700">この画面にアクセスできません。</p>
+      <p className="text-sm text-foreground">この画面にアクセスできません。</p>
     );
   }
 
@@ -507,7 +507,7 @@ export default function CalendarBulkEditPage({
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h2 className="text-lg font-semibold md:text-xl">週コマ編集</h2>
-          <p className="text-sm text-slate-500">
+          <p className="text-sm text-muted-foreground">
             教室: {activeClassroom?.name || '未選択'}
           </p>
         </div>
@@ -526,7 +526,7 @@ export default function CalendarBulkEditPage({
       {activeClassroom && (
         <>
           <div className="flex flex-wrap items-center justify-between gap-2">
-            <p className="text-sm text-slate-700">
+            <p className="text-sm text-foreground">
               {weekStart.format('YYYY/M/D')} 週（日曜始まり）
             </p>
             <div className="flex gap-2">
@@ -558,7 +558,7 @@ export default function CalendarBulkEditPage({
           </div>
 
           {isLoading ? (
-            <p className="text-sm text-slate-500">読み込み中...</p>
+            <p className="text-sm text-muted-foreground">読み込み中...</p>
           ) : timeSlots.length === 0 ? (
             <p className="text-sm text-amber-700">
               時間枠が未設定です。プリセット設定で時間枠を追加してください。
@@ -576,7 +576,7 @@ export default function CalendarBulkEditPage({
             />
           )}
 
-          <p className="text-xs text-slate-500">
+          <p className="text-xs text-muted-foreground">
             セルをクリックまたはドラッグで複数選択。コマがある枠は「詳細」で下部パネルを開けます。
           </p>
 
@@ -589,7 +589,7 @@ export default function CalendarBulkEditPage({
             subjects={subjects}
             lessonTypes={lessonTypes}
             actorUserId={currentUser.id}
-            actorRole={currentUser.role}
+            actorRole={currentUser.role ?? 'staff'}
             isSubmitting={isBulkSubmitting}
             error={bulkError}
             onClearSelection={() => {

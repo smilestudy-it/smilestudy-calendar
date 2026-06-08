@@ -5,6 +5,11 @@ import { useContext, useState } from 'react';
 import type { ComponentProps } from 'react';
 
 import { SelectedClassroomContext } from '@/components/AppShell';
+import { Button } from '@/components/ui/button';
+import { FormErrorAlert } from '@/components/ui/form-error-alert';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Separator } from '@/components/ui/separator';
 import { useAuthedFetch } from '@/hooks/useAuthedFetch';
 
 type Props = {
@@ -76,62 +81,57 @@ export default function ClassroomAdminPanel({ getAccessTokenSilently }: Props) {
   };
 
   return (
-    <section className="space-y-4">
-      <h2 className="text-lg font-semibold md:text-xl">教室管理（管理者）</h2>
+    <section className="space-y-6">
+      <div className="space-y-1">
+        <h2 className="text-lg font-semibold md:text-xl">教室管理（管理者）</h2>
+      </div>
 
       <form
         onSubmit={handleCreate}
-        className="grid grid-cols-1 gap-2 sm:grid-cols-[1fr_auto] sm:items-end"
+        className="grid grid-cols-1 gap-4 sm:grid-cols-[1fr_auto] sm:items-end"
       >
-        <div className="space-y-1">
-          <label
-            htmlFor={classroomNameInputId}
-            className="text-sm text-slate-700"
-          >
-            教室名
-          </label>
-          <input
+        <div className="space-y-2">
+          <Label htmlFor={classroomNameInputId}>教室名</Label>
+          <Input
             id={classroomNameInputId}
             value={name}
             onChange={(e) => setName(e.target.value)}
             placeholder="教室名を入力"
-            className="w-full rounded-lg border border-slate-200 bg-slate-200 px-3 py-2 text-slate-900 placeholder:text-slate-500 focus:border-indigo-400 focus:ring-2 focus:ring-indigo-500/30 focus:outline-none"
             maxLength={100}
           />
         </div>
-        <button
-          type="submit"
-          className="rounded-lg bg-indigo-700 px-4 py-2 font-semibold text-white transition hover:bg-indigo-600 disabled:cursor-not-allowed disabled:opacity-60"
-          disabled={isSubmitting}
-        >
+        <Button type="submit" disabled={isSubmitting}>
           {isSubmitting ? '追加中...' : '教室を追加'}
-        </button>
+        </Button>
       </form>
 
-      {error && <p className="text-sm text-rose-600">{error}</p>}
-      {listError && <p className="text-sm text-rose-600">{listError}</p>}
+      <FormErrorAlert message={error} />
+      <FormErrorAlert message={listError} />
+
+      <Separator />
 
       {isLoadingClassroomsList ? (
-        <p className="text-sm text-slate-500">教室一覧を読み込み中...</p>
+        <p className="text-sm text-muted-foreground">教室一覧を読み込み中...</p>
       ) : (
         <ul className="space-y-2">
           {classrooms.map((room) => (
             <li
               key={room.id}
-              className="flex items-center justify-between gap-3 rounded-lg border border-slate-200 bg-slate-50/60 px-3 py-2"
+              className="flex items-center justify-between gap-3 border-b border-border py-2 last:border-b-0"
             >
               <span>{room.name}</span>
-              <button
+              <Button
                 type="button"
-                className="rounded-lg bg-rose-500 px-3 py-1.5 text-sm font-semibold text-white transition hover:bg-rose-400"
+                variant="destructive"
+                size="sm"
                 onClick={() => void handleDelete(room.id)}
               >
                 削除
-              </button>
+              </Button>
             </li>
           ))}
           {classrooms.length === 0 && (
-            <li className="text-sm text-slate-500">教室がありません。</li>
+            <li className="text-sm text-muted-foreground">教室がありません。</li>
           )}
         </ul>
       )}

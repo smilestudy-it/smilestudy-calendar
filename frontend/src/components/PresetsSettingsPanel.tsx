@@ -6,6 +6,15 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import LessonTypesBlock from '@/components/presets/LessonTypesBlock';
 import SubjectsBlock from '@/components/presets/SubjectsBlock';
 import TimeSlotsBlock from '@/components/presets/TimeSlotsBlock';
+import { FormErrorAlert } from '@/components/ui/form-error-alert';
+import { Label } from '@/components/ui/label';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 import {
   presetMutationNetworkError,
   readPresetApiError,
@@ -391,7 +400,7 @@ export default function PresetsSettingsPanel({
 
   if (!isAdmin && !currentUser.classroomId) {
     return (
-      <p className="text-sm text-slate-500">
+      <p className="text-sm text-muted-foreground">
         所属教室が割り当てられていないため、プリセットを設定できません。
       </p>
     );
@@ -399,55 +408,48 @@ export default function PresetsSettingsPanel({
 
   return (
     <section className="space-y-8">
-      <header className="space-y-2 border-b border-slate-200 pb-6">
-        <p className="text-xs font-semibold tracking-wider text-cyan-600 uppercase">
+      <header className="space-y-2">
+        <p className="text-xs font-semibold tracking-wider text-muted-foreground uppercase">
           Presets
         </p>
-        <h2 className="text-xl font-bold tracking-tight text-slate-900 md:text-2xl">
+        <h2 className="text-xl font-bold tracking-tight md:text-2xl">
           授業プリセット
         </h2>
-        <p className="max-w-2xl text-sm leading-relaxed text-slate-500">
+        <p className="max-w-2xl text-sm leading-relaxed text-muted-foreground">
           科目・授業種別・時間枠の選択肢を教室ごとに管理します。無効化した項目は一覧に表示されず、新規コマで選べなくなります。
         </p>
       </header>
 
       {isAdmin && (
-        <div className="max-w-md space-y-1">
-          <label htmlFor="preset-classroom" className="text-sm text-slate-700">
-            対象教室
-          </label>
-          <select
-            id="preset-classroom"
-            className="w-full rounded-lg border border-slate-200 bg-slate-200 px-3 py-2 text-slate-900 focus:border-cyan-500/60 focus:ring-2 focus:ring-cyan-500/25 focus:outline-none"
+        <div className="max-w-md space-y-2">
+          <Label htmlFor="preset-classroom">対象教室</Label>
+          <Select
             value={selectedClassroomId}
-            onChange={(e) => setSelectedClassroomId(e.target.value)}
+            onValueChange={setSelectedClassroomId}
             disabled={isLoadingClassrooms}
           >
-            <option value="">教室を選択</option>
-            {classrooms.map((c) => (
-              <option key={c.id} value={c.id}>
-                {c.name}
-              </option>
-            ))}
-          </select>
+            <SelectTrigger id="preset-classroom">
+              <SelectValue placeholder="教室を選択" />
+            </SelectTrigger>
+            <SelectContent>
+              {classrooms.map((c) => (
+                <SelectItem key={c.id} value={c.id}>
+                  {c.name}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
         </div>
       )}
 
-      {error && (
-        <p
-          className="rounded-lg border border-rose-500/30 bg-rose-100/40 px-3 py-2 text-sm text-rose-700"
-          role="alert"
-        >
-          {error}
-        </p>
-      )}
+      <FormErrorAlert message={error} />
 
       {!activeClassroomId ? (
-        <p className="text-sm text-slate-500">
+        <p className="text-sm text-muted-foreground">
           教室を選択するとプリセットを編集できます。
         </p>
       ) : isLoadingPresets ? (
-        <p className="text-sm text-slate-500">読み込み中…</p>
+        <p className="text-sm text-muted-foreground">読み込み中…</p>
       ) : (
         <div className="space-y-10">
           <SubjectsBlock

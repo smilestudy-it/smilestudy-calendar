@@ -15,7 +15,7 @@ export default function TeacherManagementPage({
 }: Props) {
   if (!currentUser || currentUser.role === 'staff') {
     return (
-      <p className="text-sm text-slate-700">
+      <p className="text-sm text-foreground">
         教室長以上が講師管理機能を利用できます。
       </p>
     );

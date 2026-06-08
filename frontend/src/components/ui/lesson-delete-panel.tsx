@@ -1,5 +1,6 @@
 import dayjs from 'dayjs';
 
+import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import {
@@ -9,6 +10,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
+import { Separator } from '@/components/ui/separator';
 
 export type LessonPresetRow = { id: string; name: string };
 
@@ -17,7 +19,6 @@ export type LessonDetailTarget = {
   title: string;
   start: Date | null;
   end: Date | null;
-  /** 週編集の詳細で科目・種別を編集するときに使う */
   subjectId?: string | null;
   lessonTypeId?: string | null;
 };
@@ -31,7 +32,6 @@ type Props = {
   error: string | null;
   onClose: () => void;
   onDelete?: () => void;
-  /** 渡したときだけ科目・授業種別の編集 UI を表示 */
   presetSubjects?: LessonPresetRow[];
   presetLessonTypes?: LessonPresetRow[];
   isSavingPresets?: boolean;
@@ -70,18 +70,19 @@ export default function LessonDeletePanel({
   const lessonTypeVal = event.lessonTypeId ?? '_none';
 
   return (
-    <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
-      <div className="mx-auto flex w-full max-w-5xl flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+    <div className="space-y-4 pt-4">
+      <Separator />
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
         <div className="min-w-0 flex-1 space-y-2">
-          <p className="text-sm font-medium text-slate-900">コマの詳細</p>
-          <p className="text-sm text-slate-800">{event.title}</p>
-          <p className="text-xs text-slate-600">
+          <p className="text-sm font-medium">コマの詳細</p>
+          <p className="text-sm">{event.title}</p>
+          <p className="text-xs text-muted-foreground">
             {event.start ? dayjs(event.start).format('YYYY/MM/DD HH:mm') : '-'}{' '}
             – {event.end ? dayjs(event.end).format('HH:mm') : '-'}
           </p>
 
           {showPresets && (
-            <div className="grid gap-2 border-t border-slate-100 pt-3 sm:max-w-xl sm:grid-cols-2">
+            <div className="grid gap-2 pt-2 sm:max-w-xl sm:grid-cols-2">
               <div className="grid gap-1.5">
                 <Label className="text-xs">科目</Label>
                 <Select
@@ -146,9 +147,17 @@ export default function LessonDeletePanel({
           )}
 
           {presetsError && (
-            <p className="text-xs text-rose-600">{presetsError}</p>
+            <Alert variant="destructive" className="mt-2">
+              <AlertDescription className="text-xs">
+                {presetsError}
+              </AlertDescription>
+            </Alert>
           )}
-          {error && <p className="mt-1 text-xs text-rose-600">{error}</p>}
+          {error && (
+            <Alert variant="destructive" className="mt-2">
+              <AlertDescription className="text-xs">{error}</AlertDescription>
+            </Alert>
+          )}
         </div>
         <div className="flex shrink-0 gap-2">
           <Button
@@ -162,7 +171,7 @@ export default function LessonDeletePanel({
           {onDelete && (
             <Button
               type="button"
-              className="bg-rose-700 text-white hover:bg-rose-600"
+              variant="destructive"
               onClick={onDelete}
               disabled={isDeleting}
             >
