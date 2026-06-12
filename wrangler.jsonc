@@ -6,7 +6,6 @@
   "$schema": "node_modules/wrangler/config-schema.json",
   "name": "smilestudy-calendar",
   "compatibility_date": "2026-03-17",
-  "pages_build_output_dir": "dist",
   "observability": {
     "enabled": true,
   },

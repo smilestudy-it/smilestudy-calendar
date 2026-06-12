@@ -1,8 +1,11 @@
 @import 'tailwindcss';
-@import 'react-day-picker/style.css';
+/* @import 'react-day-picker/style.css'; */
 @import 'tw-animate-css';
 @import 'shadcn/tailwind.css';
 @import '@fontsource-variable/geist';
+@import "tw-animate-css";
+@import "shadcn/tailwind.css";
+@import "@fontsource-variable/geist";
 
 @custom-variant dark (&:is(.dark *));
 
