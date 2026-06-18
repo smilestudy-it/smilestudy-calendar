@@ -4,7 +4,6 @@
 import { describe, expect, it } from 'vitest';
 
 import {
-  validateBulkLessonsInput,
   validateCreateLessonInput,
   validateLessonRangeQuery,
   validatePatchLessonInput,
@@ -70,39 +69,5 @@ describe('lesson validators', () => {
     const r = validatePatchLessonInput({ status: 'published' });
     expect(r.error).toBeUndefined();
     expect(r.input?.status).toBe('published');
-  });
-
-  it('validateBulkLessonsInput requires createsTimezoneOffsetMinutes when creates present', () => {
-    const r = validateBulkLessonsInput({
-      classroomId: 'c1',
-      creates: [
-        {
-          teacherId: 't1',
-          studentId: 's1',
-          dateKey: '2025-06-10',
-          timeSlotId: 'ts1',
-        },
-      ],
-    });
-    expect(r.input).toBeUndefined();
-    expect(r.error).toMatch(/createsTimezoneOffsetMinutes/i);
-  });
-
-  it('validateBulkLessonsInput accepts creates with dateKey and timeSlotId', () => {
-    const r = validateBulkLessonsInput({
-      classroomId: 'c1',
-      createsTimezoneOffsetMinutes: -540,
-      creates: [
-        {
-          teacherId: 't1',
-          studentId: 's1',
-          dateKey: '2025-06-10',
-          timeSlotId: 'ts1',
-        },
-      ],
-    });
-    expect(r.error).toBeUndefined();
-    expect(r.input?.creates?.[0]?.dateKey).toBe('2025-06-10');
-    expect(r.input?.creates?.[0]?.timeSlotId).toBe('ts1');
   });
 });

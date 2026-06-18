@@ -77,7 +77,10 @@ export default function PresetsSettingsPanel({
   }, [currentUser.classroomId, isAdmin, selectedClassroomId]);
 
   const activeClassroomIdRef = useRef(activeClassroomId);
-  activeClassroomIdRef.current = activeClassroomId;
+
+  useEffect(() => {
+    activeClassroomIdRef.current = activeClassroomId;
+  }, [activeClassroomId]);
 
   const loadPresetsGen = useRef(0);
   const loadPresetsAbortRef = useRef<AbortController | null>(null);

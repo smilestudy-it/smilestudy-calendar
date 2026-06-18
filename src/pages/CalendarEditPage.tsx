@@ -1,620 +1,429 @@
-/**
- * （責務）週スロットグリッドでのコマ一括編集。POST /api/lessons/bulk を使用。
- */
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { Link, useSearchParams } from 'react-router-dom';
+import type { ClassNames } from 'react-day-picker';
+import type { Modifiers } from 'react-day-picker';
+import { Link } from 'react-router-dom';
 
-import dayjs from 'dayjs';
-import 'dayjs/locale/ja';
-import customParseFormat from 'dayjs/plugin/customParseFormat';
+import { endOfMonth, format, startOfMonth } from 'date-fns';
 
-import LessonBulkActionPanel from '@/components/LessonBulkActionPanel';
-import WeekLessonSlotGrid, {
-  type TimeSlotRow,
-  type WeekGridLesson,
-} from '@/components/WeekLessonSlotGrid';
 import { Button } from '@/components/ui/button';
-import LessonDeletePanel, {
-  type LessonDetailTarget,
-} from '@/components/ui/lesson-delete-panel';
+import { Calendar } from '@/components/ui/calendar';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { useAuthedFetch } from '@/hooks/useAuthedFetch';
 import { useSelectedClassroom } from '@/hooks/useSelectedClassroom';
-import { startOfWeekSunday } from '@/lib/calendarTime';
-import { parseWeekSlotCellKey, weekSlotCellKey } from '@/lib/weekSlotCell';
+import { cn } from '@/lib/utils';
 import type { CurrentUser } from '@/types/currentUser';
 
-dayjs.locale('ja');
-dayjs.extend(customParseFormat);
-
-type TeacherRow = {
+type TimeSlotRow = {
   id: string;
-  firstName: string;
-  lastName: string;
-  color: string | null;
-  role?: string;
+  startTime: string;
+  endTime: string;
 };
 
-type StudentRow = { id: string; name: string };
-type PresetRow = { id: string; name: string };
+type StudentRow = {
+  id: string;
+  name: string;
+};
 
 type Props = {
   currentUser: CurrentUser | null;
   getAccessTokenSilently: () => Promise<string>;
 };
 
-function toMapById<T extends { id: string }>(rows: T[]) {
-  return new Map(rows.map((row) => [row.id, row]));
-}
+type Lesson = {
+  teacherId: string;
+  studentId: string;
+  startAt: string;
+  endAt: string;
+  subject: string;
+  lessonType: string;
+};
 
 function hmToMinutes(hm: string): number {
   const [h, m] = hm.split(':').map(Number);
   return h * 60 + m;
 }
 
-export default function CalendarBulkEditPage({
+export default function CalendarSingleEditPage({
   currentUser,
   getAccessTokenSilently,
 }: Props) {
   const { activeClassroom } = useSelectedClassroom();
-  const [searchParams, setSearchParams] = useSearchParams();
-  const weekParam = searchParams.get('week');
-  const initialWeek =
-    weekParam && dayjs(weekParam, 'YYYY-MM-DD', true).isValid()
-      ? dayjs(weekParam).toDate()
-      : new Date();
-  const [weekAnchor, setWeekAnchor] = useState(initialWeek);
-  const [lessons, setLessons] = useState<WeekGridLesson[]>([]);
-  const [timeSlots, setTimeSlots] = useState<TimeSlotRow[]>([]);
-  const [teachers, setTeachers] = useState<TeacherRow[]>([]);
-  const [students, setStudents] = useState<StudentRow[]>([]);
-  const [subjects, setSubjects] = useState<PresetRow[]>([]);
-  const [lessonTypes, setLessonTypes] = useState<PresetRow[]>([]);
-  const [listError, setListError] = useState<string | null>(null);
-  const [isLoading, setIsLoading] = useState(false);
-  const [reloadTick, setReloadTick] = useState(0);
-  const [selectedKeys, setSelectedKeys] = useState<Set<string>>(
-    () => new Set(),
-  );
-  const [detailEvent, setDetailEvent] = useState<LessonDetailTarget | null>(
-    null,
-  );
-  const [isDeletingLesson, setIsDeletingLesson] = useState(false);
-  const [deleteError, setDeleteError] = useState<string | null>(null);
-  const [isSavingPresets, setIsSavingPresets] = useState(false);
-  const [presetsError, setPresetsError] = useState<string | null>(null);
-  const [bulkError, setBulkError] = useState<string | null>(null);
-  const [isBulkSubmitting, setIsBulkSubmitting] = useState(false);
-
   const authedFetch = useAuthedFetch(getAccessTokenSilently);
 
-  const weekStart = useMemo(() => startOfWeekSunday(weekAnchor), [weekAnchor]);
-  const weekFromIso = useMemo(
-    () => weekStart.toDate().toISOString(),
-    [weekStart],
-  );
-  const weekToIso = useMemo(
-    () => weekStart.add(7, 'day').toDate().toISOString(),
-    [weekStart],
-  );
+  const [date, setDate] = useState<Date | undefined>(new Date());
+  const [month, setMonth] = useState<Date>(new Date());
+  const [timeSlots, setTimeSlots] = useState<TimeSlotRow[]>([]);
+  const [students, setStudents] = useState<StudentRow[]>([]);
 
-  const weekDays = useMemo(() => {
-    const out: Date[] = [];
-    for (let i = 0; i < 7; i += 1) {
-      out.push(weekStart.add(i, 'day').toDate());
+  // 💡 その月の「教室全体の授業データ」を丸ごと保持します
+  const [monthLessons, setMonthLessons] = useState<Lesson[]>([]);
+
+  const [selectedSlotId, setSelectedSlotId] = useState<string | null>(null);
+  const [selectedStudentId, setSelectedStudentId] = useState<string>('');
+
+  const [isLoading, setIsLoading] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
+  const [message, setMessage] = useState<{
+    text: string;
+    type: 'success' | 'error';
+  } | null>(null);
+
+  const dateKey = date ? format(date, 'yyyy-MM-dd') : null;
+
+  // 1. 初期データ（時間枠と生徒リスト）の取得
+  useEffect(() => {
+    if (!activeClassroom) return;
+    const fetchData = async () => {
+      const [tsRes, stRes] = await Promise.all([
+        authedFetch(
+          `/api/time-slots/${encodeURIComponent(activeClassroom.id)}`,
+        ),
+        authedFetch(`/api/students/${encodeURIComponent(activeClassroom.id)}`),
+      ]);
+
+      if (tsRes.ok) {
+        const data = (await tsRes.json()) as TimeSlotRow[];
+        setTimeSlots(
+          data.sort(
+            (a, b) => hmToMinutes(a.startTime) - hmToMinutes(b.startTime),
+          ),
+        );
+      }
+      if (stRes.ok) {
+        const data = (await stRes.json()) as StudentRow[];
+        setStudents(data);
+      }
+    };
+    void fetchData();
+  }, [activeClassroom, authedFetch]);
+
+  // 2. 月ごとの授業状況取得（教室全体のデータを取得）
+  const fetchMonthShifts = useCallback(async () => {
+    if (!activeClassroom || !currentUser || timeSlots.length === 0) return;
+    setIsLoading(true);
+    try {
+      const from = startOfMonth(month).toISOString();
+      const to = endOfMonth(month).toISOString();
+
+      const res = await authedFetch(
+        `/api/lessons/${encodeURIComponent(activeClassroom.id)}?from=${from}&to=${to}`,
+      );
+
+      if (res.ok) {
+        const lessons = (await res.json()) as Lesson[];
+        setMonthLessons(lessons); // 絞り込まずに全体を保存
+      }
+    } catch (e) {
+      console.error(e);
+    } finally {
+      setIsLoading(false);
     }
-    return out;
-  }, [weekStart]);
+  }, [activeClassroom, currentUser, month, timeSlots, authedFetch]);
 
-  const sortedSlots = useMemo(
-    () =>
-      [...timeSlots].sort(
-        (a, b) => hmToMinutes(a.startTime) - hmToMinutes(b.startTime),
-      ),
-    [timeSlots],
-  );
+  useEffect(() => {
+    if (timeSlots.length > 0) void fetchMonthShifts();
+  }, [fetchMonthShifts, timeSlots.length]);
 
-  const lessonByCellKey = useMemo(() => {
-    const map = new Map<string, WeekGridLesson>();
-    if (!activeClassroom) {
-      return map;
-    }
-    const slotIdByHmRange = new Map(
-      sortedSlots.map((slot) => [`${slot.startTime}-${slot.endTime}`, slot.id]),
+  // 💡 3. 【重要】講師と生徒の「両方の予定」を計算して塞がっている枠を割り出す
+  const unavailableSlotsByDate = useMemo(() => {
+    const map: Record<string, Set<string>> = {};
+    if (!currentUser || !selectedStudentId) return map;
+
+    // 自分(講師) または 選んだ生徒 のどちらかが入っている授業を抽出
+    const relevantLessons = monthLessons.filter(
+      (l) =>
+        l.teacherId === currentUser.id || l.studentId === selectedStudentId,
     );
-    const lessonIndex = new Map<string, WeekGridLesson>();
-    for (const lesson of lessons) {
-      if (lesson.classroomId !== activeClassroom.id) {
-        continue;
-      }
-      const startLocal = dayjs(new Date(lesson.startAt));
-      const endLocal = dayjs(new Date(lesson.endAt));
-      const slotId = slotIdByHmRange.get(
-        `${startLocal.format('HH:mm')}-${endLocal.format('HH:mm')}`,
-      );
-      if (!slotId) {
-        continue;
-      }
-      lessonIndex.set(
-        weekSlotCellKey(startLocal.format('YYYY-MM-DD'), slotId),
-        lesson,
-      );
-    }
-    for (const day of weekDays) {
-      const dk = dayjs(day).format('YYYY-MM-DD');
-      for (const slot of sortedSlots) {
-        const key = weekSlotCellKey(dk, slot.id);
-        const found = lessonIndex.get(key);
-        if (found) {
-          map.set(key, found);
-        }
+
+    for (const lesson of relevantLessons) {
+      const localDate = new Date(lesson.startAt);
+      const dKey = format(localDate, 'yyyy-MM-dd');
+      const hKey = format(localDate, 'HH:mm');
+
+      const slot = timeSlots.find((ts) => ts.startTime === hKey);
+      if (slot) {
+        if (!map[dKey]) map[dKey] = new Set();
+        map[dKey].add(slot.id); // 塞がっている枠IDとして登録
       }
     }
     return map;
-  }, [weekDays, sortedSlots, lessons, activeClassroom]);
+  }, [monthLessons, currentUser, selectedStudentId, timeSlots]);
 
+  // 生徒や日付が変わったら選択状態とメッセージをリセット
   useEffect(() => {
-    const w = searchParams.get('week');
-    if (w && dayjs(w, 'YYYY-MM-DD', true).isValid()) {
-      setWeekAnchor(dayjs(w).toDate());
-    }
-  }, [searchParams]);
+    setSelectedSlotId(null);
+    setMessage(null);
+  }, [dateKey, selectedStudentId]);
 
-  useEffect(() => {
-    let disposed = false;
-    const load = async () => {
-      setListError(null);
-      if (!activeClassroom) {
-        setLessons([]);
-        setTimeSlots([]);
-        setIsLoading(false);
-        return;
-      }
-      setIsLoading(true);
-      try {
-        const qs = new URLSearchParams({ from: weekFromIso, to: weekToIso });
-        const userQs = new URLSearchParams({ includeAdmins: '1' });
-        const [lRes, tsRes, uRes, sRes, subRes, ltRes] = await Promise.all([
-          authedFetch(
-            `/api/lessons/${encodeURIComponent(activeClassroom.id)}?${qs}`,
-          ),
-          authedFetch(
-            `/api/time-slots/${encodeURIComponent(activeClassroom.id)}`,
-          ),
-          authedFetch(
-            `/api/users/${encodeURIComponent(activeClassroom.id)}?${userQs}`,
-          ),
-          authedFetch(
-            `/api/students/${encodeURIComponent(activeClassroom.id)}`,
-          ),
-          authedFetch(
-            `/api/subjects/${encodeURIComponent(activeClassroom.id)}`,
-          ),
-          authedFetch(
-            `/api/lesson-types/${encodeURIComponent(activeClassroom.id)}`,
-          ),
-        ]);
-        if (disposed) {
-          return;
-        }
-        if (!lRes.ok) {
-          setListError('コマ一覧の取得に失敗しました。');
-          return;
-        }
-        if (!tsRes.ok) {
-          setListError('時間枠の取得に失敗しました。');
-          return;
-        }
-        const [lessonsJson, tsJson, uJson, sJson, subJson, ltJson] =
-          await Promise.all([
-            lRes.json() as Promise<WeekGridLesson[]>,
-            tsRes.json() as Promise<TimeSlotRow[]>,
-            uRes.ok
-              ? (uRes.json() as Promise<TeacherRow[]>)
-              : Promise.resolve([]),
-            sRes.ok
-              ? (sRes.json() as Promise<StudentRow[]>)
-              : Promise.resolve([]),
-            subRes.ok
-              ? (subRes.json() as Promise<PresetRow[]>)
-              : Promise.resolve([]),
-            ltRes.ok
-              ? (ltRes.json() as Promise<PresetRow[]>)
-              : Promise.resolve([]),
-          ]);
-        if (disposed) {
-          return;
-        }
-        setLessons(lessonsJson);
-        setTimeSlots(tsJson);
-        setTeachers(uJson);
-        setStudents(sJson);
-        setSubjects(subJson);
-        setLessonTypes(ltJson);
-      } catch {
-        if (!disposed) {
-          setListError('ネットワークエラーが発生しました。');
-        }
-      } finally {
-        if (!disposed) {
-          setIsLoading(false);
-        }
-      }
-    };
-    void load();
-    return () => {
-      disposed = true;
-    };
-  }, [activeClassroom, authedFetch, weekFromIso, weekToIso, reloadTick]);
-
-  const teacherById = useMemo(() => toMapById(teachers), [teachers]);
-  const studentById = useMemo(() => toMapById(students), [students]);
-
-  const selectionMeta = useMemo(() => {
-    let empty = 0;
-    let occ = 0;
-    for (const key of selectedKeys) {
-      if (lessonByCellKey.has(key)) {
-        occ += 1;
-      } else {
-        empty += 1;
-      }
-    }
-    return { empty, occ };
-  }, [selectedKeys, lessonByCellKey]);
-
-  const toggleKey = useCallback((key: string) => {
-    setSelectedKeys((prev) => {
-      const next = new Set(prev);
-      if (next.has(key)) {
-        next.delete(key);
-      } else {
-        next.add(key);
-      }
-      return next;
-    });
-    setDetailEvent(null);
-  }, []);
-
-  const addKeys = useCallback((keys: string[]) => {
-    setSelectedKeys((prev) => {
-      const next = new Set(prev);
-      for (const k of keys) {
-        next.add(k);
-      }
-      return next;
-    });
-    setDetailEvent(null);
-  }, []);
-
-  const openLessonDetail = useCallback(
-    (lesson: WeekGridLesson) => {
-      setSelectedKeys(new Set());
-      const teacher = teacherById.get(lesson.teacherId);
-      const student = studentById.get(lesson.studentId);
-      const teacherName =
-        lesson.teacherDisplay ||
-        `${teacher?.lastName ?? ''} ${teacher?.firstName ?? ''}`.trim() ||
-        lesson.teacherId;
-      const studentName =
-        lesson.studentDisplay || student?.name || lesson.studentId;
-      setDetailEvent({
-        id: lesson.id,
-        title: `${teacherName} – ${studentName}`,
-        start: new Date(lesson.startAt),
-        end: new Date(lesson.endAt),
-        subjectId: lesson.subjectId,
-        lessonTypeId: lesson.lessonTypeId,
-      });
-      setDeleteError(null);
-      setPresetsError(null);
-    },
-    [teacherById, studentById],
-  );
-
-  const handleDeleteLesson = async () => {
-    if (!detailEvent || !activeClassroom) {
+  // 4. 1コマ登録処理
+  const handleSave = async () => {
+    if (
+      !activeClassroom ||
+      !currentUser ||
+      !dateKey ||
+      !selectedSlotId ||
+      !selectedStudentId
+    ) {
+      setMessage({ text: '時間と生徒を選択してください。', type: 'error' });
       return;
     }
-    setDeleteError(null);
-    setIsDeletingLesson(true);
+
+    const slot = timeSlots.find((s) => s.id === selectedSlotId);
+    if (!slot) return;
+
+    setIsSaving(true);
+    setMessage(null);
+
     try {
-      const res = await authedFetch('/api/lessons/bulk', {
-        method: 'POST',
-        headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({
-          classroomId: activeClassroom.id,
-          deleteIds: [detailEvent.id],
-        }),
-      });
-      if (!res.ok) {
-        const body = (await res.json().catch(() => ({}))) as {
-          message?: string;
-        };
-        setDeleteError(
-          body.message
-            ? `削除に失敗しました（${body.message}）`
-            : '削除に失敗しました。',
-        );
-        return;
-      }
-      setDetailEvent(null);
-      setReloadTick((v) => v + 1);
-    } catch {
-      setDeleteError('ネットワークエラーが発生しました。');
-    } finally {
-      setIsDeletingLesson(false);
-    }
-  };
+      const startDateTime = new Date(`${dateKey}T${slot.startTime}:00`);
+      const endDateTime = new Date(`${dateKey}T${slot.endTime}:00`);
 
-  const handleSaveDetailPresets = async () => {
-    if (!detailEvent) {
-      return;
-    }
-    setPresetsError(null);
-    setIsSavingPresets(true);
-    try {
-      const res = await authedFetch(
-        `/api/lessons/${encodeURIComponent(detailEvent.id)}`,
-        {
-          method: 'PATCH',
-          headers: { 'content-type': 'application/json' },
-          body: JSON.stringify({
-            subjectId: detailEvent.subjectId ?? null,
-            lessonTypeId: detailEvent.lessonTypeId ?? null,
-          }),
-        },
-      );
-      if (!res.ok) {
-        const body = (await res.json().catch(() => ({}))) as {
-          message?: string;
-        };
-        setPresetsError(
-          body.message
-            ? `保存に失敗しました（${body.message}）`
-            : '保存に失敗しました。',
-        );
-        return;
+      if (isNaN(startDateTime.getTime()) || isNaN(endDateTime.getTime())) {
+        throw new Error('日時の形式が不正です');
       }
-      setReloadTick((v) => v + 1);
-    } catch {
-      setPresetsError('ネットワークエラーが発生しました。');
-    } finally {
-      setIsSavingPresets(false);
-    }
-  };
 
-  const readBulkFailures = (arr: Array<{ ok: boolean; message?: string }>) =>
-    arr.filter((x) => !x.ok).map((x) => x.message ?? 'error');
-
-  const runBulk = async (body: Record<string, unknown>) => {
-    setBulkError(null);
-    setIsBulkSubmitting(true);
-    try {
-      const res = await authedFetch('/api/lessons/bulk', {
-        method: 'POST',
-        headers: { 'content-type': 'application/json' },
-        body: JSON.stringify(body),
-      });
-      const json = (await res.json().catch(() => ({}))) as {
-        message?: string;
-        deletes?: Array<{ ok: boolean; message?: string }>;
-        creates?: Array<{ ok: boolean; message?: string }>;
-      };
-      if (!res.ok) {
-        setBulkError(
-          json.message ? `失敗（${json.message}）` : '一括処理に失敗しました。',
-        );
-        return;
-      }
-      const fails = [
-        ...readBulkFailures(json.deletes ?? []),
-        ...readBulkFailures(json.creates ?? []),
-      ];
-      if (fails.length > 0) {
-        setBulkError(`一部失敗: ${fails.slice(0, 3).join(' / ')}`);
-      }
-      setSelectedKeys(new Set());
-      setReloadTick((v) => v + 1);
-    } catch {
-      setBulkError('ネットワークエラーが発生しました。');
-    } finally {
-      setIsBulkSubmitting(false);
-    }
-  };
-
-  const handleBulkCreate = async (params: {
-    teacherId: string;
-    studentId: string;
-    subjectId: string;
-    lessonTypeId: string;
-  }) => {
-    if (!activeClassroom) {
-      return;
-    }
-    const creates: Record<string, unknown>[] = [];
-    const tzOff = new Date().getTimezoneOffset();
-    for (const key of selectedKeys) {
-      const parsed = parseWeekSlotCellKey(key);
-      if (!parsed) {
-        continue;
-      }
-      const slot = timeSlots.find((t) => t.id === parsed.timeSlotId);
-      if (!slot) {
-        continue;
-      }
-      const row: Record<string, unknown> = {
-        teacherId: params.teacherId,
-        studentId: params.studentId,
-        dateKey: parsed.dateKey,
-        timeSlotId: parsed.timeSlotId,
+      const requestBody = {
+        classroomId: activeClassroom.id,
+        teacherId: currentUser.id,
+        studentId: selectedStudentId,
+        startAt: startDateTime.toISOString(),
+        endAt: endDateTime.toISOString(),
         status: 'published',
       };
-      if (params.subjectId) {
-        row.subjectId = params.subjectId;
+
+      const res = await authedFetch('/api/lessons', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify(requestBody),
+      });
+
+      if (!res.ok) {
+        const errorData = await res.json().catch(() => ({}));
+        throw new Error(errorData.message || '保存に失敗しました');
       }
-      if (params.lessonTypeId) {
-        row.lessonTypeId = params.lessonTypeId;
+
+      setMessage({ text: '授業を確定しました！', type: 'success' });
+      setSelectedSlotId(null);
+      await fetchMonthShifts(); // 保存後、カレンダーを再計算
+    } catch (e: unknown) {
+      if (e instanceof Error) {
+        setMessage({ text: e.message, type: 'error' });
+      } else {
+        setMessage({ text: 'エラーが発生しました', type: 'error' });
       }
-      creates.push(row);
+    } finally {
+      setIsSaving(false);
     }
-    if (creates.length === 0) {
-      setBulkError('有効な枠がありません。');
-      return;
-    }
-    await runBulk({
-      classroomId: activeClassroom.id,
-      creates,
-      createsTimezoneOffsetMinutes: tzOff,
-    });
   };
 
-  const handleBulkDelete = async () => {
-    if (!activeClassroom) {
-      return;
-    }
-    const deleteIds: string[] = [];
-    for (const key of selectedKeys) {
-      const lesson = lessonByCellKey.get(key);
-      if (lesson) {
-        deleteIds.push(lesson.id);
-      }
-    }
-    if (deleteIds.length === 0) {
-      setBulkError('削除対象のコマがありません。');
-      return;
-    }
-    await runBulk({ classroomId: activeClassroom.id, deleteIds });
-  };
-
-  const shiftWeek = (delta: number) => {
-    const sunday = startOfWeekSunday(weekAnchor);
-    const next =
-      delta === 0
-        ? startOfWeekSunday(new Date()).toDate()
-        : sunday.add(delta, 'week').toDate();
-    setWeekAnchor(next);
-    setSearchParams({ week: dayjs(next).format('YYYY-MM-DD') });
-  };
-
-  if (!currentUser) {
-    return (
-      <p className="text-foreground text-sm">この画面にアクセスできません。</p>
-    );
-  }
+  if (!currentUser) return <p className="text-sm">アクセスできません。</p>;
 
   return (
-    <section className="space-y-6 pb-40">
+    <section className="mx-auto max-w-xl space-y-6 pb-40">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h2 className="text-lg font-semibold md:text-xl">週コマ編集</h2>
+          <h2 className="text-lg font-semibold md:text-xl">確定コマ登録</h2>
           <p className="text-muted-foreground text-sm">
             教室: {activeClassroom?.name || '未選択'}
           </p>
         </div>
-        <div className="flex flex-wrap gap-2">
-          <Button type="button" variant="outline" size="sm" asChild>
-            <Link to="/calendar">カレンダーへ</Link>
-          </Button>
-        </div>
+        <Button type="button" variant="outline" size="sm" asChild>
+          <Link to="/calendar">カレンダーへ</Link>
+        </Button>
       </div>
 
-      {!activeClassroom && (
+      {!activeClassroom ? (
         <p className="text-sm text-amber-700">教室を選択してください。</p>
-      )}
-      {listError && <p className="text-sm text-rose-600">{listError}</p>}
-
-      {activeClassroom && (
+      ) : isLoading && timeSlots.length === 0 ? (
+        <p className="text-muted-foreground text-sm">読み込み中...</p>
+      ) : (
         <>
-          <div className="flex flex-wrap items-center justify-between gap-2">
-            <p className="text-foreground text-sm">
-              {weekStart.format('YYYY/M/D')} 週（日曜始まり）
-            </p>
-            <div className="flex gap-2">
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                onClick={() => shiftWeek(-1)}
+          {/* 🌟 1. 生徒選択エリアを最上部に移動 */}
+          <Card className="border-primary/20 bg-primary/5 shadow-sm">
+            <CardContent className="space-y-2 p-4">
+              <label className="text-primary text-sm font-bold">
+                1. 生徒を選択してください
+              </label>
+              <select
+                className="border-input bg-background ring-offset-background placeholder:text-muted-foreground focus:ring-ring flex h-10 w-full items-center justify-between rounded-md border px-3 py-2 text-sm focus:ring-2 focus:ring-offset-2 focus:outline-none disabled:cursor-not-allowed disabled:opacity-50"
+                value={selectedStudentId}
+                onChange={(e) => setSelectedStudentId(e.target.value)}
               >
-                前の週
-              </Button>
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                onClick={() => shiftWeek(0)}
-              >
-                今週
-              </Button>
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                onClick={() => shiftWeek(1)}
-              >
-                次の週
-              </Button>
-            </div>
-          </div>
+                <option value="" disabled>
+                  --- 生徒を選択 ---
+                </option>
+                {students.map((s) => (
+                  <option key={s.id} value={s.id}>
+                    {s.name}
+                  </option>
+                ))}
+              </select>
+            </CardContent>
+          </Card>
 
-          {isLoading ? (
-            <p className="text-muted-foreground text-sm">読み込み中...</p>
-          ) : timeSlots.length === 0 ? (
-            <p className="text-sm text-amber-700">
-              時間枠が未設定です。プリセット設定で時間枠を追加してください。
+          {/* 生徒が選択されていない場合は、ここで表示をストップ */}
+          {!selectedStudentId ? (
+            <p className="text-muted-foreground pt-4 text-center text-sm">
+              生徒を選択すると、お互いの空き時間カレンダーが表示されます。
             </p>
           ) : (
-            <WeekLessonSlotGrid
-              weekAnchor={weekAnchor}
-              timeSlots={timeSlots}
-              lessons={lessons}
-              classroomId={activeClassroom.id}
-              selectedKeys={selectedKeys}
-              onToggleKey={toggleKey}
-              onAddKeys={addKeys}
-              onOpenLessonDetail={openLessonDetail}
-            />
+            <>
+              {/* 🌟 2. カレンダーエリア */}
+              <Card className="shadow-sm">
+                <CardContent className="flex justify-center p-3">
+                  <Calendar
+                    mode="single"
+                    selected={date}
+                    onSelect={setDate}
+                    month={month}
+                    onMonthChange={setMonth}
+                    className="w-full"
+                    classNames={
+                      {
+                        cell: 'h-14 w-12 text-center text-sm p-0 relative focus-within:relative focus-within:z-20',
+                      } as Partial<ClassNames>
+                    }
+                    components={{
+                      DayButton: (
+                        props: React.ComponentPropsWithoutRef<'button'> & {
+                          day: { date: Date };
+                          modifiers: Modifiers;
+                        },
+                      ) => {
+                        const { day, modifiers, ...restProps } = props;
+                        const dKey = format(day.date, 'yyyy-MM-dd');
+
+                        // その日の塞がっている枠数を計算
+                        const busySlotCount =
+                          unavailableSlotsByDate[dKey]?.size || 0;
+                        const totalSlots = timeSlots.length;
+                        const availableCount = totalSlots - busySlotCount;
+
+                        let mark = null;
+                        if (totalSlots > 0) {
+                          if (availableCount <= 0) {
+                            mark = '×';
+                          } else if (availableCount === 1) {
+                            mark = '△';
+                          } else {
+                            mark = '○';
+                          }
+                        }
+
+                        return (
+                          <button
+                            {...restProps}
+                            className={cn(
+                              'relative flex h-full w-full flex-col items-center justify-start rounded-md pt-2 transition-colors',
+                              modifiers.selected &&
+                                'bg-primary text-primary-foreground hover:bg-primary hover:text-primary-foreground',
+                              modifiers.outside &&
+                                'text-muted-foreground opacity-50',
+                              !modifiers.selected &&
+                                !modifiers.outside &&
+                                'hover:bg-accent hover:text-accent-foreground',
+                            )}
+                          >
+                            <span className="text-sm font-medium">
+                              {day.date.getDate()}
+                            </span>
+                            {mark && (
+                              <span
+                                className={cn(
+                                  'mt-1 text-sm font-bold',
+                                  modifiers.selected
+                                    ? 'text-primary-foreground'
+                                    : mark === '×'
+                                      ? 'text-red-500'
+                                      : mark === '△'
+                                        ? 'text-yellow-500'
+                                        : 'text-blue-500',
+                                )}
+                              >
+                                {mark}
+                              </span>
+                            )}
+                          </button>
+                        );
+                      },
+                    }}
+                  />
+                </CardContent>
+              </Card>
+
+              {/* 🌟 3. 時間帯選択エリア */}
+              {date && (
+                <Card className="animate-in fade-in slide-in-from-bottom-4 border-primary/20 shadow-md duration-300">
+                  <CardHeader className="border-b pb-3">
+                    <CardTitle className="text-center text-lg">
+                      {format(date, 'M月d日')} のコマ登録
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent className="space-y-4 pt-4">
+                    <div className="grid grid-cols-2 gap-3">
+                      {timeSlots.map((slot) => {
+                        const isSelected = selectedSlotId === slot.id;
+                        // 講師か生徒のどちらかが塞がっていれば disabled にする
+                        const isUnavailable = dateKey
+                          ? unavailableSlotsByDate[dateKey]?.has(slot.id)
+                          : false;
+
+                        return (
+                          <Button
+                            key={slot.id}
+                            variant={isSelected ? 'default' : 'outline'}
+                            className={cn(
+                              'flex h-auto flex-col py-3',
+                              isSelected && 'ring-primary ring-2 ring-offset-1',
+                              isUnavailable &&
+                                'bg-muted cursor-not-allowed opacity-50',
+                            )}
+                            onClick={() =>
+                              !isUnavailable && setSelectedSlotId(slot.id)
+                            }
+                            disabled={isUnavailable}
+                          >
+                            <span className="font-bold">
+                              {slot.startTime} - {slot.endTime}
+                            </span>
+                            {isUnavailable && (
+                              <span className="mt-1 text-xs font-normal text-red-500">
+                                予定あり
+                              </span>
+                            )}
+                          </Button>
+                        );
+                      })}
+                    </div>
+
+                    {selectedSlotId && (
+                      <div className="animate-in fade-in slide-in-from-top-2 mt-4 space-y-4 duration-200">
+                        {message && (
+                          <p
+                            className={cn(
+                              'text-center text-sm font-bold',
+                              message.type === 'success'
+                                ? 'text-green-600'
+                                : 'text-red-600',
+                            )}
+                          >
+                            {message.text}
+                          </p>
+                        )}
+                        <Button
+                          className="h-12 w-full text-lg"
+                          onClick={handleSave}
+                          disabled={isSaving}
+                        >
+                          {isSaving ? '登録中...' : 'このコマを確定する'}
+                        </Button>
+                      </div>
+                    )}
+                  </CardContent>
+                </Card>
+              )}
+            </>
           )}
-
-          <p className="text-muted-foreground text-xs">
-            セルをクリックまたはドラッグで複数選択。コマがある枠は「詳細」で下部パネルを開けます。
-          </p>
-
-          <LessonBulkActionPanel
-            selectedCount={selectedKeys.size}
-            emptySlotCount={selectionMeta.empty}
-            occupiedSlotCount={selectionMeta.occ}
-            teachers={teachers}
-            students={students}
-            subjects={subjects}
-            lessonTypes={lessonTypes}
-            actorUserId={currentUser.id}
-            actorRole={currentUser.role ?? 'staff'}
-            isSubmitting={isBulkSubmitting}
-            error={bulkError}
-            onClearSelection={() => {
-              setSelectedKeys(new Set());
-              setBulkError(null);
-            }}
-            onCreate={(p) => void handleBulkCreate(p)}
-            onDelete={() => void handleBulkDelete()}
-          />
-
-          <LessonDeletePanel
-            event={detailEvent}
-            isDeleting={isDeletingLesson}
-            error={deleteError}
-            onClose={() => setDetailEvent(null)}
-            onDelete={() => void handleDeleteLesson()}
-            presetSubjects={subjects}
-            presetLessonTypes={lessonTypes}
-            isSavingPresets={isSavingPresets}
-            presetsError={presetsError}
-            onPresetChange={(next) =>
-              setDetailEvent((prev) => (prev ? { ...prev, ...next } : null))
-            }
-            onSavePresets={() => void handleSaveDetailPresets()}
-          />
         </>
       )}
     </section>

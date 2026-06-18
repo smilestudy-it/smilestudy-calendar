@@ -1,4 +1,3 @@
-/* eslint-disable react-refresh/only-export-components */
 /**
  * （責務）react-hook-form と連携する shadcn Form コンポーネント群。
  */

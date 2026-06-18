@@ -1,7 +1,7 @@
 /*
   lesson追加/削除などのAPIを管理
 */
-import { and, eq, gt, inArray, isNull, lt } from 'drizzle-orm';
+import { and, eq, gt, inArray, isNull, lt, or } from 'drizzle-orm';
 import { Hono } from 'hono';
 
 import { getDb } from '../db';
@@ -21,7 +21,6 @@ import {
 } from '../lessonDisplay';
 import { isD1ForeignKeyViolation } from '../lib/sqliteConstraint';
 import {
-  validateBulkLessonsInput,
   validateCreateLessonInput,
   validateLessonRangeQuery,
   validatePatchLessonInput,
@@ -201,27 +200,23 @@ lessonsApp.post('/', auth, loadUser, async (c) => {
   return c.json({ success: true, id }, 200);
 });
 
-type CreateLessonTxResult =
-  | { ok: true }
-  | {
-      ok: false;
-      reason:
-        | 'classroom_not_found'
-        | 'teacher_invalid'
-        | 'student_invalid'
-        | 'subject_invalid'
-        | 'lesson_type_invalid'
-        | 'teacher_double_booking'
-        | 'student_double_booking';
-    };
-
-lessonsApp.post('/bulk', auth, loadUser, async (c) => {
+lessonsApp.post('/', auth, loadUser, async (c) => {
   const actor = c.var.currentUser;
-  const body = await c.req.json<unknown>().catch(() => null);
-  const { input, error } = validateBulkLessonsInput(body);
-  if (!input) {
-    return c.json({ message: error ?? 'invalid request' }, 400);
+  const input = await c.req.json().catch(() => null);
+
+  // 1. 基本的な入力チェック
+  if (
+    !input ||
+    !input.classroomId ||
+    !input.teacherId ||
+    !input.studentId ||
+    !input.dateKey ||
+    !input.timeSlotId
+  ) {
+    return c.json({ message: '必要な情報が不足しています' }, 400);
   }
+
+  // 2. アクセス権限チェック（他教室への操作禁止）
   if (actor.role !== 'admin' && actor.classroomId !== input.classroomId) {
     return c.json({ message: 'forbidden' }, 403);
   }
@@ -229,341 +224,121 @@ lessonsApp.post('/bulk', auth, loadUser, async (c) => {
   const db = getDb(c.env);
   const classroomId = input.classroomId;
 
-  type OpResult = {
-    ok: boolean;
-    message?: string;
-    id?: string;
-    dateKey?: string;
-    timeSlotId?: string;
-  };
-  type BulkCreateFailureReason =
-    | 'classroom_not_found'
-    | 'teacher_invalid'
-    | 'student_invalid'
-    | 'subject_invalid'
-    | 'lesson_type_invalid'
-    | 'teacher_double_booking'
-    | 'student_double_booking';
-  const withCreateRef = (item: { dateKey: string; timeSlotId: string }) => ({
-    dateKey: item.dateKey,
-    timeSlotId: item.timeSlotId,
-  });
-  const mapBulkCreateReason = (reason: BulkCreateFailureReason) => {
-    switch (reason) {
-      case 'teacher_double_booking':
-      case 'student_double_booking':
-        return 'schedule conflict';
-      case 'teacher_invalid':
-        return 'teacher not found or not in classroom';
-      case 'student_invalid':
-        return 'student not found or not in classroom';
-      case 'subject_invalid':
-        return 'subject not found';
-      case 'lesson_type_invalid':
-        return 'lesson type not found';
-      case 'classroom_not_found':
-        return 'classroom not found';
-      default:
-        return 'failed to create lesson';
-    }
-  };
+  // 3. 時間枠の取得と UTC 日時の計算
+  const [slotRow] = await db
+    .select({
+      startTime: timeSlots.startTime,
+      endTime: timeSlots.endTime,
+    })
+    .from(timeSlots)
+    .where(
+      and(
+        eq(timeSlots.id, input.timeSlotId),
+        eq(timeSlots.classroomId, classroomId),
+        isNull(timeSlots.deletedAt),
+      ),
+    )
+    .limit(1);
 
-  const deleteResults: OpResult[] = [];
-  for (const targetId of input.deleteIds ?? []) {
-    const [row] = await db
-      .select({
-        id: lessons.id,
-        classroomId: lessons.classroomId,
-        teacherId: lessons.teacherId,
-      })
-      .from(lessons)
-      .where(and(eq(lessons.id, targetId), isNull(lessons.deletedAt)))
-      .limit(1);
-
-    if (!row) {
-      deleteResults.push({
-        ok: false,
-        message: 'lesson not found',
-        id: targetId,
-      });
-      continue;
-    }
-    if (row.classroomId !== classroomId) {
-      deleteResults.push({
-        ok: false,
-        message: 'lesson not in classroom',
-        id: targetId,
-      });
-      continue;
-    }
-
-    if (actor.role === 'staff' && row.teacherId !== actor.id) {
-      deleteResults.push({ ok: false, message: 'forbidden', id: targetId });
-      continue;
-    }
-
-    if (actor.role === 'manager') {
-      const [teacherUser] = await db
-        .select({ classroomId: users.classroomId })
-        .from(users)
-        .where(eq(users.id, row.teacherId))
-        .limit(1);
-      if (!teacherUser || teacherUser.classroomId !== row.classroomId) {
-        deleteResults.push({ ok: false, message: 'forbidden', id: targetId });
-        continue;
-      }
-    }
-
-    const deletedAt = new Date();
-    const result = await db
-      .update(lessons)
-      .set({ deletedAt })
-      .where(and(eq(lessons.id, targetId), isNull(lessons.deletedAt)));
-
-    if (result.meta.changes === 0) {
-      deleteResults.push({
-        ok: false,
-        message: 'lesson not found',
-        id: targetId,
-      });
-    } else {
-      deleteResults.push({ ok: true, id: targetId });
-    }
+  if (!slotRow) {
+    return c.json({ message: '指定された時間枠が見つかりません' }, 400);
   }
 
-  const createResults: OpResult[] = [];
-  const tzOff = input.createsTimezoneOffsetMinutes;
-  for (const item of input.creates ?? []) {
-    const [slotRow] = await db
-      .select({
-        id: timeSlots.id,
-        startTime: timeSlots.startTime,
-        endTime: timeSlots.endTime,
-      })
-      .from(timeSlots)
-      .where(
-        and(
-          eq(timeSlots.id, item.timeSlotId),
-          eq(timeSlots.classroomId, classroomId),
-          isNull(timeSlots.deletedAt),
+  // 💡 日本のアプリであることを前提に、フロントから timezoneOffsetMinutes が来ない場合は -540 (JST) とする
+  const tzOff = input.timezoneOffsetMinutes ?? -540;
+  const startAt = utcDateFromLocalDateKeyAndHm(
+    input.dateKey,
+    slotRow.startTime,
+    tzOff,
+  );
+  const endAt = utcDateFromLocalDateKeyAndHm(
+    input.dateKey,
+    slotRow.endTime,
+    tzOff,
+  );
+
+  if (!startAt || !endAt || startAt.getTime() >= endAt.getTime()) {
+    return c.json({ message: '日時の計算に失敗しました' }, 400);
+  }
+
+  // 4. 講師本人の登録かどうかのチェック
+  const staffTeacherDenied = denyUnlessStaffLessonTeacherIsSelf(
+    c,
+    actor,
+    input.teacherId,
+  );
+  if (staffTeacherDenied) {
+    return c.json({ message: 'forbidden' }, 403);
+  }
+
+  // === 🚨 5. ダブルブッキングの明示的ブロック 🚨 ===
+  const [existingLesson] = await db
+    .select({ id: lessons.id })
+    .from(lessons)
+    .where(
+      and(
+        // 👇 講師 か 生徒 のどちらかの予定が入っていれば引っかかるように OR を使う
+        or(
+          eq(lessons.teacherId, input.teacherId),
+          eq(lessons.studentId, input.studentId),
         ),
-      )
-      .limit(1);
+        isNull(lessons.deletedAt),
+        lt(lessons.startAt, endAt),
+        gt(lessons.endAt, startAt),
+      ),
+    )
+    .limit(1);
 
-    if (!slotRow) {
-      createResults.push({
-        ok: false,
-        message: 'time slot not found',
-        ...withCreateRef(item),
-      });
-      continue;
-    }
-
-    const startAt =
-      tzOff === undefined
-        ? null
-        : utcDateFromLocalDateKeyAndHm(item.dateKey, slotRow.startTime, tzOff);
-    const endAt =
-      tzOff === undefined
-        ? null
-        : utcDateFromLocalDateKeyAndHm(item.dateKey, slotRow.endTime, tzOff);
-    if (!startAt || !endAt || startAt.getTime() >= endAt.getTime()) {
-      createResults.push({
-        ok: false,
-        message: 'invalid date or time slot range',
-        ...withCreateRef(item),
-      });
-      continue;
-    }
-
-    const staffTeacherDenied = denyUnlessStaffLessonTeacherIsSelf(
-      c,
-      actor,
-      item.teacherId,
+  if (existingLesson) {
+    return c.json(
+      { message: 'schedule conflict: すでにこの時間帯には授業が入っています' },
+      409,
     );
-    if (staffTeacherDenied) {
-      createResults.push({
-        ok: false,
-        message: 'forbidden',
-        ...withCreateRef(item),
-      });
-      continue;
-    }
+  }
 
-    if (actor.role === 'manager') {
-      const [teacherUser] = await db
-        .select({ classroomId: users.classroomId })
-        .from(users)
-        .where(eq(users.id, item.teacherId))
-        .limit(1);
-      if (!teacherUser || teacherUser.classroomId !== classroomId) {
-        createResults.push({
-          ok: false,
-          message: 'forbidden',
-          ...withCreateRef(item),
-        });
-        continue;
-      }
-    }
+  // 6. 生徒や講師が実在するかのチェック
+  const [teacher] = await db
+    .select({ id: users.id })
+    .from(users)
+    .where(and(eq(users.id, input.teacherId), isNull(users.deletedAt)))
+    .limit(1);
 
-    const createInput = {
-      teacherId: item.teacherId,
-      studentId: item.studentId,
+  if (!teacher) {
+    return c.json({ message: '講師が見つかりません' }, 400);
+  }
+
+  const [student] = await db
+    .select({ id: students.id })
+    .from(students)
+    .where(and(eq(students.id, input.studentId), isNull(students.deletedAt)))
+    .limit(1);
+
+  if (!student) {
+    return c.json({ message: '生徒が見つかりません' }, 400);
+  }
+
+  // 7. データベースへ登録
+  const id = crypto.randomUUID();
+  try {
+    await db.insert(lessons).values({
+      id,
       classroomId,
-      subjectId: item.subjectId,
-      lessonTypeId: item.lessonTypeId,
+      teacherId: input.teacherId,
+      studentId: input.studentId,
+      subjectId: input.subjectId ?? null,
+      lessonTypeId: input.lessonTypeId ?? null,
       startAt,
       endAt,
-      status: item.status,
-    };
-
-    const id = crypto.randomUUID();
-    const actorRole = actor.role;
-
-    let txResult: CreateLessonTxResult;
-    try {
-      txResult = await (async () => {
-        const [activeClassroom] = await db
-          .select({ id: classrooms.id })
-          .from(classrooms)
-          .where(
-            and(eq(classrooms.id, classroomId), isNull(classrooms.deletedAt)),
-          )
-          .limit(1);
-        if (!activeClassroom) {
-          return { ok: false as const, reason: 'classroom_not_found' as const };
-        }
-
-        const teacherScope =
-          actorRole === 'admin'
-            ? and(eq(users.id, createInput.teacherId), isNull(users.deletedAt))
-            : and(
-                eq(users.id, createInput.teacherId),
-                eq(users.classroomId, classroomId),
-                isNull(users.deletedAt),
-              );
-
-        const [teacher] = await db
-          .select({ id: users.id })
-          .from(users)
-          .where(teacherScope)
-          .limit(1);
-        if (!teacher) {
-          return { ok: false as const, reason: 'teacher_invalid' as const };
-        }
-
-        const [student] = await db
-          .select({ id: students.id })
-          .from(students)
-          .where(
-            and(
-              eq(students.id, createInput.studentId),
-              eq(students.classroomId, classroomId),
-              isNull(students.deletedAt),
-            ),
-          )
-          .limit(1);
-        if (!student) {
-          return { ok: false as const, reason: 'student_invalid' as const };
-        }
-
-        if (createInput.subjectId) {
-          const [sub] = await db
-            .select({ id: subjects.id })
-            .from(subjects)
-            .where(
-              and(
-                eq(subjects.id, createInput.subjectId),
-                eq(subjects.classroomId, classroomId),
-                isNull(subjects.deletedAt),
-              ),
-            )
-            .limit(1);
-          if (!sub) {
-            return { ok: false as const, reason: 'subject_invalid' as const };
-          }
-        }
-
-        if (createInput.lessonTypeId) {
-          const [ltRow] = await db
-            .select({ id: lessonTypes.id })
-            .from(lessonTypes)
-            .where(
-              and(
-                eq(lessonTypes.id, createInput.lessonTypeId),
-                eq(lessonTypes.classroomId, classroomId),
-                isNull(lessonTypes.deletedAt),
-              ),
-            )
-            .limit(1);
-          if (!ltRow) {
-            return {
-              ok: false as const,
-              reason: 'lesson_type_invalid' as const,
-            };
-          }
-        }
-
-        await db.insert(lessons).values({
-          id,
-          teacherId: createInput.teacherId,
-          studentId: createInput.studentId,
-          classroomId,
-          subjectId: createInput.subjectId ?? null,
-          lessonTypeId: createInput.lessonTypeId ?? null,
-          startAt: createInput.startAt,
-          endAt: createInput.endAt,
-          status: createInput.status ?? 'draft',
-          deletedAt: null,
-        });
-        return { ok: true as const };
-      })();
-    } catch (err: unknown) {
-      console.log('POST /lessons/bulk creates', err);
-      if (err instanceof Error) {
-        const msg = err.message || '';
-        if (isD1ForeignKeyViolation(err)) {
-          createResults.push({
-            ok: false,
-            message: 'invalid reference',
-            ...withCreateRef(item),
-          });
-        } else if (msg.includes('teacher_double_booking')) {
-          createResults.push({
-            ok: false,
-            message: msg,
-            ...withCreateRef(item),
-          });
-        } else {
-          createResults.push({
-            ok: false,
-            message: 'failed to create lesson',
-            ...withCreateRef(item),
-          });
-        }
-      }
-      continue;
-    }
-
-    if (!txResult.ok) {
-      createResults.push({
-        ok: false,
-        message: mapBulkCreateReason(txResult.reason),
-        ...withCreateRef(item),
-      });
-    } else {
-      createResults.push({ ok: true, id, ...withCreateRef(item) });
-    }
+      status: input.status ?? 'published', // 即時確定なら published とする
+      deletedAt: null,
+    });
+  } catch (err) {
+    console.error('POST /lessons insert error:', err);
+    return c.json({ message: 'サーバーエラーが発生しました' }, 500);
   }
 
-  return c.json(
-    {
-      classroomId,
-      deletes: deleteResults,
-      creates: createResults,
-    },
-    200,
-  );
+  // 8. 成功レスポンス
+  return c.json({ ok: true, id }, 201);
 });
 
 type PatchLessonTxResult =
