@@ -1,16 +1,17 @@
 /**
  * （責務）月次カレンダー。教室選択・月移動・コマ一覧と週編集への導線。
  */
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 
 import dayjs from 'dayjs';
 import 'dayjs/locale/ja';
 
 import { Button } from '@/components/ui/button';
+import { Dialog, DialogContent } from '@/components/ui/dialog';
 import MonthCalendar from '@/components/ui/full-calendar';
 import LessonDeletePanel, {
-  type LessonDeleteTarget,
+  type LessonDetailTarget,
 } from '@/components/ui/lesson-delete-panel';
 import { useAuthedFetch } from '@/hooks/useAuthedFetch';
 import { useSelectedClassroom } from '@/hooks/useSelectedClassroom';
@@ -87,9 +88,13 @@ export default function CalendarPage({
   const [lessonTypes, setLessonTypes] = useState<PresetRow[]>([]);
   const [listError, setListError] = useState<string | null>(null);
   const [isLoadingMonth, setIsLoadingMonth] = useState(false);
-  const [selectedEvent, setSelectedEvent] = useState<LessonDeleteTarget | null>(
+
+  // モーダルと編集関連のState
+  const [selectedEvent, setSelectedEvent] = useState<LessonDetailTarget | null>(
     null,
   );
+  const [isSaving, setIsSaving] = useState(false);
+  const [panelError, setPanelError] = useState<string | null>(null);
 
   const monthStart = useMemo(
     () => dayjs(focusDate).startOf('month'),
@@ -107,9 +112,9 @@ export default function CalendarPage({
 
   const authedFetch = useAuthedFetch(getAccessTokenSilently);
 
-  useEffect(() => {
-    let isDisposed = false;
-    const load = async () => {
+  // 💡 データの再取得ロジックを useCallback で共通化
+  const fetchMonthData = useCallback(
+    async (signal?: AbortSignal) => {
       setListError(null);
       if (!activeClassroom) {
         setLessons([]);
@@ -123,27 +128,31 @@ export default function CalendarPage({
         const [lRes, uRes, sRes, subRes, ltRes] = await Promise.all([
           authedFetch(
             `/api/lessons/${encodeURIComponent(activeClassroom.id)}?${qs}`,
+            { signal },
           ),
           authedFetch(
             `/api/users/${encodeURIComponent(activeClassroom.id)}?${userQs}`,
+            { signal },
           ),
           authedFetch(
             `/api/students/${encodeURIComponent(activeClassroom.id)}`,
+            { signal },
           ),
           authedFetch(
             `/api/subjects/${encodeURIComponent(activeClassroom.id)}`,
+            { signal },
           ),
           authedFetch(
             `/api/lesson-types/${encodeURIComponent(activeClassroom.id)}`,
+            { signal },
           ),
         ]);
-        if (isDisposed) {
-          return;
-        }
+
         if (!lRes.ok) {
           setListError('コマ一覧の取得に失敗しました。');
           return;
         }
+
         const [lessonsJson, uJson, sJson, subJson, ltJson] = await Promise.all([
           lRes.json() as Promise<LessonApi[]>,
           uRes.ok
@@ -159,27 +168,28 @@ export default function CalendarPage({
             ? (ltRes.json() as Promise<PresetRow[]>)
             : Promise.resolve(null),
         ]);
-        if (isDisposed) {
-          return;
-        }
+
         setLessons(lessonsJson);
         setTeachers(uJson ?? []);
         setStudents(sJson ?? []);
         setSubjects(subJson ?? []);
         setLessonTypes(ltJson ?? []);
-      } catch {
-        if (!isDisposed) {
-          setListError('ネットワークエラーが発生しました。');
-        }
+      } catch (error: unknown) {
+        if (error instanceof Error && error.name === 'AbortError') return;
+        setListError('ネットワークエラーが発生しました。');
       } finally {
         setIsLoadingMonth(false);
       }
-    };
-    void load();
-    return () => {
-      isDisposed = true;
-    };
-  }, [activeClassroom, authedFetch, monthFromIso, monthToIso]);
+    },
+    [activeClassroom, authedFetch, monthFromIso, monthToIso],
+  );
+
+  // 初回マウント時 ＆ 月変更時にデータを取得
+  useEffect(() => {
+    const controller = new AbortController();
+    void fetchMonthData(controller.signal);
+    return () => controller.abort();
+  }, [fetchMonthData]);
 
   const teacherById = useMemo(() => toMapById(teachers), [teachers]);
   const studentById = useMemo(() => toMapById(students), [students]);
@@ -208,6 +218,61 @@ export default function CalendarPage({
       };
     });
   }, [lessons, teacherById]);
+
+  // 💡 パネルからの PATCH (更新) 処理
+  const handleSavePresets = async () => {
+    if (!selectedEvent) return;
+    setIsSaving(true);
+    setPanelError(null);
+    try {
+      const res = await authedFetch(
+        `/api/lessons/${encodeURIComponent(selectedEvent.id)}`,
+        {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            subjectId: selectedEvent.subjectId,
+            lessonTypeId: selectedEvent.lessonTypeId,
+          }),
+        },
+      );
+      if (!res.ok) throw new Error('保存に失敗しました');
+
+      await fetchMonthData(); // カレンダーの最新データを再取得
+      setSelectedEvent(null); // モーダルを閉じる
+    } catch (e: unknown) {
+      setPanelError(
+        e instanceof Error ? e.message : '予期せぬエラーが発生しました',
+      );
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  // 💡 パネルからの DELETE (削除) 処理
+  const handleDelete = async () => {
+    if (!selectedEvent) return;
+    setIsSaving(true);
+    setPanelError(null);
+    try {
+      const res = await authedFetch(
+        `/api/lessons/${encodeURIComponent(selectedEvent.id)}`,
+        {
+          method: 'DELETE',
+        },
+      );
+      if (!res.ok) throw new Error('削除に失敗しました');
+
+      await fetchMonthData(); // カレンダーの最新データを再取得
+      setSelectedEvent(null); // モーダルを閉じる
+    } catch (e: unknown) {
+      setPanelError(
+        e instanceof Error ? e.message : '予期せぬエラーが発生しました',
+      );
+    } finally {
+      setIsSaving(false);
+    }
+  };
 
   if (!currentUser) {
     return (
@@ -294,10 +359,8 @@ export default function CalendarPage({
               onFocusDateChange={setFocusDate}
               onEventClick={(event) => {
                 const lesson = lessons.find((l) => l.id === event.id);
-                if (!lesson) {
-                  setSelectedEvent(event);
-                  return;
-                }
+                if (!lesson) return;
+
                 const teacher = teacherById.get(lesson.teacherId);
                 const student = studentById.get(lesson.studentId);
                 const subjectName = lesson.subjectId
@@ -306,8 +369,9 @@ export default function CalendarPage({
                 const lessonTypeName = lesson.lessonTypeId
                   ? lessonTypeById.get(lesson.lessonTypeId)
                   : undefined;
+
                 setSelectedEvent({
-                  ...event,
+                  id: lesson.id,
                   title: buildModalEventTitle(
                     lesson,
                     teacher,
@@ -315,18 +379,42 @@ export default function CalendarPage({
                     subjectName,
                     lessonTypeName,
                   ),
+                  start: new Date(lesson.startAt),
+                  end: new Date(lesson.endAt),
+                  subjectId: lesson.subjectId,
+                  lessonTypeId: lesson.lessonTypeId,
                 });
+                setPanelError(null); // 開くたびにエラーをリセット
               }}
             />
           )}
         </div>
       </div>
 
-      <LessonDeletePanel
-        event={selectedEvent}
-        error={null}
-        onClose={() => setSelectedEvent(null)}
-      />
+      {/* 💡 詳細・編集・削除用モーダル */}
+      <Dialog
+        open={!!selectedEvent}
+        onOpenChange={(open) => !open && setSelectedEvent(null)}
+      >
+        <DialogContent className="max-w-xl">
+          <LessonDeletePanel
+            event={selectedEvent}
+            isDeleting={isSaving}
+            error={panelError}
+            presetSubjects={subjects}
+            presetLessonTypes={lessonTypes}
+            isSavingPresets={isSaving}
+            presetsError={panelError}
+            onClose={() => setSelectedEvent(null)}
+            onDelete={handleDelete}
+            onSavePresets={handleSavePresets}
+            onPresetChange={(next) => {
+              // 選択状態を一時的にローカルStateに保持
+              setSelectedEvent((prev) => (prev ? { ...prev, ...next } : null));
+            }}
+          />
+        </DialogContent>
+      </Dialog>
     </section>
   );
 }

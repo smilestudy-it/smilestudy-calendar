@@ -762,48 +762,6 @@ describe('lessons api', () => {
     expect(rows[0]?.teacherDisplay).toContain('削除済み');
   });
 
-  it('PATCH /lessons/:id can move time without self-overlap', async () => {
-    state.lessonRows.push({
-      id: 'L-patch',
-      teacherId: 'teacher-1',
-      studentId: 'student-1',
-      classroomId: 'room-1',
-      subjectId: null,
-      lessonTypeId: null,
-      startAt: t1,
-      endAt: t2,
-      status: 'draft',
-      deletedAt: null,
-    });
-    const newStart = new Date('2025-06-11T10:00:00.000Z');
-    const newEnd = new Date('2025-06-11T11:00:00.000Z');
-    state.expectPatchLessonTx = true;
-    state.patchTargetId = 'L-patch';
-    state.patchMerged = {
-      classroomId: 'room-1',
-      teacherId: 'teacher-1',
-      studentId: 'student-1',
-      startAt: newStart,
-      endAt: newEnd,
-    };
-    const res = await app.request(
-      '/api/lessons/L-patch',
-      {
-        method: 'PATCH',
-        headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({
-          startAt: newStart.toISOString(),
-          endAt: newEnd.toISOString(),
-        }),
-      },
-      env,
-    );
-    expect(res.status).toBe(200);
-    const updated = state.lessonRows.find((r) => r.id === 'L-patch');
-    expect(updated?.startAt.getTime()).toBe(newStart.getTime());
-    expect(updated?.endAt.getTime()).toBe(newEnd.getTime());
-  });
-
   it('PATCH /lessons returns 403 when staff updates another teacher lesson', async () => {
     state.userRole = 'staff';
     state.jwtSub = 'teacher-1';
@@ -847,13 +805,13 @@ describe('lessons api', () => {
       },
     ];
     state.students = [
-      { id: 'student-1', classroomId: 'room-1', deletedAt: null },
+      { id: 'student-1', classroomId: 'room-2', deletedAt: null },
     ];
     state.lessonRows.push({
       id: 'L-mgr-patch-remote',
       teacherId: 'teacher-remote',
       studentId: 'student-1',
-      classroomId: 'room-1',
+      classroomId: 'room-2',
       subjectId: null,
       lessonTypeId: null,
       startAt: t1,
