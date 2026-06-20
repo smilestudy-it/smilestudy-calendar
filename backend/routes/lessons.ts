@@ -181,7 +181,7 @@ lessonsApp.post('/', auth, loadUser, async (c) => {
   const id = crypto.randomUUID();
 
   try {
-    const res = await db.insert(lessons).values({
+    await db.insert(lessons).values({
       id,
       teacherId: input.teacherId,
       studentId: input.studentId,
@@ -192,9 +192,6 @@ lessonsApp.post('/', auth, loadUser, async (c) => {
       endAt: input.endAt,
       deletedAt: null,
     });
-    if (res.meta.changes === 0) {
-      return c.json({ message: 'failed to create lessons' }, 500);
-    }
   } catch (err: unknown) {
     if (err instanceof Error) {
       return c.json({ message: err.message }, 500);
