@@ -72,7 +72,7 @@ usersApp.post('', auth, loadUser, requireManagerOrAbove, async (c) => {
     }
   }
 
-  let managementToken = '';
+  let managementToken;
   try {
     managementToken = await auth0.getAuth0ManagementToken(c.env);
   } catch {
@@ -81,7 +81,7 @@ usersApp.post('', auth, loadUser, requireManagerOrAbove, async (c) => {
 
   let auth0UserId = '';
   let d1Inserted = false;
-  let passwordEmailSent = false;
+  let passwordEmailSent;
   const displayName = `${input.lastName} ${input.firstName}`.trim();
 
   try {

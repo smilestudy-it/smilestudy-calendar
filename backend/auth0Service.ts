@@ -36,6 +36,7 @@ export async function getAuth0ManagementToken(
       e instanceof Error
         ? e.message
         : 'failed to get auth0 management token (network/timeout)',
+      { cause: e },
     );
   }
 

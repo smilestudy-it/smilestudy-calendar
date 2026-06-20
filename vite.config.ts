@@ -1,6 +1,8 @@
 /**
  * （責務）Vite ビルド設定。React（SWC）・Tailwind エイリアス等。
  */
+import devServer from '@hono/vite-dev-server';
+import adapter from '@hono/vite-dev-server/cloudflare';
 import tailwindcss from '@tailwindcss/vite';
 import react from '@vitejs/plugin-react-swc';
 import path from 'node:path';
@@ -11,16 +13,25 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 // https://vite.dev/config/
 export default defineConfig({
-  plugins: [react(), tailwindcss()],
+  plugins: [
+    react(),
+    tailwindcss(),
+    devServer({
+      entry: 'backend/worker.ts',
+      adapter,
+      injectClientScript: false,
+      exclude: [/^(?!\/api).*/],
+    }),
+  ],
   resolve: {
     alias: {
-      '@': path.resolve(__dirname, './frontend/src'),
+      '@': path.resolve(__dirname, './src'),
     },
   },
-  root: './frontend',
-  envDir: '../',
+  root: './',
+  envDir: './',
   build: {
-    outDir: '../dist',
+    outDir: './dist',
     emptyOutDir: true,
     rollupOptions: {
       output: {
