@@ -78,10 +78,6 @@ export default function PresetsSettingsPanel({
 
   const activeClassroomIdRef = useRef(activeClassroomId);
 
-  useEffect(() => {
-    activeClassroomIdRef.current = activeClassroomId;
-  }, [activeClassroomId]);
-
   const loadPresetsGen = useRef(0);
   const loadPresetsAbortRef = useRef<AbortController | null>(null);
 
@@ -162,8 +158,9 @@ export default function PresetsSettingsPanel({
   }, [loadClassrooms]);
 
   useEffect(() => {
+    activeClassroomIdRef.current = activeClassroomId;
     void loadPresets();
-  }, [loadPresets]);
+  }, [activeClassroomId, loadPresets]);
 
   const handleAddSubject = async (e: React.FormEvent) => {
     e.preventDefault();
