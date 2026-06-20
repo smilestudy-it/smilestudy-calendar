@@ -5,8 +5,9 @@ import { Link } from 'react-router-dom';
 
 import { endOfMonth, format, startOfMonth } from 'date-fns';
 import dayjs from 'dayjs';
-import utc from 'dayjs/plugin/utc';
 import timezone from 'dayjs/plugin/timezone';
+import utc from 'dayjs/plugin/utc';
+
 import { Button } from '@/components/ui/button';
 import { Calendar } from '@/components/ui/calendar';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -180,8 +181,16 @@ export default function CalendarSingleEditPage({
     setMessage(null);
 
     try {
-      const startDateTime = dayjs.tz(`${dateKey} ${slot.startTime}`, 'YYYY-MM-DD HH:mm', 'Asia/Tokyo');
-      const endDateTime = dayjs.tz(`${dateKey} ${slot.endTime}`, 'YYYY-MM-DD HH:mm', 'Asia/Tokyo');
+      const startDateTime = dayjs.tz(
+        `${dateKey} ${slot.startTime}`,
+        'YYYY-MM-DD HH:mm',
+        'Asia/Tokyo',
+      );
+      const endDateTime = dayjs.tz(
+        `${dateKey} ${slot.endTime}`,
+        'YYYY-MM-DD HH:mm',
+        'Asia/Tokyo',
+      );
 
       if (!startDateTime.isValid() || !endDateTime.isValid()) {
         throw new Error('日時の形式が不正です');
@@ -192,7 +201,7 @@ export default function CalendarSingleEditPage({
         teacherId: currentUser.id,
         studentId: selectedStudentId,
         startAt: startDateTime.toISOString(),
-        endAt: endDateTime.toISOString()
+        endAt: endDateTime.toISOString(),
       };
 
       const res = await authedFetch('/api/lessons', {
