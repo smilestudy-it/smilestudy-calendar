@@ -205,10 +205,8 @@ lessonsApp.post('/', auth, loadUser, async (c) => {
       deletedAt: null,
     });
   } catch (err: unknown) {
-    if (err instanceof Error) {
-      return c.json({ message: err.message }, 500);
-    }
-    return c.json({ message: 'internal server error' }, 500);
+    console.error('create lesson failed', err);
+    return c.json({ message: 'create lesson failed' }, 500);
   }
   return c.json({ success: true, id }, 200);
 });
@@ -244,6 +242,32 @@ lessonsApp.patch('/:id', auth, loadUser, async (c) => {
     return c.json({ message: 'forbidden' }, 403);
   }
 
+  if (input.subjectId) {
+    const [row] = await db
+      .select()
+      .from(subjects)
+      .where(and(eq(subjects.id, input.subjectId), isNull(subjects.deletedAt)))
+      .limit(1);
+    if (!row) {
+      return c.json({ message: 'invalid subject' }, 400);
+    }
+  }
+  if (input.lessonTypeId) {
+    const [row] = await db
+      .select()
+      .from(lessonTypes)
+      .where(
+        and(
+          eq(lessonTypes.id, input.lessonTypeId),
+          isNull(lessonTypes.deletedAt),
+        ),
+      )
+      .limit(1);
+    if (!row) {
+      return c.json({ message: 'invalid lesson type' }, 400);
+    }
+  }
+
   try {
     const res = await db
       .update(lessons)
@@ -253,12 +277,8 @@ lessonsApp.patch('/:id', auth, loadUser, async (c) => {
       return c.json({ message: 'failed to update lesson' }, 500);
     }
   } catch (e: unknown) {
-    let msg = 'patch lesson failed';
-    if (e instanceof Error) {
-      msg = e.message;
-    }
-    console.log(msg);
-    return c.json({ message: msg }, 500);
+    console.error('patch lesson failed', e);
+    return c.json({ message: 'patch lesson failed' }, 500);
   }
   return c.json(
     {
@@ -305,12 +325,8 @@ lessonsApp.delete('/:id', auth, loadUser, async (c) => {
       return c.json({ message: 'failed to delete lesson' }, 500);
     }
   } catch (e: unknown) {
-    let msg = 'delete lesson failed';
-    if (e instanceof Error) {
-      msg = e.message;
-    }
-    console.log(msg);
-    return c.json({ message: msg }, 500);
+    console.error('delete lesson failed', e);
+    return c.json({ message: 'delete lesson failed' }, 500);
   }
   return c.json({ success: true }, 200);
 });
