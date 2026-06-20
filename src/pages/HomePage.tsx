@@ -33,7 +33,7 @@ export default function HomePage({ currentUser }: Props) {
 
         {activeClassroom && (
           <div className="bg-muted text-muted-foreground rounded-md p-4 text-sm">
-              教室を選択しました。左上のメニューから管理画面に移動できます。
+            教室を選択しました。左上のメニューから管理画面に移動できます。
           </div>
         )}
       </section>
