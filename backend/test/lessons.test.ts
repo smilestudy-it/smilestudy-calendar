@@ -782,7 +782,7 @@ describe('lessons api', () => {
       {
         method: 'PATCH',
         headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ status: 'published' }),
+        body: JSON.stringify({ lessonTypeId: null, subjectId: null }),
       },
       env,
     );
@@ -824,7 +824,7 @@ describe('lessons api', () => {
       {
         method: 'PATCH',
         headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ status: 'published' }),
+        body: JSON.stringify({ lessonTypeId: null, subjectId: null }),
       },
       env,
     );

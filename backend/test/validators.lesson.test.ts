@@ -58,16 +58,9 @@ describe('lesson validators', () => {
     expect(r.input?.startAt.getTime()).toBeLessThan(r.input!.endAt.getTime());
   });
 
-  it('validatePatchLessonInput requires at least one field', () => {
-    const r = validatePatchLessonInput({});
+  it('validatePatchLessonInput requires both field', () => {
+    const r = validatePatchLessonInput({ lessonTypeId: null });
     expect(r.input).toBeUndefined();
     expect(r.error).toBeDefined();
-    expect(String(r.error)).toMatch(/at least one field is required/i);
-  });
-
-  it('validatePatchLessonInput accepts partial updates', () => {
-    const r = validatePatchLessonInput({ status: 'published' });
-    expect(r.error).toBeUndefined();
-    expect(r.input?.status).toBe('published');
   });
 });

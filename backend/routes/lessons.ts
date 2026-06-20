@@ -254,8 +254,6 @@ lessonsApp.patch('/:id', auth, loadUser, async (c) => {
   return c.json(
     {
       id: targetId,
-      studentId: input.studentId,
-      teacherId: input.teacherId,
       lessonTypeId: input.lessonTypeId,
       subjectId: input.subjectId,
     },

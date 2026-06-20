@@ -330,44 +330,10 @@ const createLessonSchema = z
     }
   });
 
-const patchLessonSchema = z
-  .object({
-    teacherId: z.string().trim().min(1).optional(),
-    studentId: z.string().trim().min(1).optional(),
-    classroomId: z.string().trim().min(1).optional(),
-    subjectId: z.string().trim().min(1).nullable().optional(),
-    lessonTypeId: z.string().trim().min(1).nullable().optional(),
-    startAt: lessonInstantSchema.optional(),
-    endAt: lessonInstantSchema.optional(),
-    status: lessonStatusSchema.optional(),
-  })
-  .superRefine((data, ctx) => {
-    const hasField =
-      data.teacherId !== undefined ||
-      data.studentId !== undefined ||
-      data.classroomId !== undefined ||
-      data.subjectId !== undefined ||
-      data.lessonTypeId !== undefined ||
-      data.startAt !== undefined ||
-      data.endAt !== undefined ||
-      data.status !== undefined;
-    if (!hasField) {
-      ctx.addIssue({
-        code: 'custom',
-        path: ['teacherId'],
-        message: 'at least one field is required',
-      });
-    }
-    if (data.startAt !== undefined && data.endAt !== undefined) {
-      if (data.startAt.getTime() >= data.endAt.getTime()) {
-        ctx.addIssue({
-          code: 'custom',
-          path: ['endAt'],
-          message: 'end must be after start',
-        });
-      }
-    }
-  });
+const patchLessonSchema = z.object({
+  subjectId: z.string().trim().min(1).nullable(),
+  lessonTypeId: z.string().trim().min(1).nullable(),
+});
 
 type CreateLessonInput = z.infer<typeof createLessonSchema>;
 type PatchLessonInput = z.infer<typeof patchLessonSchema>;
