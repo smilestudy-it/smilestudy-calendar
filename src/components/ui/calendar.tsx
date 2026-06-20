@@ -1,6 +1,6 @@
 import * as React from 'react';
 import {
-  type DayButton,
+  DayButton,
   DayPicker,
   type Locale,
   getDefaultClassNames,
