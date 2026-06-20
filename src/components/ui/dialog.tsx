@@ -1,7 +1,7 @@
 import * as React from 'react';
 
-import { XIcon } from 'lucide-react';
 import * as DialogPrimitive from '@radix-ui/react-dialog';
+import { XIcon } from 'lucide-react';
 
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
@@ -69,6 +69,7 @@ function DialogContent({
         {showCloseButton && (
           <DialogPrimitive.Close data-slot="dialog-close" asChild>
             <Button
+              type="button"
               variant="ghost"
               className="absolute top-2 right-2"
               size="icon-sm"
@@ -113,7 +114,9 @@ function DialogFooter({
       {children}
       {showCloseButton && (
         <DialogPrimitive.Close asChild>
-          <Button variant="outline">Close</Button>
+          <Button type="button" variant="outline">
+            Close
+          </Button>
         </DialogPrimitive.Close>
       )}
     </div>
