@@ -4,7 +4,6 @@
 import { useContext } from 'react';
 
 import { SelectedClassroomContext } from '@/components/AppShell';
-import { Alert, AlertDescription } from '@/components/ui/alert';
 import type { CurrentUser } from '@/types/currentUser';
 
 type Props = {
@@ -33,11 +32,9 @@ export default function HomePage({ currentUser }: Props) {
         </div>
 
         {activeClassroom && (
-          <Alert>
-            <AlertDescription>
+          <div className="bg-muted text-muted-foreground rounded-md p-4 text-sm">
               教室を選択しました。左上のメニューから管理画面に移動できます。
-            </AlertDescription>
-          </Alert>
+          </div>
         )}
       </section>
     );
