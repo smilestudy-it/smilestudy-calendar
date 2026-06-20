@@ -58,9 +58,18 @@ describe('lesson validators', () => {
     expect(r.input?.startAt.getTime()).toBeLessThan(r.input!.endAt.getTime());
   });
 
-  it('validatePatchLessonInput requires both field', () => {
+  it('validatePatchLessonInput requires both fields', () => {
     const r = validatePatchLessonInput({ lessonTypeId: null });
     expect(r.input).toBeUndefined();
     expect(r.error).toBeDefined();
+  });
+
+  it('validatePatchLessonInput accepts nullable subject and lesson type fields', () => {
+    const r = validatePatchLessonInput({
+      subjectId: null,
+      lessonTypeId: null,
+    });
+    expect(r.error).toBeUndefined();
+    expect(r.input).toEqual({ subjectId: null, lessonTypeId: null });
   });
 });
