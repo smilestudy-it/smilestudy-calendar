@@ -226,7 +226,7 @@ export default function AppShell({
               size="icon"
               aria-label={isMenuOpen ? 'メニューを閉じる' : 'メニューを開く'}
               aria-expanded={isMenuOpen}
-              onClick={() => setIsMenuOpen(true)}
+              onClick={() => setIsMenuOpen(!isMenuOpen)}
             >
               <Menu />
             </Button>
