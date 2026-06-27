@@ -88,7 +88,6 @@ app.get('/public/student-lessons', async (c) => {
       and(
         eq(lessons.studentId, studentId),
         isNull(lessons.deletedAt),
-        inArray(lessons.status, ['published', 'completed']),
         lt(lessons.startAt, to),
         gt(lessons.endAt, from),
       ),

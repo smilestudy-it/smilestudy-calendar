@@ -8,6 +8,12 @@ import dayjs from 'dayjs';
 import 'dayjs/locale/ja';
 
 import { Button } from '@/components/ui/button';
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
 import MonthCalendar from '@/components/ui/full-calendar';
 
 dayjs.locale('ja');
@@ -31,6 +37,11 @@ export default function SharedStudentCalendarPage() {
   const [lessons, setLessons] = useState<PublicLesson[]>([]);
   const [listError, setListError] = useState<string | null>(null);
   const [isLoadingMonth, setIsLoadingMonth] = useState(false);
+
+  // 💡 選択されたコマの情報を保持するState
+  const [selectedLesson, setSelectedLesson] = useState<PublicLesson | null>(
+    null,
+  );
 
   const monthStart = useMemo(
     () => dayjs(focusDate).startOf('month'),
@@ -99,6 +110,10 @@ export default function SharedStudentCalendarPage() {
     };
   }, [studentId, monthEndExclusive, monthStart]);
 
+  useEffect(() => {
+    setSelectedLesson(null);
+  }, [studentId]);
+
   const calendarEvents = useMemo(() => {
     return lessons.map((l) => {
       const subLt = [l.subjectName, l.lessonTypeName]
@@ -106,7 +121,7 @@ export default function SharedStudentCalendarPage() {
         .join(' · ');
       return {
         id: l.id,
-        title: `${dayjs(l.startAt).format('HH:mm')}–${dayjs(l.endAt).format('HH:mm')} ${l.teacherDisplay}${
+        title: `${dayjs(l.startAt).format('HH:mm')}${
           subLt ? ` (${subLt})` : ''
         }`,
         start: l.startAt,
@@ -198,9 +213,70 @@ export default function SharedStudentCalendarPage() {
             focusDate={focusDate}
             events={calendarEvents}
             onFocusDateChange={setFocusDate}
+            onEventClick={(event) => {
+              // 💡 イベントがクリックされたら詳細を表示
+              const lesson = lessons.find((l) => l.id === event.id);
+              if (lesson) {
+                setSelectedLesson(lesson);
+              }
+            }}
           />
         )}
       </div>
+
+      {/* 💡 コマの詳細表示用モーダル (閲覧専用) */}
+      <Dialog
+        open={!!selectedLesson}
+        onOpenChange={(open) => !open && setSelectedLesson(null)}
+      >
+        <DialogContent className="max-w-sm sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>授業詳細</DialogTitle>
+          </DialogHeader>
+
+          {selectedLesson && (
+            <div className="space-y-4 pt-4 text-sm">
+              <div className="flex items-center justify-between border-b pb-3">
+                <span className="text-muted-foreground font-semibold">
+                  日時
+                </span>
+                <span className="font-medium">
+                  {dayjs(selectedLesson.startAt).format('M月D日(ddd)')}{' '}
+                  {dayjs(selectedLesson.startAt).format('HH:mm')} -{' '}
+                  {dayjs(selectedLesson.endAt).format('HH:mm')}
+                </span>
+              </div>
+
+              <div className="flex items-center justify-between border-b pb-3">
+                <span className="text-muted-foreground font-semibold">
+                  担当講師
+                </span>
+                <span className="font-medium">
+                  {selectedLesson.teacherDisplay}
+                </span>
+              </div>
+
+              <div className="flex items-center justify-between border-b pb-3">
+                <span className="text-muted-foreground font-semibold">
+                  授業タイプ
+                </span>
+                <span className="font-medium">
+                  {selectedLesson.lessonTypeName || '未設定'}
+                </span>
+              </div>
+
+              <div className="flex items-center justify-between">
+                <span className="text-muted-foreground font-semibold">
+                  科目
+                </span>
+                <span className="font-medium">
+                  {selectedLesson.subjectName || '未設定'}
+                </span>
+              </div>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
     </section>
   );
 }
