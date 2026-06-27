@@ -110,6 +110,10 @@ export default function SharedStudentCalendarPage() {
     };
   }, [studentId, monthEndExclusive, monthStart]);
 
+  useEffect(() => {
+    setSelectedLesson(null);
+  }, [studentId]);
+
   const calendarEvents = useMemo(() => {
     return lessons.map((l) => {
       const subLt = [l.subjectName, l.lessonTypeName]
