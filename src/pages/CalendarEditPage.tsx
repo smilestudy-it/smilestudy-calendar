@@ -202,11 +202,9 @@ export default function CalendarSingleEditPage({
       !currentUser ||
       !dateKey ||
       !selectedSlotId ||
-      !selectedStudentId ||
-      !selectedLessonTypeId ||
-      !selectedSubjectId
+      !selectedStudentId
     ) {
-      setMessage({ text: '必須項目をすべて選択してください。', type: 'error' });
+      setMessage({ text: '時間と生徒を選択してください。', type: 'error' });
       return;
     }
 

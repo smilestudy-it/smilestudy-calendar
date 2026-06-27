@@ -162,7 +162,7 @@ lessonsApp.post('/', auth, loadUser, async (c) => {
     const [row] = await db
       .select()
       .from(subjects)
-      .where(and(eq(subjects.id, input.subjectId), isNull(subjects.deletedAt)))
+      .where(and(eq(subjects.id, input.subjectId), eq(subjects.classroomId, input.classroomId), isNull(subjects.deletedAt)))
       .limit(1);
     if (!row) {
       return c.json({ message: 'invalid subject' }, 400);
@@ -175,6 +175,7 @@ lessonsApp.post('/', auth, loadUser, async (c) => {
       .where(
         and(
           eq(lessonTypes.id, input.lessonTypeId),
+          eq(lessonTypes.classroomId, input.classroomId),
           isNull(lessonTypes.deletedAt),
         ),
       )
