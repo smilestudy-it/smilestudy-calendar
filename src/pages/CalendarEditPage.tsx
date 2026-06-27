@@ -37,6 +37,17 @@ type StudentRow = {
   name: string;
 };
 
+// 💡 授業タイプと科目の型を追加
+type LessonTypeRow = {
+  id: string;
+  name: string;
+};
+
+type SubjectRow = {
+  id: string;
+  name: string;
+};
+
 type Props = {
   currentUser: CurrentUser | null;
   getAccessTokenSilently: () => Promise<string>;
@@ -67,12 +78,16 @@ export default function CalendarSingleEditPage({
   const [month, setMonth] = useState<Date>(new Date());
   const [timeSlots, setTimeSlots] = useState<TimeSlotRow[]>([]);
   const [students, setStudents] = useState<StudentRow[]>([]);
+  const [lessonTypes, setLessonTypes] = useState<LessonTypeRow[]>([]);
+  const [subjects, setSubjects] = useState<SubjectRow[]>([]);
 
-  // 💡 その月の「教室全体の授業データ」を丸ごと保持します
+  // その月の「教室全体の授業データ」を丸ごと保持します
   const [monthLessons, setMonthLessons] = useState<Lesson[]>([]);
 
   const [selectedSlotId, setSelectedSlotId] = useState<string | null>(null);
   const [selectedStudentId, setSelectedStudentId] = useState<string>('');
+  const [selectedLessonTypeId, setSelectedLessonTypeId] = useState<string>('');
+  const [selectedSubjectId, setSelectedSubjectId] = useState<string>('');
 
   const [isLoading, setIsLoading] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
@@ -83,15 +98,19 @@ export default function CalendarSingleEditPage({
 
   const dateKey = date ? format(date, 'yyyy-MM-dd') : null;
 
-  // 1. 初期データ（時間枠と生徒リスト）の取得
+  // 1. 初期データの取得（時間枠、生徒、授業タイプ、科目）
   useEffect(() => {
     if (!activeClassroom) return;
     const fetchData = async () => {
-      const [tsRes, stRes] = await Promise.all([
+      const [tsRes, stRes, ltRes, subRes] = await Promise.all([
         authedFetch(
           `/api/time-slots/${encodeURIComponent(activeClassroom.id)}`,
         ),
         authedFetch(`/api/students/${encodeURIComponent(activeClassroom.id)}`),
+        authedFetch(
+          `/api/lesson-types/${encodeURIComponent(activeClassroom.id)}`,
+        ),
+        authedFetch(`/api/subjects/${encodeURIComponent(activeClassroom.id)}`),
       ]);
 
       if (tsRes.ok) {
@@ -105,6 +124,14 @@ export default function CalendarSingleEditPage({
       if (stRes.ok) {
         const data = (await stRes.json()) as StudentRow[];
         setStudents(data);
+      }
+      if (ltRes.ok) {
+        const data = (await ltRes.json()) as LessonTypeRow[];
+        setLessonTypes(data);
+      }
+      if (subRes.ok) {
+        const data = (await subRes.json()) as SubjectRow[];
+        setSubjects(data);
       }
     };
     void fetchData();
@@ -137,7 +164,7 @@ export default function CalendarSingleEditPage({
     if (timeSlots.length > 0) void fetchMonthShifts();
   }, [fetchMonthShifts, timeSlots.length]);
 
-  // 💡 3. 【重要】講師と生徒の「両方の予定」を計算して塞がっている枠を割り出す
+  // 3. 【重要】講師と生徒の「両方の予定」を計算して塞がっている枠を割り出す
   const unavailableSlotsByDate = useMemo(() => {
     const map: Record<string, Set<string>> = {};
     if (!currentUser || !selectedStudentId) return map;
@@ -175,9 +202,11 @@ export default function CalendarSingleEditPage({
       !currentUser ||
       !dateKey ||
       !selectedSlotId ||
-      !selectedStudentId
+      !selectedStudentId ||
+      !selectedLessonTypeId ||
+      !selectedSubjectId
     ) {
-      setMessage({ text: '時間と生徒を選択してください。', type: 'error' });
+      setMessage({ text: '必須項目をすべて選択してください。', type: 'error' });
       return;
     }
 
@@ -203,10 +232,13 @@ export default function CalendarSingleEditPage({
         throw new Error('日時の形式が不正です');
       }
 
+      // 💡 保存するデータに lessonTypeId と subjectId を追加
       const requestBody = {
         classroomId: activeClassroom.id,
         teacherId: currentUser.id,
         studentId: selectedStudentId,
+        lessonTypeId: selectedLessonTypeId,
+        subjectId: selectedSubjectId,
         startAt: startDateTime.toISOString(),
         endAt: endDateTime.toISOString(),
       };
@@ -222,7 +254,7 @@ export default function CalendarSingleEditPage({
         throw new Error(errorData.message || '保存に失敗しました');
       }
 
-      setMessage({ text: '授業を確定しました！', type: 'success' });
+      setMessage({ text: '授業を登録しました！', type: 'success' });
       setSelectedSlotId(null);
       await fetchMonthShifts(); // 保存後、カレンダーを再計算
     } catch (e: unknown) {
@@ -242,7 +274,7 @@ export default function CalendarSingleEditPage({
     <section className="mx-auto max-w-xl space-y-6 pb-40">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h2 className="text-lg font-semibold md:text-xl">確定コマ登録</h2>
+          <h2 className="text-lg font-semibold md:text-xl">コマ登録</h2>
           <p className="text-muted-foreground text-sm">
             教室: {activeClassroom?.name || '未選択'}
           </p>
@@ -252,20 +284,18 @@ export default function CalendarSingleEditPage({
         </Button>
       </div>
 
-      {!activeClassroom ? (
-        <p className="text-sm text-amber-700">教室を選択してください。</p>
-      ) : isLoading && timeSlots.length === 0 ? (
+      {isLoading && timeSlots.length === 0 ? (
         <p className="text-muted-foreground text-sm">読み込み中...</p>
       ) : (
         <>
-          {/* 🌟 1. 生徒選択エリアを最上部に移動 */}
+          {/* 1. 生徒選択エリア */}
           <Card className="border-primary/20 bg-primary/5 shadow-sm">
             <CardContent className="space-y-2 p-4">
               <label className="text-primary text-sm font-bold">
                 1. 生徒を選択してください
               </label>
               <Select
-                value={selectedStudentId}
+                value={selectedStudentId || undefined}
                 onValueChange={setSelectedStudentId}
               >
                 <SelectTrigger>
@@ -289,7 +319,7 @@ export default function CalendarSingleEditPage({
             </p>
           ) : (
             <>
-              {/* 🌟 2. カレンダーエリア */}
+              {/* 2. カレンダーエリア */}
               <Card className="shadow-sm">
                 <CardContent className="flex justify-center p-3">
                   <Calendar
@@ -372,7 +402,7 @@ export default function CalendarSingleEditPage({
                 </CardContent>
               </Card>
 
-              {/* 🌟 3. 時間帯選択エリア */}
+              {/* 3. 時間帯選択エリア */}
               {date && (
                 <Card className="animate-in fade-in slide-in-from-bottom-4 border-primary/20 shadow-md duration-300">
                   <CardHeader className="border-b pb-3">
@@ -418,7 +448,50 @@ export default function CalendarSingleEditPage({
                     </div>
 
                     {selectedSlotId && (
-                      <div className="animate-in fade-in slide-in-from-top-2 mt-4 space-y-4 duration-200">
+                      <div className="animate-in fade-in slide-in-from-top-2 bg-muted/30 mt-4 space-y-5 rounded-lg border p-4 duration-200">
+                        {/* 🌟 4. 授業タイプと科目の選択エリア */}
+                        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                          <div className="space-y-2">
+                            <label className="text-sm font-bold">
+                              授業種別
+                            </label>
+                            <Select
+                              value={selectedLessonTypeId || undefined}
+                              onValueChange={setSelectedLessonTypeId}
+                            >
+                              <SelectTrigger className="bg-background">
+                                <SelectValue placeholder="--- 選択 ---" />
+                              </SelectTrigger>
+                              <SelectContent>
+                                {lessonTypes.map((lt) => (
+                                  <SelectItem key={lt.id} value={lt.id}>
+                                    {lt.name}
+                                  </SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                          </div>
+
+                          <div className="space-y-2">
+                            <label className="text-sm font-bold">科目</label>
+                            <Select
+                              value={selectedSubjectId || undefined}
+                              onValueChange={setSelectedSubjectId}
+                            >
+                              <SelectTrigger className="bg-background">
+                                <SelectValue placeholder="--- 選択 ---" />
+                              </SelectTrigger>
+                              <SelectContent>
+                                {subjects.map((sub) => (
+                                  <SelectItem key={sub.id} value={sub.id}>
+                                    {sub.name}
+                                  </SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                          </div>
+                        </div>
+
                         {message && (
                           <p
                             className={cn(
@@ -432,11 +505,11 @@ export default function CalendarSingleEditPage({
                           </p>
                         )}
                         <Button
-                          className="h-12 w-full text-lg"
+                          className="h-12 w-full text-lg shadow-sm"
                           onClick={handleSave}
                           disabled={isSaving}
                         >
-                          {isSaving ? '登録中...' : 'このコマを確定する'}
+                          {isSaving ? '登録中...' : 'このコマを登録する'}
                         </Button>
                       </div>
                     )}

@@ -139,13 +139,7 @@ lessonsApp.post('/', auth, loadUser, async (c) => {
   const [teacher] = await db
     .select()
     .from(users)
-    .where(
-      and(
-        eq(users.id, input.teacherId),
-        eq(users.classroomId, input.classroomId),
-        isNull(users.deletedAt),
-      ),
-    )
+    .where(and(eq(users.id, input.teacherId), isNull(users.deletedAt)))
     .limit(1);
   if (!teacher) {
     return c.json({ message: 'teacher not found' }, 404);
