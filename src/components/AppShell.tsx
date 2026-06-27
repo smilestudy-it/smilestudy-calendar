@@ -86,7 +86,7 @@ export default function AppShell({
   const [classroomsError, setClassroomsError] = useState<string | null>(null);
   const authedFetch = useAuthedFetch(getAccessTokenSilently);
   const isAdmin = currentUser?.role === 'admin';
-  const loadAdminClassroomsSeqRef = useRef(0);
+  const loadClassroomsSeqRef = useRef(0);
 
   const activeClassroom: Classroom | undefined = useMemo(() => {
     if (isAdmin) {
@@ -95,17 +95,17 @@ export default function AppShell({
     return classrooms.find((v: Classroom) => v.id === currentUser?.classroomId);
   }, [isAdmin, selectedClassroomId, currentUser?.classroomId, classrooms]);
 
-  type LoadAdminClassroomsMode = 'initial' | 'sync';
+  type loadClassroomsMode = 'initial' | 'sync';
 
-  const loadAdminClassrooms = useCallback(
-    async (mode: LoadAdminClassroomsMode, cancelled?: { current: boolean }) => {
-      if (!isAdmin || !currentUser) {
+  const loadClassrooms = useCallback(
+    async (mode: loadClassroomsMode, cancelled?: { current: boolean }) => {
+      if (!currentUser) {
         return;
       }
 
-      const requestId = ++loadAdminClassroomsSeqRef.current;
+      const requestId = ++loadClassroomsSeqRef.current;
       const shouldApply = () =>
-        requestId === loadAdminClassroomsSeqRef.current && !cancelled?.current;
+        requestId === loadClassroomsSeqRef.current && !cancelled?.current;
 
       setIsLoadingClassrooms(true);
       setClassroomsError(null);
@@ -143,25 +143,25 @@ export default function AppShell({
         }
       }
     },
-    [authedFetch, currentUser, isAdmin],
+    [authedFetch, currentUser],
   );
 
   const refreshClassrooms = useCallback(async () => {
-    await loadAdminClassrooms('sync');
-  }, [loadAdminClassrooms]);
+    await loadClassrooms('sync');
+  }, [loadClassrooms]);
 
   useEffect(() => {
-    if (!isAdmin || !currentUser) {
+    if (!currentUser) {
       return;
     }
 
     const cancelled = { current: false };
-    void loadAdminClassrooms('initial', cancelled);
+    void loadClassrooms('initial', cancelled);
 
     return () => {
       cancelled.current = true;
     };
-  }, [loadAdminClassrooms, isAdmin, currentUser]);
+  }, [loadClassrooms, currentUser]);
 
   type MenuItem = {
     label: string;

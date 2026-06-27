@@ -50,14 +50,28 @@ classroomsApp.post('/', auth, loadUser, requireAdmin, async (c) => {
   return c.json({ id, name: input.name }, 201);
 });
 
-classroomsApp.get('', auth, loadUser, requireAdmin, async (c) => {
+classroomsApp.get('', auth, loadUser, async (c) => {
+  const user = c.var.currentUser;
   const db = getDb(c.env);
 
-  const rows = await db
-    .select({ id: classrooms.id, name: classrooms.name })
-    .from(classrooms)
-    .where(isNull(classrooms.deletedAt));
-  return c.json(rows, 200);
+  if (user.role === 'admin') {
+    const rows = await db
+      .select({ id: classrooms.id, name: classrooms.name })
+      .from(classrooms)
+      .where(isNull(classrooms.deletedAt));
+    return c.json(rows, 200);
+  } else {
+    if (!user.classroomId) {
+      return c.json({ message: 'classroom not found' }, 404);
+    }
+    const rows = await db
+      .select({ id: classrooms.id, name: classrooms.name })
+      .from(classrooms)
+      .where(
+        and(eq(classrooms.id, user.classroomId), isNull(classrooms.deletedAt)),
+      );
+    return c.json(rows, 200);
+  }
 });
 
 classroomsApp.delete('/:id', auth, loadUser, requireAdmin, async (c) => {

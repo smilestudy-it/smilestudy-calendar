@@ -139,13 +139,7 @@ lessonsApp.post('/', auth, loadUser, async (c) => {
   const [teacher] = await db
     .select()
     .from(users)
-    .where(
-      and(
-        eq(users.id, input.teacherId),
-        eq(users.classroomId, input.classroomId),
-        isNull(users.deletedAt),
-      ),
-    )
+    .where(and(eq(users.id, input.teacherId), isNull(users.deletedAt)))
     .limit(1);
   if (!teacher) {
     return c.json({ message: 'teacher not found' }, 404);
@@ -168,7 +162,7 @@ lessonsApp.post('/', auth, loadUser, async (c) => {
     const [row] = await db
       .select()
       .from(subjects)
-      .where(and(eq(subjects.id, input.subjectId), isNull(subjects.deletedAt)))
+      .where(and(eq(subjects.id, input.subjectId), eq(subjects.classroomId, input.classroomId), isNull(subjects.deletedAt)))
       .limit(1);
     if (!row) {
       return c.json({ message: 'invalid subject' }, 400);
@@ -181,6 +175,7 @@ lessonsApp.post('/', auth, loadUser, async (c) => {
       .where(
         and(
           eq(lessonTypes.id, input.lessonTypeId),
+          eq(lessonTypes.classroomId, input.classroomId),
           isNull(lessonTypes.deletedAt),
         ),
       )
