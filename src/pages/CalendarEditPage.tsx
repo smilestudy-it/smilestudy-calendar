@@ -329,7 +329,8 @@ export default function CalendarSingleEditPage({
                     className="w-full"
                     classNames={
                       {
-                        cell: 'h-14 w-12 text-center text-sm p-0 relative focus-within:relative focus-within:z-20',
+                        day: 'relative h-14 w-12 flex-1 p-0 text-center text-sm',
+                        week: 'mt-2 flex w-full'
                       } as Partial<ClassNames>
                     }
                     components={{
@@ -365,12 +366,12 @@ export default function CalendarSingleEditPage({
                             className={cn(
                               'relative flex h-full w-full flex-col items-center justify-start rounded-md pt-2 transition-colors',
                               modifiers.selected &&
-                                'bg-primary text-primary-foreground hover:bg-primary hover:text-primary-foreground',
+                              'bg-primary text-primary-foreground hover:bg-primary hover:text-primary-foreground',
                               modifiers.outside &&
-                                'text-muted-foreground opacity-50',
+                              'text-muted-foreground opacity-50',
                               !modifiers.selected &&
-                                !modifiers.outside &&
-                                'hover:bg-accent hover:text-accent-foreground',
+                              !modifiers.outside &&
+                              'hover:bg-accent hover:text-accent-foreground',
                             )}
                           >
                             <span className="text-sm font-medium">
@@ -425,7 +426,7 @@ export default function CalendarSingleEditPage({
                               'flex h-auto flex-col py-3',
                               isSelected && 'ring-primary ring-2 ring-offset-1',
                               isUnavailable &&
-                                'bg-muted cursor-not-allowed opacity-50',
+                              'bg-muted cursor-not-allowed opacity-50',
                             )}
                             onClick={() =>
                               !isUnavailable && setSelectedSlotId(slot.id)
