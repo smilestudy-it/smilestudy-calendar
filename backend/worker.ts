@@ -7,7 +7,7 @@ import { Hono } from 'hono';
 
 import { getDb } from './db';
 import { lessonTypes, lessons, subjects, users } from './db/schema';
-import { lessonTeacherDisplay } from './lessonDisplay';
+import { lessonPresetDisplay, lessonTeacherDisplay } from './lessonDisplay';
 import { getActiveStudentAndClassroom } from './lib/studentRead';
 import { validateLessonRangeQuery } from './lib/validators';
 import { auth } from './middleware/honoStack';
@@ -81,7 +81,6 @@ app.get('/public/student-lessons', async (c) => {
       lessonTypeId: lessons.lessonTypeId,
       startAt: lessons.startAt,
       endAt: lessons.endAt,
-      status: lessons.status,
     })
     .from(lessons)
     .where(
@@ -112,52 +111,52 @@ app.get('/public/student-lessons', async (c) => {
     teacherById.has(row.teacherId),
   );
 
-  const subjectIds = [
-    ...new Set(
-      visibleLessons
-        .map((r) => r.subjectId)
-        .filter((x): x is string => x != null),
-    ),
-  ];
-  const lessonTypeIds = [
-    ...new Set(
-      visibleLessons
-        .map((r) => r.lessonTypeId)
-        .filter((x): x is string => x != null),
-    ),
-  ];
+  const subjectIds = [...new Set(visibleLessons.map((r) => r.subjectId))];
+  const lessonTypeIds = [...new Set(visibleLessons.map((r) => r.lessonTypeId))];
 
-  const subjectById = new Map<string, string>();
+  const subjectById = new Map<
+    string,
+    { name: string; deletedAt: Date | null }
+  >();
   if (subjectIds.length > 0) {
     const subRows = await db
-      .select({ id: subjects.id, name: subjects.name })
+      .select({
+        id: subjects.id,
+        name: subjects.name,
+        deletedAt: subjects.deletedAt,
+      })
       .from(subjects)
       .where(
         and(
           inArray(subjects.id, subjectIds),
           eq(subjects.classroomId, studentRow.classroomId),
-          isNull(subjects.deletedAt),
         ),
       );
     for (const s of subRows) {
-      subjectById.set(s.id, s.name);
+      subjectById.set(s.id, { name: s.name, deletedAt: s.deletedAt });
     }
   }
 
-  const lessonTypeById = new Map<string, string>();
+  const lessonTypeById = new Map<
+    string,
+    { name: string; deletedAt: Date | null }
+  >();
   if (lessonTypeIds.length > 0) {
     const ltRows = await db
-      .select({ id: lessonTypes.id, name: lessonTypes.name })
+      .select({
+        id: lessonTypes.id,
+        name: lessonTypes.name,
+        deletedAt: lessonTypes.deletedAt,
+      })
       .from(lessonTypes)
       .where(
         and(
           inArray(lessonTypes.id, lessonTypeIds),
           eq(lessonTypes.classroomId, studentRow.classroomId),
-          isNull(lessonTypes.deletedAt),
         ),
       );
     for (const lt of ltRows) {
-      lessonTypeById.set(lt.id, lt.name);
+      lessonTypeById.set(lt.id, { name: lt.name, deletedAt: lt.deletedAt });
     }
   }
 
@@ -165,15 +164,10 @@ app.get('/public/student-lessons', async (c) => {
     id: row.id,
     startAt: row.startAt.toISOString(),
     endAt: row.endAt.toISOString(),
-    status: row.status,
     teacherDisplay: lessonTeacherDisplay(teacherById.get(row.teacherId)),
     teacherColor: teacherById.get(row.teacherId)?.color ?? null,
-    subjectName: row.subjectId
-      ? (subjectById.get(row.subjectId) ?? null)
-      : null,
-    lessonTypeName: row.lessonTypeId
-      ? (lessonTypeById.get(row.lessonTypeId) ?? null)
-      : null,
+    subjectName: lessonPresetDisplay(subjectById.get(row.subjectId)),
+    lessonTypeName: lessonPresetDisplay(lessonTypeById.get(row.lessonTypeId)),
   }));
 
   return c.json({ studentName: studentRow.name, lessons: rows }, 200);

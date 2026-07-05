@@ -22,11 +22,10 @@ type PublicLesson = {
   id: string;
   startAt: string;
   endAt: string;
-  status: string;
   teacherDisplay: string;
   teacherColor: string | null;
-  subjectName: string | null;
-  lessonTypeName: string | null;
+  subjectName: string;
+  lessonTypeName: string;
 };
 
 export default function SharedStudentCalendarPage() {
@@ -117,7 +116,7 @@ export default function SharedStudentCalendarPage() {
   const calendarEvents = useMemo(() => {
     return lessons.map((l) => {
       const subLt = [l.subjectName, l.lessonTypeName]
-        .filter(Boolean)
+        .filter((name) => name !== '（不明）')
         .join(' · ');
       return {
         id: l.id,
@@ -261,7 +260,7 @@ export default function SharedStudentCalendarPage() {
                   授業タイプ
                 </span>
                 <span className="font-medium">
-                  {selectedLesson.lessonTypeName || '未設定'}
+                  {selectedLesson.lessonTypeName}
                 </span>
               </div>
 
@@ -270,7 +269,7 @@ export default function SharedStudentCalendarPage() {
                   科目
                 </span>
                 <span className="font-medium">
-                  {selectedLesson.subjectName || '未設定'}
+                  {selectedLesson.subjectName}
                 </span>
               </div>
             </div>

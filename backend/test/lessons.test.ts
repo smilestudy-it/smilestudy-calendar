@@ -4,7 +4,14 @@
 import { Column, SQL, StringChunk, is } from 'drizzle-orm';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { classrooms, lessons, students, users } from '../db/schema';
+import {
+  classrooms,
+  lessonTypes,
+  lessons,
+  students,
+  subjects,
+  users,
+} from '../db/schema';
 import { app } from '../worker';
 
 type LessonRow = {
@@ -12,11 +19,10 @@ type LessonRow = {
   teacherId: string;
   studentId: string;
   classroomId: string;
-  subjectId: string | null;
-  lessonTypeId: string | null;
+  subjectId: string;
+  lessonTypeId: string;
   startAt: Date;
   endAt: Date;
-  status: string;
   deletedAt: Date | null;
 };
 
@@ -35,6 +41,53 @@ type StudentRow = {
   deletedAt: Date | null;
   name?: string | null;
 };
+
+type PresetRow = {
+  id: string;
+  classroomId: string;
+  name: string;
+  deletedAt: Date | null;
+};
+
+function walkPredicateStrings(predicate: unknown): string[] {
+  const strings: string[] = [];
+  const visited = new Set<object>();
+  const stack: unknown[] = [predicate];
+  while (stack.length > 0) {
+    const current = stack.pop();
+    if (!current || typeof current !== 'object') {
+      continue;
+    }
+    if (visited.has(current)) {
+      continue;
+    }
+    visited.add(current);
+    const v = (current as { value?: unknown }).value;
+    if (typeof v === 'string') {
+      strings.push(v);
+    }
+    for (const x of Object.values(current)) {
+      stack.push(x);
+    }
+  }
+  return strings;
+}
+
+function filterPresetRowsByPredicate(
+  rows: PresetRow[],
+  predicate: unknown,
+  classroomIds: string[],
+): PresetRow[] {
+  const strings = walkPredicateStrings(predicate);
+  const classroomId = strings.find((s) => classroomIds.includes(s));
+  if (!classroomId) {
+    return [];
+  }
+  const ids = strings.filter((s) => rows.some((r) => r.id === s));
+  return rows.filter(
+    (r) => ids.includes(r.id) && r.classroomId === classroomId,
+  );
+}
 
 function overlaps(aStart: Date, aEnd: Date, bStart: Date, bEnd: Date): boolean {
   return aStart < bEnd && bStart < aEnd;
@@ -143,6 +196,8 @@ const state: {
   classrooms: Array<{ id: string; deletedAt: Date | null }>;
   users: UserRow[];
   students: StudentRow[];
+  subjectRows: PresetRow[];
+  lessonTypeRows: PresetRow[];
   lessonRows: LessonRow[];
   expectPostLessonTx: boolean;
   expectPatchLessonTx: boolean;
@@ -169,6 +224,8 @@ const state: {
   classrooms: [],
   users: [],
   students: [],
+  subjectRows: [],
+  lessonTypeRows: [],
   lessonRows: [],
   expectPostLessonTx: false,
   expectPatchLessonTx: false,
@@ -444,7 +501,6 @@ vi.mock('../db', () => {
                     lessonTypeId: r.lessonTypeId,
                     startAt: r.startAt,
                     endAt: r.endAt,
-                    status: r.status,
                   })),
             };
           }
@@ -556,6 +612,56 @@ vi.mock('../db', () => {
           };
         }
 
+        if (table === subjects) {
+          const keys = Object.keys(selection ?? {});
+          if (
+            keys.includes('id') &&
+            keys.includes('name') &&
+            keys.includes('deletedAt')
+          ) {
+            return {
+              where: async (predicate: unknown) => {
+                const classroomIds = state.classrooms.map((c) => c.id);
+                return filterPresetRowsByPredicate(
+                  state.subjectRows,
+                  predicate,
+                  classroomIds,
+                ).map((s) => ({
+                  id: s.id,
+                  name: s.name,
+                  deletedAt: s.deletedAt,
+                }));
+              },
+            };
+          }
+          return { where: () => ({ limit: async () => [] }) };
+        }
+
+        if (table === lessonTypes) {
+          const keys = Object.keys(selection ?? {});
+          if (
+            keys.includes('id') &&
+            keys.includes('name') &&
+            keys.includes('deletedAt')
+          ) {
+            return {
+              where: async (predicate: unknown) => {
+                const classroomIds = state.classrooms.map((c) => c.id);
+                return filterPresetRowsByPredicate(
+                  state.lessonTypeRows,
+                  predicate,
+                  classroomIds,
+                ).map((lt) => ({
+                  id: lt.id,
+                  name: lt.name,
+                  deletedAt: lt.deletedAt,
+                }));
+              },
+            };
+          }
+          return { where: () => ({ limit: async () => [] }) };
+        }
+
         return { where: () => ({ limit: async () => [] }) };
       },
     }),
@@ -604,9 +710,6 @@ vi.mock('../db', () => {
           }
           if (patch.endAt !== undefined) {
             row.endAt = patch.endAt;
-          }
-          if (patch.status !== undefined) {
-            row.status = patch.status;
           }
           return { meta: { changes: 1 } };
         },
@@ -684,6 +787,22 @@ describe('lessons api', () => {
       },
     ];
     state.lessonRows = [];
+    state.subjectRows = [
+      {
+        id: 'subject-1',
+        classroomId: 'room-1',
+        name: '英語',
+        deletedAt: null,
+      },
+    ];
+    state.lessonTypeRows = [
+      {
+        id: 'lessonTypeId-1',
+        classroomId: 'room-1',
+        name: '通常',
+        deletedAt: null,
+      },
+    ];
     state.expectPostLessonTx = false;
     state.expectPatchLessonTx = false;
     state.lessonTxLimitIndex = 0;
@@ -711,11 +830,10 @@ describe('lessons api', () => {
       teacherId: 'teacher-1',
       studentId: 'student-1',
       classroomId: 'room-1',
-      subjectId: null,
-      lessonTypeId: null,
+      subjectId: 'subject-1',
+      lessonTypeId: 'lessonTypeId-1',
       startAt: t1,
       endAt: t2,
-      status: 'draft',
       deletedAt: null,
     });
     const res = await app.request(
@@ -728,11 +846,85 @@ describe('lessons api', () => {
       id: string;
       teacherDisplay: string;
       studentDisplay: string;
+      subjectDisplay: string;
+      lessonTypeDisplay: string;
     }>;
     expect(rows.some((r) => r.id === 'L1')).toBe(true);
     const row = rows.find((r) => r.id === 'L1');
     expect(row?.teacherDisplay).toContain('山田');
     expect(row?.studentDisplay).toBe('生徒A');
+    expect(row?.subjectDisplay).toBe('英語');
+    expect(row?.lessonTypeDisplay).toBe('通常');
+  });
+
+  it('GET /classrooms/:id/lessons marks deleted preset names in display', async () => {
+    state.subjectRows[0] = {
+      id: 'subject-1',
+      classroomId: 'room-1',
+      name: '英語',
+      deletedAt: new Date('2025-05-01T00:00:00.000Z'),
+    };
+    state.lessonRows.push({
+      id: 'L-deleted-subject',
+      teacherId: 'teacher-1',
+      studentId: 'student-1',
+      classroomId: 'room-1',
+      subjectId: 'subject-1',
+      lessonTypeId: 'lessonTypeId-1',
+      startAt: t1,
+      endAt: t2,
+      deletedAt: null,
+    });
+    const res = await app.request(
+      '/api/lessons/room-1?from=2025-06-01T00:00:00.000Z&to=2025-07-01T00:00:00.000Z',
+      { method: 'GET' },
+      env,
+    );
+    expect(res.status).toBe(200);
+    const rows = (await res.json()) as Array<{ subjectDisplay: string }>;
+    expect(rows[0]?.subjectDisplay).toBe('（削除済み）');
+  });
+
+  it('GET /classrooms/:id/lessons excludes presets scoped to other classrooms', async () => {
+    state.classrooms = [
+      { id: 'room-1', deletedAt: null },
+      { id: 'room-2', deletedAt: null },
+    ];
+    state.subjectRows[0] = {
+      id: 'subject-1',
+      classroomId: 'room-2',
+      name: '英語',
+      deletedAt: null,
+    };
+    state.lessonTypeRows[0] = {
+      id: 'lessonTypeId-1',
+      classroomId: 'room-2',
+      name: '通常',
+      deletedAt: null,
+    };
+    state.lessonRows.push({
+      id: 'L-other-room-preset',
+      teacherId: 'teacher-1',
+      studentId: 'student-1',
+      classroomId: 'room-1',
+      subjectId: 'subject-1',
+      lessonTypeId: 'lessonTypeId-1',
+      startAt: t1,
+      endAt: t2,
+      deletedAt: null,
+    });
+    const res = await app.request(
+      '/api/lessons/room-1?from=2025-06-01T00:00:00.000Z&to=2025-07-01T00:00:00.000Z',
+      { method: 'GET' },
+      env,
+    );
+    expect(res.status).toBe(200);
+    const rows = (await res.json()) as Array<{
+      subjectDisplay: string;
+      lessonTypeDisplay: string;
+    }>;
+    expect(rows[0]?.subjectDisplay).toBe('（不明）');
+    expect(rows[0]?.lessonTypeDisplay).toBe('（不明）');
   });
 
   it('GET /classrooms/:id/lessons marks soft-deleted teacher in display', async () => {
@@ -745,11 +937,10 @@ describe('lessons api', () => {
       teacherId: 'teacher-1',
       studentId: 'student-1',
       classroomId: 'room-1',
-      subjectId: null,
-      lessonTypeId: null,
+      subjectId: 'subject-1',
+      lessonTypeId: 'lessonType-1',
       startAt: t1,
       endAt: t2,
-      status: 'draft',
       deletedAt: null,
     });
     const res = await app.request(
@@ -759,7 +950,7 @@ describe('lessons api', () => {
     );
     expect(res.status).toBe(200);
     const rows = (await res.json()) as Array<{ teacherDisplay: string }>;
-    expect(rows[0]?.teacherDisplay).toContain('削除済み');
+    expect(rows[0]?.teacherDisplay).toBe('（削除済み）');
   });
 
   it('PATCH /lessons returns 403 when staff updates another teacher lesson', async () => {
@@ -770,11 +961,10 @@ describe('lessons api', () => {
       teacherId: 'teacher-2',
       studentId: 'student-1',
       classroomId: 'room-1',
-      subjectId: null,
-      lessonTypeId: null,
+      subjectId: 'subject-1',
+      lessonTypeId: 'lessonType-1',
       startAt: t1,
       endAt: t2,
-      status: 'draft',
       deletedAt: null,
     });
     const res = await app.request(
@@ -782,7 +972,10 @@ describe('lessons api', () => {
       {
         method: 'PATCH',
         headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ lessonTypeId: null, subjectId: null }),
+        body: JSON.stringify({
+          lessonTypeId: 'lessonType-1',
+          subjectId: 'subject-1',
+        }),
       },
       env,
     );
@@ -812,11 +1005,10 @@ describe('lessons api', () => {
       teacherId: 'teacher-remote',
       studentId: 'student-1',
       classroomId: 'room-2',
-      subjectId: null,
-      lessonTypeId: null,
+      subjectId: 'subject-1',
+      lessonTypeId: 'lessonType-1',
       startAt: t1,
       endAt: t2,
-      status: 'draft',
       deletedAt: null,
     });
     const res = await app.request(
@@ -824,7 +1016,10 @@ describe('lessons api', () => {
       {
         method: 'PATCH',
         headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ lessonTypeId: null, subjectId: null }),
+        body: JSON.stringify({
+          lessonTypeId: 'lessonType-1',
+          subjectId: 'subject-1',
+        }),
       },
       env,
     );

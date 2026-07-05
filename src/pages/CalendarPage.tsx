@@ -24,13 +24,14 @@ type LessonApi = {
   teacherId: string;
   studentId: string;
   classroomId: string;
-  subjectId: string | null;
-  lessonTypeId: string | null;
+  subjectId: string;
+  lessonTypeId: string;
   startAt: string;
   endAt: string;
-  status: string;
   teacherDisplay: string;
   studentDisplay: string;
+  subjectDisplay: string;
+  lessonTypeDisplay: string;
 };
 
 type TeacherRow = {
@@ -40,7 +41,6 @@ type TeacherRow = {
   color: string | null;
 };
 
-type StudentRow = { id: string; name: string };
 type PresetRow = { id: string; name: string };
 
 type Props = {
@@ -52,27 +52,13 @@ function toMapById<T extends { id: string }>(rows: T[]) {
   return new Map(rows.map((row) => [row.id, row]));
 }
 
-function toNameMap(rows: PresetRow[]) {
-  return new Map(rows.map((row) => [row.id, row.name]));
-}
-
-function buildModalEventTitle(
-  lesson: LessonApi,
-  teacher?: TeacherRow,
-  student?: StudentRow,
-  subjectName?: string,
-  lessonTypeName?: string,
-) {
-  const teacherName =
-    lesson.teacherDisplay ||
-    `${teacher?.lastName ?? ''} ${teacher?.firstName ?? ''}`.trim() ||
-    lesson.teacherId;
-  const studentName =
-    lesson.studentDisplay || student?.name || lesson.studentId;
-  const detailText = [subjectName, lessonTypeName].filter(Boolean).join('・');
+function buildModalEventTitle(lesson: LessonApi) {
+  const detailText = [lesson.subjectDisplay, lesson.lessonTypeDisplay]
+    .filter((label) => label !== '（不明）')
+    .join('・');
   return detailText
-    ? `${teacherName} - ${studentName} (${detailText})`
-    : `${teacherName} - ${studentName}`;
+    ? `${lesson.teacherDisplay} - ${lesson.studentDisplay} (${detailText})`
+    : `${lesson.teacherDisplay} - ${lesson.studentDisplay}`;
 }
 
 export default function CalendarPage({
@@ -83,7 +69,6 @@ export default function CalendarPage({
   const [focusDate, setFocusDate] = useState(() => new Date());
   const [lessons, setLessons] = useState<LessonApi[]>([]);
   const [teachers, setTeachers] = useState<TeacherRow[]>([]);
-  const [students, setStudents] = useState<StudentRow[]>([]);
   const [subjects, setSubjects] = useState<PresetRow[]>([]);
   const [lessonTypes, setLessonTypes] = useState<PresetRow[]>([]);
   const [listError, setListError] = useState<string | null>(null);
@@ -125,17 +110,13 @@ export default function CalendarPage({
       try {
         const qs = new URLSearchParams({ from: monthFromIso, to: monthToIso });
         const userQs = new URLSearchParams({ includeAdmins: '1' });
-        const [lRes, uRes, sRes, subRes, ltRes] = await Promise.all([
+        const [lRes, uRes, subRes, ltRes] = await Promise.all([
           authedFetch(
             `/api/lessons/${encodeURIComponent(activeClassroom.id)}?${qs}`,
             { signal },
           ),
           authedFetch(
             `/api/users/${encodeURIComponent(activeClassroom.id)}?${userQs}`,
-            { signal },
-          ),
-          authedFetch(
-            `/api/students/${encodeURIComponent(activeClassroom.id)}`,
             { signal },
           ),
           authedFetch(
@@ -153,13 +134,10 @@ export default function CalendarPage({
           return;
         }
 
-        const [lessonsJson, uJson, sJson, subJson, ltJson] = await Promise.all([
+        const [lessonsJson, uJson, subJson, ltJson] = await Promise.all([
           lRes.json() as Promise<LessonApi[]>,
           uRes.ok
             ? (uRes.json() as Promise<TeacherRow[]>)
-            : Promise.resolve(null),
-          sRes.ok
-            ? (sRes.json() as Promise<StudentRow[]>)
             : Promise.resolve(null),
           subRes.ok
             ? (subRes.json() as Promise<PresetRow[]>)
@@ -171,7 +149,6 @@ export default function CalendarPage({
 
         setLessons(lessonsJson);
         setTeachers(uJson ?? []);
-        setStudents(sJson ?? []);
         setSubjects(subJson ?? []);
         setLessonTypes(ltJson ?? []);
       } catch (error: unknown) {
@@ -192,9 +169,6 @@ export default function CalendarPage({
   }, [fetchMonthData]);
 
   const teacherById = useMemo(() => toMapById(teachers), [teachers]);
-  const studentById = useMemo(() => toMapById(students), [students]);
-  const subjectById = useMemo(() => toNameMap(subjects), [subjects]);
-  const lessonTypeById = useMemo(() => toNameMap(lessonTypes), [lessonTypes]);
 
   const calendarEvents = useMemo(() => {
     return lessons.map((l) => {
@@ -361,28 +335,15 @@ export default function CalendarPage({
                 const lesson = lessons.find((l) => l.id === event.id);
                 if (!lesson) return;
 
-                const teacher = teacherById.get(lesson.teacherId);
-                const student = studentById.get(lesson.studentId);
-                const subjectName = lesson.subjectId
-                  ? subjectById.get(lesson.subjectId)
-                  : undefined;
-                const lessonTypeName = lesson.lessonTypeId
-                  ? lessonTypeById.get(lesson.lessonTypeId)
-                  : undefined;
-
                 setSelectedEvent({
                   id: lesson.id,
-                  title: buildModalEventTitle(
-                    lesson,
-                    teacher,
-                    student,
-                    subjectName,
-                    lessonTypeName,
-                  ),
+                  title: buildModalEventTitle(lesson),
                   start: new Date(lesson.startAt),
                   end: new Date(lesson.endAt),
                   subjectId: lesson.subjectId,
                   lessonTypeId: lesson.lessonTypeId,
+                  subjectDisplay: lesson.subjectDisplay,
+                  lessonTypeDisplay: lesson.lessonTypeDisplay,
                 });
                 setPanelError(null); // 開くたびにエラーをリセット
               }}

@@ -18,7 +18,7 @@ export function lessonTeacherDisplay(
   }
   const name = `${row.lastName ?? ''} ${row.firstName ?? ''}`.trim();
   if (row.deletedAt != null) {
-    return name ? `${name}（削除済み）` : '（削除済み）';
+    return '（削除済み）';
   }
   return name || '（不明）';
 }
@@ -31,8 +31,21 @@ export function lessonStudentDisplay(
   }
   const name = (row.name ?? '').trim();
   if (row.deletedAt != null) {
-    return name ? `${name}（削除済み）` : '（削除済み）';
+    return '（削除済み）';
   }
+  return name || '（不明）';
+}
+
+export function lessonPresetDisplay(
+  row: { name: string | null; deletedAt: Date | null } | null | undefined,
+): string {
+  if (!row) {
+    return '（不明）';
+  }
+  if (row.deletedAt != null) {
+    return '（削除済み）';
+  }
+  const name = (row.name ?? '').trim();
   return name || '（不明）';
 }
 

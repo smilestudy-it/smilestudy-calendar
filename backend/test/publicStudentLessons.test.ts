@@ -25,11 +25,10 @@ type LessonRow = {
   teacherId: string;
   studentId: string;
   classroomId: string;
-  subjectId: string | null;
-  lessonTypeId: string | null;
+  subjectId: string;
+  lessonTypeId: string;
   startAt: Date;
   endAt: Date;
-  status: string;
   deletedAt: Date | null;
 };
 type UserRow = {
@@ -177,7 +176,6 @@ vi.mock('../db', () => {
                     (r) =>
                       r.studentId === studentId &&
                       r.deletedAt === null &&
-                      (r.status === 'published' || r.status === 'completed') &&
                       r.startAt < to &&
                       r.endAt > from,
                   )
@@ -190,7 +188,6 @@ vi.mock('../db', () => {
                     lessonTypeId: r.lessonTypeId,
                     startAt: r.startAt,
                     endAt: r.endAt,
-                    status: r.status,
                   }));
               },
             };
@@ -224,9 +221,6 @@ vi.mock('../db', () => {
                 const classroomId = strings.find((s) =>
                   state.classroomRows.some((c) => c.id === s),
                 );
-                if (!classroomId) {
-                  return [];
-                }
                 const ids = strings.filter((s) =>
                   state.subjectRows.some((x) => x.id === s),
                 );
@@ -234,10 +228,13 @@ vi.mock('../db', () => {
                   .filter(
                     (s) =>
                       ids.includes(s.id) &&
-                      s.classroomId === classroomId &&
-                      s.deletedAt === null,
+                      (!classroomId || s.classroomId === classroomId),
                   )
-                  .map((s) => ({ id: s.id, name: s.name }));
+                  .map((s) => ({
+                    id: s.id,
+                    name: s.name,
+                    deletedAt: s.deletedAt,
+                  }));
               },
             };
           }
@@ -249,9 +246,6 @@ vi.mock('../db', () => {
                 const classroomId = strings.find((s) =>
                   state.classroomRows.some((c) => c.id === s),
                 );
-                if (!classroomId) {
-                  return [];
-                }
                 const ids = strings.filter((s) =>
                   state.lessonTypeRows.some((x) => x.id === s),
                 );
@@ -259,10 +253,13 @@ vi.mock('../db', () => {
                   .filter(
                     (s) =>
                       ids.includes(s.id) &&
-                      s.classroomId === classroomId &&
-                      s.deletedAt === null,
+                      (!classroomId || s.classroomId === classroomId),
                   )
-                  .map((s) => ({ id: s.id, name: s.name }));
+                  .map((s) => ({
+                    id: s.id,
+                    name: s.name,
+                    deletedAt: s.deletedAt,
+                  }));
               },
             };
           }
@@ -328,7 +325,6 @@ describe('GET /api/public/student-lessons', () => {
         lessonTypeId: 'lt-1',
         startAt: new Date('2025-06-10T10:00:00.000Z'),
         endAt: new Date('2025-06-10T11:00:00.000Z'),
-        status: 'published',
         deletedAt: null,
       },
       {
@@ -336,11 +332,10 @@ describe('GET /api/public/student-lessons', () => {
         teacherId: 'teacher-1',
         studentId: 'stu-1',
         classroomId: 'room-1',
-        subjectId: null,
-        lessonTypeId: null,
+        subjectId: 'subject-1',
+        lessonTypeId: 'lessonType-1',
         startAt: new Date('2025-06-11T10:00:00.000Z'),
         endAt: new Date('2025-06-11T11:00:00.000Z'),
-        status: 'draft',
         deletedAt: null,
       },
       {
@@ -348,11 +343,10 @@ describe('GET /api/public/student-lessons', () => {
         teacherId: 'teacher-1',
         studentId: 'stu-1',
         classroomId: 'room-1',
-        subjectId: null,
-        lessonTypeId: null,
+        subjectId: 'subject-1',
+        lessonTypeId: 'lessonType-1',
         startAt: new Date('2025-06-12T10:00:00.000Z'),
         endAt: new Date('2025-06-12T11:00:00.000Z'),
-        status: 'published',
         deletedAt: new Date(),
       },
     ];
@@ -391,7 +385,7 @@ describe('GET /api/public/student-lessons', () => {
     expect(res.status).toBe(404);
   });
 
-  it('returns only published lesson in range, excludes draft and soft-deleted lessons', async () => {
+  it('returns active lessons in range and excludes soft-deleted lessons', async () => {
     const res = await app.request(
       '/api/public/student-lessons?student_id=stu-1&from=2025-06-01T00:00:00.000Z&to=2025-07-01T00:00:00.000Z',
       { method: 'GET' },
@@ -402,16 +396,37 @@ describe('GET /api/public/student-lessons', () => {
       studentName: string;
       lessons: Array<{
         id: string;
-        status: string;
         teacherDisplay: string;
         teacherColor: string | null;
+        subjectName: string;
+        lessonTypeName: string;
       }>;
     };
     expect(payload.studentName).toBe('佐藤 花子');
-    expect(payload.lessons.map((r) => r.id)).toEqual(['L-pub']);
+    expect(payload.lessons.map((r) => r.id)).toEqual(['L-pub', 'L-draft']);
     expect(payload.lessons[0]?.teacherDisplay).toContain('山田');
-    expect(payload.lessons[0]?.status).toBe('published');
     expect(payload.lessons[0]?.teacherColor).toBe('#22c55e');
+    expect(payload.lessons[0]?.subjectName).toBe('英語');
+    expect(payload.lessons[0]?.lessonTypeName).toBe('通常');
+  });
+
+  it('marks deleted preset names in response', async () => {
+    state.subjectRows[0] = {
+      id: 'sub-1',
+      classroomId: 'room-1',
+      name: '英語',
+      deletedAt: new Date(),
+    };
+    const res = await app.request(
+      '/api/public/student-lessons?student_id=stu-1&from=2025-06-01T00:00:00.000Z&to=2025-07-01T00:00:00.000Z',
+      { method: 'GET' },
+      env,
+    );
+    expect(res.status).toBe(200);
+    const payload = (await res.json()) as {
+      lessons: Array<{ subjectName: string }>;
+    };
+    expect(payload.lessons[0]?.subjectName).toBe('（削除済み）');
   });
 
   it('excludes lessons whose teacher is soft-deleted', async () => {

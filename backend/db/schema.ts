@@ -109,12 +109,13 @@ export const lessons = sqliteTable('lessons', {
   classroomId: text('classroom_id')
     .references(() => classrooms.id)
     .notNull(),
-  subjectId: text('subject_id').references(() => subjects.id),
-  lessonTypeId: text('lesson_type_id').references(() => lessonTypes.id),
+  subjectId: text('subject_id')
+    .references(() => subjects.id)
+    .notNull(),
+  lessonTypeId: text('lesson_type_id')
+    .references(() => lessonTypes.id)
+    .notNull(),
   startAt: integer('start_at', { mode: 'timestamp' }).notNull(),
   endAt: integer('end_at', { mode: 'timestamp' }).notNull(),
-  status: text('status')
-    .$type<'draft' | 'published' | 'completed'>()
-    .default('draft'),
   deletedAt: integer('deleted_at', { mode: 'timestamp' }),
 });
