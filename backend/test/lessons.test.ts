@@ -84,7 +84,9 @@ function filterPresetRowsByPredicate(
     return [];
   }
   const ids = strings.filter((s) => rows.some((r) => r.id === s));
-  return rows.filter((r) => ids.includes(r.id) && r.classroomId === classroomId);
+  return rows.filter(
+    (r) => ids.includes(r.id) && r.classroomId === classroomId,
+  );
 }
 
 function overlaps(aStart: Date, aEnd: Date, bStart: Date, bEnd: Date): boolean {

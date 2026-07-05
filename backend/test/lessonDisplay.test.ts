@@ -12,9 +12,9 @@ import {
 
 describe('lessonStudentDisplay', () => {
   it('returns active student name', () => {
-    expect(
-      lessonStudentDisplay({ name: '生徒A', deletedAt: null }),
-    ).toBe('生徒A');
+    expect(lessonStudentDisplay({ name: '生徒A', deletedAt: null })).toBe(
+      '生徒A',
+    );
   });
 
   it('marks soft-deleted student without name', () => {
