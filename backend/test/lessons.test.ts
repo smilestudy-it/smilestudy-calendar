@@ -4,7 +4,14 @@
 import { Column, SQL, StringChunk, is } from 'drizzle-orm';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { classrooms, lessonTypes, lessons, students, subjects, users } from '../db/schema';
+import {
+  classrooms,
+  lessonTypes,
+  lessons,
+  students,
+  subjects,
+  users,
+} from '../db/schema';
 import { app } from '../worker';
 
 type LessonRow = {
@@ -245,13 +252,13 @@ vi.mock('../db', () => {
                 limit: async () =>
                   state.userRole
                     ? [
-                      {
-                        id: state.jwtSub,
-                        role: state.userRole,
-                        classroomId:
-                          state.userRole === 'admin' ? null : 'room-1',
-                      },
-                    ]
+                        {
+                          id: state.jwtSub,
+                          role: state.userRole,
+                          classroomId:
+                            state.userRole === 'admin' ? null : 'room-1',
+                        },
+                      ]
                     : [],
               }),
             };
@@ -453,7 +460,7 @@ vi.mock('../db', () => {
                     subjectId: r.subjectId,
                     lessonTypeId: r.lessonTypeId,
                     startAt: r.startAt,
-                    endAt: r.endAt
+                    endAt: r.endAt,
                   })),
             };
           }
@@ -472,12 +479,12 @@ vi.mock('../db', () => {
                   );
                   return row
                     ? [
-                      {
-                        id: row.id,
-                        classroomId: row.classroomId,
-                        teacherId: row.teacherId,
-                      },
-                    ]
+                        {
+                          id: row.id,
+                          classroomId: row.classroomId,
+                          teacherId: row.teacherId,
+                        },
+                      ]
                     : [];
                 },
               }),
@@ -871,7 +878,10 @@ describe('lessons api', () => {
       {
         method: 'PATCH',
         headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ lessonTypeId: 'lessonType-1', subjectId: 'subject-1' }),
+        body: JSON.stringify({
+          lessonTypeId: 'lessonType-1',
+          subjectId: 'subject-1',
+        }),
       },
       env,
     );
@@ -912,7 +922,10 @@ describe('lessons api', () => {
       {
         method: 'PATCH',
         headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ lessonTypeId: 'lessonType-1', subjectId: 'subject-1' }),
+        body: JSON.stringify({
+          lessonTypeId: 'lessonType-1',
+          subjectId: 'subject-1',
+        }),
       },
       env,
     );

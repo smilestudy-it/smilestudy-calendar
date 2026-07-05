@@ -80,7 +80,7 @@ app.get('/public/student-lessons', async (c) => {
       subjectId: lessons.subjectId,
       lessonTypeId: lessons.lessonTypeId,
       startAt: lessons.startAt,
-      endAt: lessons.endAt
+      endAt: lessons.endAt,
     })
     .from(lessons)
     .where(
@@ -111,18 +111,8 @@ app.get('/public/student-lessons', async (c) => {
     teacherById.has(row.teacherId),
   );
 
-  const subjectIds = [
-    ...new Set(
-      visibleLessons
-        .map((r) => r.subjectId)
-    ),
-  ];
-  const lessonTypeIds = [
-    ...new Set(
-      visibleLessons
-        .map((r) => r.lessonTypeId)
-    ),
-  ];
+  const subjectIds = [...new Set(visibleLessons.map((r) => r.subjectId))];
+  const lessonTypeIds = [...new Set(visibleLessons.map((r) => r.lessonTypeId))];
 
   const subjectById = new Map<
     string,
@@ -177,9 +167,7 @@ app.get('/public/student-lessons', async (c) => {
     teacherDisplay: lessonTeacherDisplay(teacherById.get(row.teacherId)),
     teacherColor: teacherById.get(row.teacherId)?.color ?? null,
     subjectName: lessonPresetDisplay(subjectById.get(row.subjectId)),
-    lessonTypeName: lessonPresetDisplay(
-      lessonTypeById.get(row.lessonTypeId),
-    ),
+    lessonTypeName: lessonPresetDisplay(lessonTypeById.get(row.lessonTypeId)),
   }));
 
   return c.json({ studentName: studentRow.name, lessons: rows }, 200);

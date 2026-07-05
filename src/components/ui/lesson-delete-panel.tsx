@@ -38,10 +38,7 @@ type Props = {
   presetLessonTypes?: LessonPresetRow[];
   isSavingPresets?: boolean;
   presetsError?: string | null;
-  onPresetChange?: (next: {
-    subjectId: string;
-    lessonTypeId: string;
-  }) => void;
+  onPresetChange?: (next: { subjectId: string; lessonTypeId: string }) => void;
   onSavePresets?: () => void;
 };
 
@@ -71,20 +68,14 @@ export default function LessonDeletePanel({
   const subjectVal = event.subjectId;
   const lessonTypeVal = event.lessonTypeId;
   const subjectOptions = [...(presetSubjects ?? [])];
-  if (
-    subjectVal &&
-    !subjectOptions.some((s) => s.id === subjectVal)
-  ) {
+  if (subjectVal && !subjectOptions.some((s) => s.id === subjectVal)) {
     subjectOptions.unshift({
       id: subjectVal,
       name: event.subjectDisplay,
     });
   }
   const lessonTypeOptions = [...(presetLessonTypes ?? [])];
-  if (
-    lessonTypeVal &&
-    !lessonTypeOptions.some((s) => s.id === lessonTypeVal)
-  ) {
+  if (lessonTypeVal && !lessonTypeOptions.some((s) => s.id === lessonTypeVal)) {
     lessonTypeOptions.unshift({
       id: lessonTypeVal,
       name: event.lessonTypeDisplay,
@@ -113,7 +104,7 @@ export default function LessonDeletePanel({
                   onValueChange={(v) =>
                     onPresetChange({
                       subjectId: v,
-                      lessonTypeId: event.lessonTypeId
+                      lessonTypeId: event.lessonTypeId,
                     })
                   }
                 >

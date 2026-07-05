@@ -141,6 +141,8 @@ export default function CalendarSingleEditPage({
   const fetchMonthShifts = useCallback(async () => {
     if (!activeClassroom || !currentUser || timeSlots.length === 0) return;
     setIsLoading(true);
+    setSelectedLessonTypeId('');
+    setSelectedSubjectId('');
     try {
       const from = startOfMonth(month).toISOString();
       const to = endOfMonth(month).toISOString();
@@ -208,9 +210,12 @@ export default function CalendarSingleEditPage({
       return;
     }
 
-    if (
-      !selectedLessonTypeId || !selectedSubjectId
-    ) {
+    const subjectOk = subjects.some((s) => s.id === selectedSubjectId);
+    const lessonTypeOk = lessonTypes.some(
+      (lt) => lt.id === selectedLessonTypeId,
+    );
+
+    if (!subjectOk || !lessonTypeOk) {
       setMessage({ text: '科目・授業種別を選択してください。', type: 'error' });
       return;
     }
@@ -337,7 +342,7 @@ export default function CalendarSingleEditPage({
                     classNames={
                       {
                         day: 'relative h-14 w-12 flex-1 p-0 text-center text-sm',
-                        week: 'mt-2 flex w-full'
+                        week: 'mt-2 flex w-full',
                       } as Partial<ClassNames>
                     }
                     components={{

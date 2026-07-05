@@ -58,7 +58,7 @@ lessonsApp.get(
         subjectId: lessons.subjectId,
         lessonTypeId: lessons.lessonTypeId,
         startAt: lessons.startAt,
-        endAt: lessons.endAt
+        endAt: lessons.endAt,
       })
       .from(lessons)
       .where(
@@ -78,26 +78,26 @@ lessonsApp.get(
     const teacherMeta =
       teacherIds.length > 0
         ? await db
-          .select({
-            id: users.id,
-            firstName: users.firstName,
-            lastName: users.lastName,
-            deletedAt: users.deletedAt,
-          })
-          .from(users)
-          .where(inArray(users.id, teacherIds))
+            .select({
+              id: users.id,
+              firstName: users.firstName,
+              lastName: users.lastName,
+              deletedAt: users.deletedAt,
+            })
+            .from(users)
+            .where(inArray(users.id, teacherIds))
         : [];
 
     const studentMeta =
       studentIds.length > 0
         ? await db
-          .select({
-            id: students.id,
-            name: students.name,
-            deletedAt: students.deletedAt,
-          })
-          .from(students)
-          .where(inArray(students.id, studentIds))
+            .select({
+              id: students.id,
+              name: students.name,
+              deletedAt: students.deletedAt,
+            })
+            .from(students)
+            .where(inArray(students.id, studentIds))
         : [];
 
     const subjectMeta =

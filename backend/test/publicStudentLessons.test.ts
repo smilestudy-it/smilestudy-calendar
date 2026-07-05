@@ -187,7 +187,7 @@ vi.mock('../db', () => {
                     subjectId: r.subjectId,
                     lessonTypeId: r.lessonTypeId,
                     startAt: r.startAt,
-                    endAt: r.endAt
+                    endAt: r.endAt,
                   }));
               },
             };
@@ -347,7 +347,7 @@ describe('GET /api/public/student-lessons', () => {
         lessonTypeId: 'lessonType-1',
         startAt: new Date('2025-06-12T10:00:00.000Z'),
         endAt: new Date('2025-06-12T11:00:00.000Z'),
-        deletedAt: new Date()
+        deletedAt: new Date(),
       },
     ];
   });

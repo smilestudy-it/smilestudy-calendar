@@ -3,13 +3,14 @@
  */
 import { describe, expect, it } from 'vitest';
 
-import { lessonPresetDisplay, utcDateFromLocalDateKeyAndHm } from '../lessonDisplay';
+import {
+  lessonPresetDisplay,
+  utcDateFromLocalDateKeyAndHm,
+} from '../lessonDisplay';
 
 describe('lessonPresetDisplay', () => {
   it('returns active preset name', () => {
-    expect(
-      lessonPresetDisplay({ name: '英語', deletedAt: null }),
-    ).toBe('英語');
+    expect(lessonPresetDisplay({ name: '英語', deletedAt: null })).toBe('英語');
   });
 
   it('marks soft-deleted preset', () => {
