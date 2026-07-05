@@ -39,6 +39,8 @@ describe('lesson validators', () => {
       teacherId: 't1',
       studentId: 's1',
       classroomId: 'c1',
+      subjectId: 'sub-1',
+      lessonTypeId: 'lt-1',
       startAt: '2025-06-01T12:00:00.000Z',
       endAt: '2025-06-01T11:00:00.000Z',
     });
@@ -51,6 +53,8 @@ describe('lesson validators', () => {
       teacherId: 't1',
       studentId: 's1',
       classroomId: 'c1',
+      subjectId: 'sub-1',
+      lessonTypeId: 'lt-1',
       startAt: '2025-06-01T10:00:00.000Z',
       endAt: '2025-06-01T11:00:00.000Z',
     });
@@ -59,17 +63,17 @@ describe('lesson validators', () => {
   });
 
   it('validatePatchLessonInput requires both fields', () => {
-    const r = validatePatchLessonInput({ lessonTypeId: null });
+    const r = validatePatchLessonInput({ lessonTypeId: 'lt-1' });
     expect(r.input).toBeUndefined();
     expect(r.error).toBeDefined();
   });
 
-  it('validatePatchLessonInput accepts nullable subject and lesson type fields', () => {
+  it('validatePatchLessonInput accepts subject and lesson type ids', () => {
     const r = validatePatchLessonInput({
-      subjectId: null,
-      lessonTypeId: null,
+      subjectId: 'sub-1',
+      lessonTypeId: 'lt-1',
     });
     expect(r.error).toBeUndefined();
-    expect(r.input).toEqual({ subjectId: null, lessonTypeId: null });
+    expect(r.input).toEqual({ subjectId: 'sub-1', lessonTypeId: 'lt-1' });
   });
 });

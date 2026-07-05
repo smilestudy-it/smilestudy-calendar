@@ -13,7 +13,11 @@ import {
   subjects,
   users,
 } from '../db/schema';
-import { lessonStudentDisplay, lessonTeacherDisplay } from '../lessonDisplay';
+import {
+  lessonPresetDisplay,
+  lessonStudentDisplay,
+  lessonTeacherDisplay,
+} from '../lessonDisplay';
 import {
   validateCreateLessonInput,
   validateLessonRangeQuery,
@@ -54,8 +58,7 @@ lessonsApp.get(
         subjectId: lessons.subjectId,
         lessonTypeId: lessons.lessonTypeId,
         startAt: lessons.startAt,
-        endAt: lessons.endAt,
-        status: lessons.status,
+        endAt: lessons.endAt
       })
       .from(lessons)
       .where(
@@ -69,34 +72,72 @@ lessonsApp.get(
 
     const teacherIds = [...new Set(lessonRows.map((r) => r.teacherId))];
     const studentIds = [...new Set(lessonRows.map((r) => r.studentId))];
+    const subjectIds = [...new Set(lessonRows.map((r) => r.subjectId))];
+    const lessonTypeIds = [...new Set(lessonRows.map((r) => r.lessonTypeId))];
 
     const teacherMeta =
       teacherIds.length > 0
         ? await db
-            .select({
-              id: users.id,
-              firstName: users.firstName,
-              lastName: users.lastName,
-              deletedAt: users.deletedAt,
-            })
-            .from(users)
-            .where(inArray(users.id, teacherIds))
+          .select({
+            id: users.id,
+            firstName: users.firstName,
+            lastName: users.lastName,
+            deletedAt: users.deletedAt,
+          })
+          .from(users)
+          .where(inArray(users.id, teacherIds))
         : [];
 
     const studentMeta =
       studentIds.length > 0
         ? await db
+          .select({
+            id: students.id,
+            name: students.name,
+            deletedAt: students.deletedAt,
+          })
+          .from(students)
+          .where(inArray(students.id, studentIds))
+        : [];
+
+    const subjectMeta =
+      subjectIds.length > 0
+        ? await db
             .select({
-              id: students.id,
-              name: students.name,
-              deletedAt: students.deletedAt,
+              id: subjects.id,
+              name: subjects.name,
+              deletedAt: subjects.deletedAt,
             })
-            .from(students)
-            .where(inArray(students.id, studentIds))
+            .from(subjects)
+            .where(
+              and(
+                inArray(subjects.id, subjectIds),
+                eq(subjects.classroomId, classroomId),
+              ),
+            )
+        : [];
+
+    const lessonTypeMeta =
+      lessonTypeIds.length > 0
+        ? await db
+            .select({
+              id: lessonTypes.id,
+              name: lessonTypes.name,
+              deletedAt: lessonTypes.deletedAt,
+            })
+            .from(lessonTypes)
+            .where(
+              and(
+                inArray(lessonTypes.id, lessonTypeIds),
+                eq(lessonTypes.classroomId, classroomId),
+              ),
+            )
         : [];
 
     const teacherById = new Map(teacherMeta.map((t) => [t.id, t]));
     const studentById = new Map(studentMeta.map((s) => [s.id, s]));
+    const subjectById = new Map(subjectMeta.map((s) => [s.id, s]));
+    const lessonTypeById = new Map(lessonTypeMeta.map((lt) => [lt.id, lt]));
 
     const rows = lessonRows.map((row) => ({
       ...row,
@@ -104,6 +145,10 @@ lessonsApp.get(
       endAt: row.endAt.toISOString(),
       teacherDisplay: lessonTeacherDisplay(teacherById.get(row.teacherId)),
       studentDisplay: lessonStudentDisplay(studentById.get(row.studentId)),
+      subjectDisplay: lessonPresetDisplay(subjectById.get(row.subjectId)),
+      lessonTypeDisplay: lessonPresetDisplay(
+        lessonTypeById.get(row.lessonTypeId),
+      ),
     }));
 
     return c.json(rows, 200);
@@ -158,37 +203,34 @@ lessonsApp.post('/', auth, loadUser, async (c) => {
   if (!student) {
     return c.json({ message: 'student not found' }, 404);
   }
-  if (input.subjectId) {
-    const [row] = await db
-      .select()
-      .from(subjects)
-      .where(
-        and(
-          eq(subjects.id, input.subjectId),
-          eq(subjects.classroomId, input.classroomId),
-          isNull(subjects.deletedAt),
-        ),
-      )
-      .limit(1);
-    if (!row) {
-      return c.json({ message: 'invalid subject' }, 400);
-    }
+  const [row_sub] = await db
+    .select()
+    .from(subjects)
+    .where(
+      and(
+        eq(subjects.id, input.subjectId),
+        eq(subjects.classroomId, input.classroomId),
+        isNull(subjects.deletedAt),
+      ),
+    )
+    .limit(1);
+  if (!row_sub) {
+    return c.json({ message: 'invalid subject' }, 400);
   }
-  if (input.lessonTypeId) {
-    const [row] = await db
-      .select()
-      .from(lessonTypes)
-      .where(
-        and(
-          eq(lessonTypes.id, input.lessonTypeId),
-          eq(lessonTypes.classroomId, input.classroomId),
-          isNull(lessonTypes.deletedAt),
-        ),
-      )
-      .limit(1);
-    if (!row) {
-      return c.json({ message: 'invalid lesson type' }, 400);
-    }
+
+  const [row_lt] = await db
+    .select()
+    .from(lessonTypes)
+    .where(
+      and(
+        eq(lessonTypes.id, input.lessonTypeId),
+        eq(lessonTypes.classroomId, input.classroomId),
+        isNull(lessonTypes.deletedAt),
+      ),
+    )
+    .limit(1);
+  if (!row_lt) {
+    return c.json({ message: 'invalid lesson type' }, 400);
   }
 
   const id = crypto.randomUUID();
@@ -199,8 +241,8 @@ lessonsApp.post('/', auth, loadUser, async (c) => {
       teacherId: input.teacherId,
       studentId: input.studentId,
       classroomId: input.classroomId,
-      subjectId: input.subjectId ?? null,
-      lessonTypeId: input.lessonTypeId ?? null,
+      subjectId: input.subjectId,
+      lessonTypeId: input.lessonTypeId,
       startAt: input.startAt,
       endAt: input.endAt,
       deletedAt: null,

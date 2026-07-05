@@ -4,7 +4,7 @@
 import { Column, SQL, StringChunk, is } from 'drizzle-orm';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { classrooms, lessons, students, users } from '../db/schema';
+import { classrooms, lessonTypes, lessons, students, subjects, users } from '../db/schema';
 import { app } from '../worker';
 
 type LessonRow = {
@@ -12,11 +12,10 @@ type LessonRow = {
   teacherId: string;
   studentId: string;
   classroomId: string;
-  subjectId: string | null;
-  lessonTypeId: string | null;
+  subjectId: string;
+  lessonTypeId: string;
   startAt: Date;
   endAt: Date;
-  status: string;
   deletedAt: Date | null;
 };
 
@@ -34,6 +33,13 @@ type StudentRow = {
   classroomId: string;
   deletedAt: Date | null;
   name?: string | null;
+};
+
+type PresetRow = {
+  id: string;
+  classroomId: string;
+  name: string;
+  deletedAt: Date | null;
 };
 
 function overlaps(aStart: Date, aEnd: Date, bStart: Date, bEnd: Date): boolean {
@@ -143,6 +149,8 @@ const state: {
   classrooms: Array<{ id: string; deletedAt: Date | null }>;
   users: UserRow[];
   students: StudentRow[];
+  subjectRows: PresetRow[];
+  lessonTypeRows: PresetRow[];
   lessonRows: LessonRow[];
   expectPostLessonTx: boolean;
   expectPatchLessonTx: boolean;
@@ -169,6 +177,8 @@ const state: {
   classrooms: [],
   users: [],
   students: [],
+  subjectRows: [],
+  lessonTypeRows: [],
   lessonRows: [],
   expectPostLessonTx: false,
   expectPatchLessonTx: false,
@@ -235,13 +245,13 @@ vi.mock('../db', () => {
                 limit: async () =>
                   state.userRole
                     ? [
-                        {
-                          id: state.jwtSub,
-                          role: state.userRole,
-                          classroomId:
-                            state.userRole === 'admin' ? null : 'room-1',
-                        },
-                      ]
+                      {
+                        id: state.jwtSub,
+                        role: state.userRole,
+                        classroomId:
+                          state.userRole === 'admin' ? null : 'room-1',
+                      },
+                    ]
                     : [],
               }),
             };
@@ -443,8 +453,7 @@ vi.mock('../db', () => {
                     subjectId: r.subjectId,
                     lessonTypeId: r.lessonTypeId,
                     startAt: r.startAt,
-                    endAt: r.endAt,
-                    status: r.status,
+                    endAt: r.endAt
                   })),
             };
           }
@@ -463,12 +472,12 @@ vi.mock('../db', () => {
                   );
                   return row
                     ? [
-                        {
-                          id: row.id,
-                          classroomId: row.classroomId,
-                          teacherId: row.teacherId,
-                        },
-                      ]
+                      {
+                        id: row.id,
+                        classroomId: row.classroomId,
+                        teacherId: row.teacherId,
+                      },
+                    ]
                     : [];
                 },
               }),
@@ -556,6 +565,44 @@ vi.mock('../db', () => {
           };
         }
 
+        if (table === subjects) {
+          const keys = Object.keys(selection ?? {});
+          if (
+            keys.includes('id') &&
+            keys.includes('name') &&
+            keys.includes('deletedAt')
+          ) {
+            return {
+              where: async () =>
+                state.subjectRows.map((s) => ({
+                  id: s.id,
+                  name: s.name,
+                  deletedAt: s.deletedAt,
+                })),
+            };
+          }
+          return { where: () => ({ limit: async () => [] }) };
+        }
+
+        if (table === lessonTypes) {
+          const keys = Object.keys(selection ?? {});
+          if (
+            keys.includes('id') &&
+            keys.includes('name') &&
+            keys.includes('deletedAt')
+          ) {
+            return {
+              where: async () =>
+                state.lessonTypeRows.map((lt) => ({
+                  id: lt.id,
+                  name: lt.name,
+                  deletedAt: lt.deletedAt,
+                })),
+            };
+          }
+          return { where: () => ({ limit: async () => [] }) };
+        }
+
         return { where: () => ({ limit: async () => [] }) };
       },
     }),
@@ -604,9 +651,6 @@ vi.mock('../db', () => {
           }
           if (patch.endAt !== undefined) {
             row.endAt = patch.endAt;
-          }
-          if (patch.status !== undefined) {
-            row.status = patch.status;
           }
           return { meta: { changes: 1 } };
         },
@@ -684,6 +728,22 @@ describe('lessons api', () => {
       },
     ];
     state.lessonRows = [];
+    state.subjectRows = [
+      {
+        id: 'subject-1',
+        classroomId: 'room-1',
+        name: '英語',
+        deletedAt: null,
+      },
+    ];
+    state.lessonTypeRows = [
+      {
+        id: 'lessonTypeId-1',
+        classroomId: 'room-1',
+        name: '通常',
+        deletedAt: null,
+      },
+    ];
     state.expectPostLessonTx = false;
     state.expectPatchLessonTx = false;
     state.lessonTxLimitIndex = 0;
@@ -711,11 +771,10 @@ describe('lessons api', () => {
       teacherId: 'teacher-1',
       studentId: 'student-1',
       classroomId: 'room-1',
-      subjectId: null,
-      lessonTypeId: null,
+      subjectId: 'subject-1',
+      lessonTypeId: 'lessonTypeId-1',
       startAt: t1,
       endAt: t2,
-      status: 'draft',
       deletedAt: null,
     });
     const res = await app.request(
@@ -728,11 +787,43 @@ describe('lessons api', () => {
       id: string;
       teacherDisplay: string;
       studentDisplay: string;
+      subjectDisplay: string;
+      lessonTypeDisplay: string;
     }>;
     expect(rows.some((r) => r.id === 'L1')).toBe(true);
     const row = rows.find((r) => r.id === 'L1');
     expect(row?.teacherDisplay).toContain('山田');
     expect(row?.studentDisplay).toBe('生徒A');
+    expect(row?.subjectDisplay).toBe('英語');
+    expect(row?.lessonTypeDisplay).toBe('通常');
+  });
+
+  it('GET /classrooms/:id/lessons marks deleted preset names in display', async () => {
+    state.subjectRows[0] = {
+      id: 'subject-1',
+      classroomId: 'room-1',
+      name: '英語',
+      deletedAt: new Date('2025-05-01T00:00:00.000Z'),
+    };
+    state.lessonRows.push({
+      id: 'L-deleted-subject',
+      teacherId: 'teacher-1',
+      studentId: 'student-1',
+      classroomId: 'room-1',
+      subjectId: 'subject-1',
+      lessonTypeId: 'lessonTypeId-1',
+      startAt: t1,
+      endAt: t2,
+      deletedAt: null,
+    });
+    const res = await app.request(
+      '/api/lessons/room-1?from=2025-06-01T00:00:00.000Z&to=2025-07-01T00:00:00.000Z',
+      { method: 'GET' },
+      env,
+    );
+    expect(res.status).toBe(200);
+    const rows = (await res.json()) as Array<{ subjectDisplay: string }>;
+    expect(rows[0]?.subjectDisplay).toBe('（削除済み）');
   });
 
   it('GET /classrooms/:id/lessons marks soft-deleted teacher in display', async () => {
@@ -745,11 +836,10 @@ describe('lessons api', () => {
       teacherId: 'teacher-1',
       studentId: 'student-1',
       classroomId: 'room-1',
-      subjectId: null,
-      lessonTypeId: null,
+      subjectId: 'subject-1',
+      lessonTypeId: 'lessonType-1',
       startAt: t1,
       endAt: t2,
-      status: 'draft',
       deletedAt: null,
     });
     const res = await app.request(
@@ -770,11 +860,10 @@ describe('lessons api', () => {
       teacherId: 'teacher-2',
       studentId: 'student-1',
       classroomId: 'room-1',
-      subjectId: null,
-      lessonTypeId: null,
+      subjectId: 'subject-1',
+      lessonTypeId: 'lessonType-1',
       startAt: t1,
       endAt: t2,
-      status: 'draft',
       deletedAt: null,
     });
     const res = await app.request(
@@ -782,7 +871,7 @@ describe('lessons api', () => {
       {
         method: 'PATCH',
         headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ lessonTypeId: null, subjectId: null }),
+        body: JSON.stringify({ lessonTypeId: 'lessonType-1', subjectId: 'subject-1' }),
       },
       env,
     );
@@ -812,11 +901,10 @@ describe('lessons api', () => {
       teacherId: 'teacher-remote',
       studentId: 'student-1',
       classroomId: 'room-2',
-      subjectId: null,
-      lessonTypeId: null,
+      subjectId: 'subject-1',
+      lessonTypeId: 'lessonType-1',
       startAt: t1,
       endAt: t2,
-      status: 'draft',
       deletedAt: null,
     });
     const res = await app.request(
@@ -824,7 +912,7 @@ describe('lessons api', () => {
       {
         method: 'PATCH',
         headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ lessonTypeId: null, subjectId: null }),
+        body: JSON.stringify({ lessonTypeId: 'lessonType-1', subjectId: 'subject-1' }),
       },
       env,
     );

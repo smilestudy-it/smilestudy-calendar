@@ -3,7 +3,28 @@
  */
 import { describe, expect, it } from 'vitest';
 
-import { utcDateFromLocalDateKeyAndHm } from '../lessonDisplay';
+import { lessonPresetDisplay, utcDateFromLocalDateKeyAndHm } from '../lessonDisplay';
+
+describe('lessonPresetDisplay', () => {
+  it('returns active preset name', () => {
+    expect(
+      lessonPresetDisplay({ name: '英語', deletedAt: null }),
+    ).toBe('英語');
+  });
+
+  it('marks soft-deleted preset', () => {
+    expect(
+      lessonPresetDisplay({
+        name: '数学',
+        deletedAt: new Date('2025-01-01'),
+      }),
+    ).toBe('（削除済み）');
+  });
+
+  it('returns fallback when preset row is missing', () => {
+    expect(lessonPresetDisplay(null)).toBe('（不明）');
+  });
+});
 
 describe('utcDateFromLocalDateKeyAndHm', () => {
   it('maps local wall time to UTC using timezone offset (JST -540)', () => {

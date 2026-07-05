@@ -208,6 +208,13 @@ export default function CalendarSingleEditPage({
       return;
     }
 
+    if (
+      !selectedLessonTypeId || !selectedSubjectId
+    ) {
+      setMessage({ text: '科目・授業種別を選択してください。', type: 'error' });
+      return;
+    }
+
     const slot = timeSlots.find((s) => s.id === selectedSlotId);
     if (!slot) return;
 

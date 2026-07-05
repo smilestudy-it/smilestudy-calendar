@@ -307,18 +307,15 @@ const lessonInstantSchema = z
   .transform((v) => (v instanceof Date ? v : new Date(v)))
   .refine((d) => !Number.isNaN(d.getTime()), { message: 'invalid date' });
 
-const lessonStatusSchema = z.enum(['draft', 'published', 'completed']);
-
 const createLessonSchema = z
   .object({
     teacherId: z.string().trim().min(1, 'teacher id is required'),
     studentId: z.string().trim().min(1, 'student id is required'),
     classroomId: z.string().trim().min(1, 'classroom id is required'),
-    subjectId: z.string().trim().min(1).optional(),
-    lessonTypeId: z.string().trim().min(1).optional(),
+    subjectId: z.string().trim().min(1),
+    lessonTypeId: z.string().trim().min(1),
     startAt: lessonInstantSchema,
     endAt: lessonInstantSchema,
-    status: lessonStatusSchema.optional(),
   })
   .superRefine((data, ctx) => {
     if (data.startAt.getTime() >= data.endAt.getTime()) {
@@ -331,8 +328,8 @@ const createLessonSchema = z
   });
 
 const patchLessonSchema = z.object({
-  subjectId: z.string().trim().min(1).nullable(),
-  lessonTypeId: z.string().trim().min(1).nullable(),
+  subjectId: z.string().trim().min(1),
+  lessonTypeId: z.string().trim().min(1),
 });
 
 type CreateLessonInput = z.infer<typeof createLessonSchema>;

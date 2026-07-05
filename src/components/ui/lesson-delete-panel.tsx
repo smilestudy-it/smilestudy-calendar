@@ -17,10 +17,12 @@ export type LessonPresetRow = { id: string; name: string };
 export type LessonDetailTarget = {
   id: string;
   title: string;
-  start: Date | null;
-  end: Date | null;
-  subjectId?: string | null;
-  lessonTypeId?: string | null;
+  start: Date;
+  end: Date;
+  subjectId: string;
+  lessonTypeId: string;
+  subjectDisplay: string;
+  lessonTypeDisplay: string;
 };
 
 /** @deprecated 互換のため。`LessonDetailTarget` と同じ */
@@ -37,8 +39,8 @@ type Props = {
   isSavingPresets?: boolean;
   presetsError?: string | null;
   onPresetChange?: (next: {
-    subjectId: string | null;
-    lessonTypeId: string | null;
+    subjectId: string;
+    lessonTypeId: string;
   }) => void;
   onSavePresets?: () => void;
 };
@@ -66,8 +68,28 @@ export default function LessonDeletePanel({
     onPresetChange &&
     onSavePresets;
 
-  const subjectVal = event.subjectId ?? '_none';
-  const lessonTypeVal = event.lessonTypeId ?? '_none';
+  const subjectVal = event.subjectId;
+  const lessonTypeVal = event.lessonTypeId;
+  const subjectOptions = [...(presetSubjects ?? [])];
+  if (
+    subjectVal &&
+    !subjectOptions.some((s) => s.id === subjectVal)
+  ) {
+    subjectOptions.unshift({
+      id: subjectVal,
+      name: event.subjectDisplay,
+    });
+  }
+  const lessonTypeOptions = [...(presetLessonTypes ?? [])];
+  if (
+    lessonTypeVal &&
+    !lessonTypeOptions.some((s) => s.id === lessonTypeVal)
+  ) {
+    lessonTypeOptions.unshift({
+      id: lessonTypeVal,
+      name: event.lessonTypeDisplay,
+    });
+  }
 
   return (
     <div className="space-y-4 pt-4">
@@ -90,17 +112,16 @@ export default function LessonDeletePanel({
                   disabled={isDeleting || isSavingPresets}
                   onValueChange={(v) =>
                     onPresetChange({
-                      subjectId: v === '_none' ? null : v,
-                      lessonTypeId: event.lessonTypeId ?? null,
+                      subjectId: v,
+                      lessonTypeId: event.lessonTypeId
                     })
                   }
                 >
                   <SelectTrigger className="h-9 text-sm">
-                    <SelectValue placeholder="なし" />
+                    <SelectValue placeholder="科目" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="_none">なし</SelectItem>
-                    {presetSubjects.map((s) => (
+                    {subjectOptions.map((s) => (
                       <SelectItem key={s.id} value={s.id}>
                         {s.name}
                       </SelectItem>
@@ -115,8 +136,8 @@ export default function LessonDeletePanel({
                   disabled={isDeleting || isSavingPresets}
                   onValueChange={(v) =>
                     onPresetChange({
-                      subjectId: event.subjectId ?? null,
-                      lessonTypeId: v === '_none' ? null : v,
+                      subjectId: event.subjectId,
+                      lessonTypeId: v,
                     })
                   }
                 >
@@ -124,8 +145,7 @@ export default function LessonDeletePanel({
                     <SelectValue placeholder="なし" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="_none">なし</SelectItem>
-                    {presetLessonTypes.map((s) => (
+                    {lessonTypeOptions.map((s) => (
                       <SelectItem key={s.id} value={s.id}>
                         {s.name}
                       </SelectItem>

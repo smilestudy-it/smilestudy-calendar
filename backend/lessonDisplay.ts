@@ -36,6 +36,19 @@ export function lessonStudentDisplay(
   return name || '（不明）';
 }
 
+export function lessonPresetDisplay(
+  row: { name: string | null; deletedAt: Date | null } | null | undefined,
+): string {
+  if (!row) {
+    return '（不明）';
+  }
+  if (row.deletedAt != null) {
+    return '（削除済み）';
+  }
+  const name = (row.name ?? '').trim();
+  return name || '（不明）';
+}
+
 const DATE_KEY_STRICT = /^([0-9]{4})-([0-9]{2})-([0-9]{2})$/;
 const HM_STRICT = /^([0-9]{1,2}):([0-9]{2})$/;
 
