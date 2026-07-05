@@ -5,8 +5,49 @@ import { describe, expect, it } from 'vitest';
 
 import {
   lessonPresetDisplay,
+  lessonStudentDisplay,
+  lessonTeacherDisplay,
   utcDateFromLocalDateKeyAndHm,
 } from '../lessonDisplay';
+
+describe('lessonStudentDisplay', () => {
+  it('returns active student name', () => {
+    expect(
+      lessonStudentDisplay({ name: '生徒A', deletedAt: null }),
+    ).toBe('生徒A');
+  });
+
+  it('marks soft-deleted student without name', () => {
+    expect(
+      lessonStudentDisplay({
+        name: '生徒A',
+        deletedAt: new Date('2025-01-01'),
+      }),
+    ).toBe('（削除済み）');
+  });
+});
+
+describe('lessonTeacherDisplay', () => {
+  it('returns active teacher name', () => {
+    expect(
+      lessonTeacherDisplay({
+        firstName: '太郎',
+        lastName: '山田',
+        deletedAt: null,
+      }),
+    ).toBe('山田 太郎');
+  });
+
+  it('marks soft-deleted teacher without name', () => {
+    expect(
+      lessonTeacherDisplay({
+        firstName: '太郎',
+        lastName: '山田',
+        deletedAt: new Date('2025-01-01'),
+      }),
+    ).toBe('（削除済み）');
+  });
+});
 
 describe('lessonPresetDisplay', () => {
   it('returns active preset name', () => {

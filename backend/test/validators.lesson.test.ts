@@ -48,6 +48,18 @@ describe('lesson validators', () => {
     expect(r.error).toBeDefined();
   });
 
+  it('validateCreateLessonInput requires subject and lesson type ids', () => {
+    const r = validateCreateLessonInput({
+      teacherId: 't1',
+      studentId: 's1',
+      classroomId: 'c1',
+      startAt: '2025-06-01T10:00:00.000Z',
+      endAt: '2025-06-01T11:00:00.000Z',
+    });
+    expect(r.input).toBeUndefined();
+    expect(r.error).toBe('subject id is required');
+  });
+
   it('validateCreateLessonInput accepts ISO instants', () => {
     const r = validateCreateLessonInput({
       teacherId: 't1',
@@ -65,7 +77,7 @@ describe('lesson validators', () => {
   it('validatePatchLessonInput requires both fields', () => {
     const r = validatePatchLessonInput({ lessonTypeId: 'lt-1' });
     expect(r.input).toBeUndefined();
-    expect(r.error).toBeDefined();
+    expect(r.error).toBe('subject id is required');
   });
 
   it('validatePatchLessonInput accepts subject and lesson type ids', () => {

@@ -288,30 +288,34 @@ lessonsApp.patch('/:id', auth, loadUser, async (c) => {
     return c.json({ message: 'forbidden' }, 403);
   }
 
-  if (input.subjectId) {
-    const [row] = await db
-      .select()
-      .from(subjects)
-      .where(and(eq(subjects.id, input.subjectId), isNull(subjects.deletedAt)))
-      .limit(1);
-    if (!row) {
-      return c.json({ message: 'invalid subject' }, 400);
-    }
+  const [subject] = await db
+    .select()
+    .from(subjects)
+    .where(
+      and(
+        eq(subjects.id, input.subjectId),
+        eq(subjects.classroomId, existing.classroomId),
+        isNull(subjects.deletedAt),
+      ),
+    )
+    .limit(1);
+  if (!subject) {
+    return c.json({ message: 'invalid subject' }, 400);
   }
-  if (input.lessonTypeId) {
-    const [row] = await db
-      .select()
-      .from(lessonTypes)
-      .where(
-        and(
-          eq(lessonTypes.id, input.lessonTypeId),
-          isNull(lessonTypes.deletedAt),
-        ),
-      )
-      .limit(1);
-    if (!row) {
-      return c.json({ message: 'invalid lesson type' }, 400);
-    }
+
+  const [lessonType] = await db
+    .select()
+    .from(lessonTypes)
+    .where(
+      and(
+        eq(lessonTypes.id, input.lessonTypeId),
+        eq(lessonTypes.classroomId, existing.classroomId),
+        isNull(lessonTypes.deletedAt),
+      ),
+    )
+    .limit(1);
+  if (!lessonType) {
+    return c.json({ message: 'invalid lesson type' }, 400);
   }
 
   try {

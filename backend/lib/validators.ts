@@ -312,8 +312,8 @@ const createLessonSchema = z
     teacherId: z.string().trim().min(1, 'teacher id is required'),
     studentId: z.string().trim().min(1, 'student id is required'),
     classroomId: z.string().trim().min(1, 'classroom id is required'),
-    subjectId: z.string().trim().min(1),
-    lessonTypeId: z.string().trim().min(1),
+    subjectId: z.string().trim().min(1, 'subject id is required'),
+    lessonTypeId: z.string().trim().min(1, 'lesson type id is required'),
     startAt: lessonInstantSchema,
     endAt: lessonInstantSchema,
   })
@@ -328,8 +328,8 @@ const createLessonSchema = z
   });
 
 const patchLessonSchema = z.object({
-  subjectId: z.string().trim().min(1),
-  lessonTypeId: z.string().trim().min(1),
+  subjectId: z.string().trim().min(1, 'subject id is required'),
+  lessonTypeId: z.string().trim().min(1, 'lesson type id is required'),
 });
 
 type CreateLessonInput = z.infer<typeof createLessonSchema>;

@@ -18,7 +18,7 @@ export function lessonTeacherDisplay(
   }
   const name = `${row.lastName ?? ''} ${row.firstName ?? ''}`.trim();
   if (row.deletedAt != null) {
-    return name ? `${name}（削除済み）` : '（削除済み）';
+    return '（削除済み）';
   }
   return name || '（不明）';
 }
@@ -31,7 +31,7 @@ export function lessonStudentDisplay(
   }
   const name = (row.name ?? '').trim();
   if (row.deletedAt != null) {
-    return name ? `${name}（削除済み）` : '（削除済み）';
+    return '（削除済み）';
   }
   return name || '（不明）';
 }
