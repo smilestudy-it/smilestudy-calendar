@@ -521,6 +521,16 @@ export default function StudentManagementPanel({
                       type="button"
                       variant="outline"
                       size="sm"
+                      asChild
+                    >
+                      <a href={`/share/calendar?student_id=${encodeURIComponent(row.id)}`}>
+                        生徒カレンダーへ
+                      </a>
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="secondary"
+                      size="sm"
                       onClick={() => void handleCopyShareLink(row.id)}
                     >
                       {copiedShareStudentId === row.id
