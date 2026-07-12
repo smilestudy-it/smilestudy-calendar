@@ -517,13 +517,10 @@ export default function StudentManagementPanel({
                     </p>
                   </div>
                   <div className="flex shrink-0 flex-wrap items-center gap-2">
-                    <Button
-                      type="button"
-                      variant="outline"
-                      size="sm"
-                      asChild
-                    >
-                      <a href={`/share/calendar?student_id=${encodeURIComponent(row.id)}`}>
+                    <Button type="button" variant="outline" size="sm" asChild>
+                      <a
+                        href={`/share/calendar?student_id=${encodeURIComponent(row.id)}`}
+                      >
                         生徒カレンダーへ
                       </a>
                     </Button>
