@@ -35,7 +35,6 @@ type Props = {
   getAccessTokenSilently: () => Promise<string>;
 };
 
-const defaultColor = '#3b82f6';
 const inviteFormSchema = z
   .object({
     role: z.enum(['admin', 'manager', 'staff']),
@@ -87,6 +86,10 @@ export default function TeacherManagementPanel({
   const [error, setError] = useState<string | null>(null);
   const latestLoadUsersRequestId = useRef(0);
   const latestLoadAdminsRequestId = useRef(0);
+  const randomColor = () => {
+    const n = Math.floor(Math.random() * 0x1000000);
+    return `#${n.toString(16).padStart(6, '0')}`;
+  };
   const {
     register,
     handleSubmit,
@@ -103,7 +106,7 @@ export default function TeacherManagementPanel({
       firstName: '',
       lastName: '',
       email: '',
-      color: defaultColor,
+      color: randomColor(),
     },
   });
 
@@ -283,7 +286,7 @@ export default function TeacherManagementPanel({
         firstName: '',
         lastName: '',
         email: '',
-        color: defaultColor,
+        color: randomColor(),
       });
       await loadUsersRef.current();
       await loadAdminsRef.current();
