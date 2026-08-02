@@ -8,8 +8,9 @@ import type { Resolver, SubmitHandler } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 
+import { ConfirmDeleteDialog } from '@/components/ConfirmDeleteDialog';
+import { FormErrorAlert } from '@/components/FormErrorAlert';
 import { Button } from '@/components/ui/button';
-import { FormErrorAlert } from '@/components/ui/form-error-alert';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import {
@@ -95,6 +96,11 @@ export default function StudentManagementPanel({
   const [isLoadingStudents, setIsLoadingStudents] = useState(false);
   const [isLoadingClassrooms, setIsLoadingClassrooms] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [pendingDelete, setPendingDelete] = useState<{
+    id: string;
+    name: string;
+  } | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
   const [copiedShareStudentId, setCopiedShareStudentId] = useState<
     string | null
   >(null);
@@ -308,10 +314,14 @@ export default function StudentManagementPanel({
     }
   }, []);
 
-  const handleDeleteStudent = async (id: string) => {
+  const handleConfirmDeleteStudent = async () => {
+    if (!pendingDelete) {
+      return;
+    }
+    setIsDeleting(true);
     setError(null);
     try {
-      const response = await authedFetch(`/api/students/${id}`, {
+      const response = await authedFetch(`/api/students/${pendingDelete.id}`, {
         method: 'DELETE',
       });
       if (!response.ok) {
@@ -322,9 +332,12 @@ export default function StudentManagementPanel({
         }
         return;
       }
+      setPendingDelete(null);
       await loadStudentsRef.current();
     } catch {
       setError('生徒の削除に失敗しました。');
+    } finally {
+      setIsDeleting(false);
     }
   };
 
@@ -447,7 +460,7 @@ export default function StudentManagementPanel({
         </section>
       )}
 
-      <FormErrorAlert message={error} />
+      <FormErrorAlert message={pendingDelete ? null : error} />
 
       <Separator />
 
@@ -539,7 +552,10 @@ export default function StudentManagementPanel({
                         type="button"
                         variant="destructive"
                         size="sm"
-                        onClick={() => void handleDeleteStudent(row.id)}
+                        onClick={() => {
+                          setError(null);
+                          setPendingDelete({ id: row.id, name: row.name });
+                        }}
                       >
                         削除
                       </Button>
@@ -551,6 +567,25 @@ export default function StudentManagementPanel({
           </div>
         )}
       </section>
+
+      <ConfirmDeleteDialog
+        open={pendingDelete != null}
+        onOpenChange={(open) => {
+          if (!open) {
+            setPendingDelete(null);
+            setError(null);
+          }
+        }}
+        title="生徒を削除しますか？"
+        description={
+          pendingDelete
+            ? `「${pendingDelete.name}」を削除します。この操作は取り消せません。`
+            : undefined
+        }
+        error={pendingDelete ? error : null}
+        isConfirming={isDeleting}
+        onConfirm={handleConfirmDeleteStudent}
+      />
     </section>
   );
 }

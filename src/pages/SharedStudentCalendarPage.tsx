@@ -7,6 +7,7 @@ import { useSearchParams } from 'react-router-dom';
 import dayjs from 'dayjs';
 import 'dayjs/locale/ja';
 
+import MonthCalendar from '@/components/MonthCalendar';
 import { Button } from '@/components/ui/button';
 import {
   Dialog,
@@ -14,7 +15,6 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
-import MonthCalendar from '@/components/ui/full-calendar';
 
 dayjs.locale('ja');
 

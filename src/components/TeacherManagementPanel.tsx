@@ -9,8 +9,9 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 
 import type { User } from '@/../../shared/type';
+import { ConfirmDeleteDialog } from '@/components/ConfirmDeleteDialog';
+import { FormErrorAlert } from '@/components/FormErrorAlert';
 import { Button } from '@/components/ui/button';
-import { FormErrorAlert } from '@/components/ui/form-error-alert';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import {
@@ -84,6 +85,11 @@ export default function TeacherManagementPanel({
   const [isLoadingAdmins, setIsLoadingAdmins] = useState(false);
   const [isLoadingClassrooms, setIsLoadingClassrooms] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [pendingDelete, setPendingDelete] = useState<{
+    id: string;
+    name: string;
+  } | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
   const latestLoadUsersRequestId = useRef(0);
   const latestLoadAdminsRequestId = useRef(0);
   const randomColor = () => {
@@ -295,10 +301,14 @@ export default function TeacherManagementPanel({
     }
   };
 
-  const handleDelete = async (id: string) => {
+  const handleConfirmDelete = async () => {
+    if (!pendingDelete) {
+      return;
+    }
+    setIsDeleting(true);
     setError(null);
     try {
-      const response = await authedFetch(`/api/users/${id}`, {
+      const response = await authedFetch(`/api/users/${pendingDelete.id}`, {
         method: 'DELETE',
       });
       if (!response.ok) {
@@ -311,10 +321,13 @@ export default function TeacherManagementPanel({
         }
         return;
       }
+      setPendingDelete(null);
       await loadUsersRef.current();
       await loadAdminsRef.current();
     } catch {
       setError('ユーザー削除に失敗しました。');
+    } finally {
+      setIsDeleting(false);
     }
   };
 
@@ -451,7 +464,7 @@ export default function TeacherManagementPanel({
         </form>
       </section>
 
-      <FormErrorAlert message={error} />
+      <FormErrorAlert message={pendingDelete ? null : error} />
 
       {canListAdmins && (
         <>
@@ -483,7 +496,13 @@ export default function TeacherManagementPanel({
                         type="button"
                         variant="destructive"
                         size="sm"
-                        onClick={() => void handleDelete(row.id)}
+                        onClick={() => {
+                          setError(null);
+                          setPendingDelete({
+                            id: row.id,
+                            name: `${row.lastName} ${row.firstName}`.trim(),
+                          });
+                        }}
                       >
                         削除
                       </Button>
@@ -551,7 +570,13 @@ export default function TeacherManagementPanel({
                     type="button"
                     variant="destructive"
                     size="sm"
-                    onClick={() => void handleDelete(row.id)}
+                    onClick={() => {
+                      setError(null);
+                      setPendingDelete({
+                        id: row.id,
+                        name: `${row.lastName} ${row.firstName}`.trim(),
+                      });
+                    }}
                   >
                     削除
                   </Button>
@@ -566,6 +591,25 @@ export default function TeacherManagementPanel({
           </ul>
         )}
       </section>
+
+      <ConfirmDeleteDialog
+        open={pendingDelete != null}
+        onOpenChange={(open) => {
+          if (!open) {
+            setPendingDelete(null);
+            setError(null);
+          }
+        }}
+        title="ユーザーを削除しますか？"
+        description={
+          pendingDelete
+            ? `「${pendingDelete.name}」を削除します。この操作は取り消せません。`
+            : undefined
+        }
+        error={pendingDelete ? error : null}
+        isConfirming={isDeleting}
+        onConfirm={handleConfirmDelete}
+      />
     </section>
   );
 }

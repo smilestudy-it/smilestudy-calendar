@@ -1,6 +1,7 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 
 import type { EventClickArg, EventInput } from '@fullcalendar/core/index.js';
+import jaLocale from '@fullcalendar/core/locales/ja';
 import dayGridPlugin from '@fullcalendar/daygrid';
 import FullCalendar from '@fullcalendar/react';
 
@@ -32,6 +33,7 @@ export default function MonthCalendar({
   showHeaderToolbar = false,
   calendarKey,
 }: Props) {
+  const calendarRef = useRef<FullCalendar>(null);
   const [holidayDates, setHolidayDates] = useState<string[]>([]);
   const holidayDateSet = useMemo(() => new Set(holidayDates), [holidayDates]);
 
@@ -73,6 +75,10 @@ export default function MonthCalendar({
     };
   }, [focusDate]);
 
+  useEffect(() => {
+    calendarRef.current?.getApi().gotoDate(focusDate);
+  }, [focusDate]);
+
   const getDateColorClass = (date: Date) => {
     if (holidayDateSet.has(toDateKey(date)) || date.getDay() === 0) {
       return 'text-red-500';
@@ -85,11 +91,13 @@ export default function MonthCalendar({
 
   return (
     <FullCalendar
+      ref={calendarRef}
       key={calendarKey}
       plugins={[dayGridPlugin]}
       initialView="dayGridMonth"
       initialDate={focusDate}
       locale="ja"
+      locales={[jaLocale]}
       height="auto"
       fixedWeekCount={false}
       eventDisplay="block"

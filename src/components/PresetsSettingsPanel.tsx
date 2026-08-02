@@ -3,6 +3,8 @@
  */
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
+import { ConfirmDeleteDialog } from '@/components/ConfirmDeleteDialog';
+import { FormErrorAlert } from '@/components/FormErrorAlert';
 import LessonTypesBlock from '@/components/presets/LessonTypesBlock';
 import SubjectsBlock from '@/components/presets/SubjectsBlock';
 import TimeSlotsBlock from '@/components/presets/TimeSlotsBlock';
@@ -11,7 +13,6 @@ import {
   readPresetApiError,
   toHm,
 } from '@/components/presets/presetFormUtils';
-import { FormErrorAlert } from '@/components/ui/form-error-alert';
 import { Label } from '@/components/ui/label';
 import {
   Select,
@@ -35,6 +36,11 @@ type SubjectRow = SubjectListItem;
 type LessonTypeRow = LessonTypeListItem;
 type TimeSlotRow = TimeSlotListItem;
 type Classroom = ClassroomListItem;
+
+type PendingDisable =
+  | { kind: 'subject'; id: string; label: string }
+  | { kind: 'lessonType'; id: string; label: string }
+  | { kind: 'timeSlot'; id: string; label: string };
 
 type Props = {
   currentUser: CurrentUser;
@@ -61,6 +67,10 @@ export default function PresetsSettingsPanel({
   const [isLoadingClassrooms, setIsLoadingClassrooms] = useState(false);
   const [isLoadingPresets, setIsLoadingPresets] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [pendingDisable, setPendingDisable] = useState<PendingDisable | null>(
+    null,
+  );
+  const [isDisabling, setIsDisabling] = useState(false);
 
   const [newSubjectName, setNewSubjectName] = useState('');
   const [newLessonTypeName, setNewLessonTypeName] = useState('');
@@ -335,66 +345,89 @@ export default function PresetsSettingsPanel({
     }
   };
 
-  const disableSubject = async (id: string) => {
+  const disableSubject = async (id: string): Promise<boolean> => {
     setError(null);
-    try {
-      const res = await authedFetch(`/api/subjects/${id}`, {
-        method: 'DELETE',
-      });
-      if (!res.ok) {
-        setError(
-          await readPresetApiError(res, {
-            fallback: '科目の無効化に失敗しました',
-            invalidRequestHint: '入力内容を確認してください。',
-          }),
-        );
-        return;
-      }
-      await loadPresets();
-    } catch (e) {
-      setError(presetMutationNetworkError('科目の無効化に失敗しました', e));
+    const res = await authedFetch(`/api/subjects/${id}`, {
+      method: 'DELETE',
+    });
+    if (!res.ok) {
+      setError(
+        await readPresetApiError(res, {
+          fallback: '科目の無効化に失敗しました',
+          invalidRequestHint: '入力内容を確認してください。',
+        }),
+      );
+      return false;
     }
+    await loadPresets();
+    return true;
   };
 
-  const disableLessonType = async (id: string) => {
+  const disableLessonType = async (id: string): Promise<boolean> => {
     setError(null);
-    try {
-      const res = await authedFetch(`/api/lesson-types/${id}`, {
-        method: 'DELETE',
-      });
-      if (!res.ok) {
-        setError(
-          await readPresetApiError(res, {
-            fallback: '授業種別の無効化に失敗しました',
-            invalidRequestHint: '入力内容を確認してください。',
-          }),
-        );
-        return;
-      }
-      await loadPresets();
-    } catch (e) {
-      setError(presetMutationNetworkError('授業種別の無効化に失敗しました', e));
+    const res = await authedFetch(`/api/lesson-types/${id}`, {
+      method: 'DELETE',
+    });
+    if (!res.ok) {
+      setError(
+        await readPresetApiError(res, {
+          fallback: '授業種別の無効化に失敗しました',
+          invalidRequestHint: '入力内容を確認してください。',
+        }),
+      );
+      return false;
     }
+    await loadPresets();
+    return true;
   };
 
-  const disableTimeSlot = async (id: string) => {
+  const disableTimeSlot = async (id: string): Promise<boolean> => {
     setError(null);
+    const res = await authedFetch(`/api/time-slots/${id}`, {
+      method: 'DELETE',
+    });
+    if (!res.ok) {
+      setError(
+        await readPresetApiError(res, {
+          fallback: '時間枠の無効化に失敗しました',
+          invalidRequestHint: '時間枠の入力を確認してください。',
+        }),
+      );
+      return false;
+    }
+    await loadPresets();
+    return true;
+  };
+
+  const handleConfirmDisable = async () => {
+    if (!pendingDisable) {
+      return;
+    }
+    setIsDisabling(true);
     try {
-      const res = await authedFetch(`/api/time-slots/${id}`, {
-        method: 'DELETE',
-      });
-      if (!res.ok) {
-        setError(
-          await readPresetApiError(res, {
-            fallback: '時間枠の無効化に失敗しました',
-            invalidRequestHint: '時間枠の入力を確認してください。',
-          }),
-        );
-        return;
+      let ok = false;
+      if (pendingDisable.kind === 'subject') {
+        ok = await disableSubject(pendingDisable.id);
+      } else if (pendingDisable.kind === 'lessonType') {
+        ok = await disableLessonType(pendingDisable.id);
+      } else {
+        ok = await disableTimeSlot(pendingDisable.id);
       }
-      await loadPresets();
+      if (ok) {
+        setPendingDisable(null);
+      }
     } catch (e) {
-      setError(presetMutationNetworkError('時間枠の無効化に失敗しました', e));
+      if (pendingDisable.kind === 'subject') {
+        setError(presetMutationNetworkError('科目の無効化に失敗しました', e));
+      } else if (pendingDisable.kind === 'lessonType') {
+        setError(
+          presetMutationNetworkError('授業種別の無効化に失敗しました', e),
+        );
+      } else {
+        setError(presetMutationNetworkError('時間枠の無効化に失敗しました', e));
+      }
+    } finally {
+      setIsDisabling(false);
     }
   };
 
@@ -442,7 +475,7 @@ export default function PresetsSettingsPanel({
         </div>
       )}
 
-      <FormErrorAlert message={error} />
+      <FormErrorAlert message={pendingDisable ? null : error} />
 
       {!activeClassroomId ? (
         <p className="text-muted-foreground text-sm">
@@ -460,7 +493,14 @@ export default function PresetsSettingsPanel({
             draftNames={draftNames}
             setDraftNames={setDraftNames}
             onPatch={patchSubject}
-            onDisable={disableSubject}
+            onDisable={(id) => {
+              const row = subjects.find((s) => s.id === id);
+              setPendingDisable({
+                kind: 'subject',
+                id,
+                label: row?.name ?? id,
+              });
+            }}
           />
           <LessonTypesBlock
             lessonTypes={lessonTypes}
@@ -470,7 +510,14 @@ export default function PresetsSettingsPanel({
             draftNames={draftNames}
             setDraftNames={setDraftNames}
             onPatch={patchLessonType}
-            onDisable={disableLessonType}
+            onDisable={(id) => {
+              const row = lessonTypes.find((t) => t.id === id);
+              setPendingDisable({
+                kind: 'lessonType',
+                id,
+                label: row?.name ?? id,
+              });
+            }}
           />
           <TimeSlotsBlock
             timeSlots={timeSlots}
@@ -482,10 +529,36 @@ export default function PresetsSettingsPanel({
             draftSlots={draftSlots}
             setDraftSlots={setDraftSlots}
             onPatch={patchTimeSlot}
-            onDisable={disableTimeSlot}
+            onDisable={(id) => {
+              const row = timeSlots.find((t) => t.id === id);
+              setPendingDisable({
+                kind: 'timeSlot',
+                id,
+                label: row ? `${toHm(row.startTime)}–${toHm(row.endTime)}` : id,
+              });
+            }}
           />
         </div>
       )}
+
+      <ConfirmDeleteDialog
+        open={pendingDisable != null}
+        onOpenChange={(open) => {
+          if (!open) {
+            setPendingDisable(null);
+          }
+        }}
+        title="無効化の確認"
+        description={
+          pendingDisable
+            ? `「${pendingDisable.label}」を無効化します。一覧から消え、新規コマでは選べなくなります。`
+            : undefined
+        }
+        error={pendingDisable ? error : null}
+        confirmLabel="無効化する"
+        isConfirming={isDisabling}
+        onConfirm={handleConfirmDisable}
+      />
     </section>
   );
 }
