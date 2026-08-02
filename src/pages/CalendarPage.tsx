@@ -7,12 +7,13 @@ import { Link } from 'react-router-dom';
 import dayjs from 'dayjs';
 import 'dayjs/locale/ja';
 
-import { Button } from '@/components/ui/button';
-import { Dialog, DialogContent } from '@/components/ui/dialog';
-import MonthCalendar from '@/components/ui/full-calendar';
+import { ConfirmDeleteDialog } from '@/components/ConfirmDeleteDialog';
 import LessonDeletePanel, {
   type LessonDetailTarget,
-} from '@/components/ui/lesson-delete-panel';
+} from '@/components/LessonDeletePanel';
+import MonthCalendar from '@/components/MonthCalendar';
+import { Button } from '@/components/ui/button';
+import { Dialog, DialogContent } from '@/components/ui/dialog';
 import { useAuthedFetch } from '@/hooks/useAuthedFetch';
 import { useSelectedClassroom } from '@/hooks/useSelectedClassroom';
 import type { CurrentUser } from '@/types/currentUser';
@@ -78,6 +79,7 @@ export default function CalendarPage({
   const [selectedEvent, setSelectedEvent] = useState<LessonDetailTarget | null>(
     null,
   );
+  const [confirmDeleteOpen, setConfirmDeleteOpen] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [panelError, setPanelError] = useState<string | null>(null);
 
@@ -245,6 +247,7 @@ export default function CalendarPage({
       );
       if (!res.ok) throw new Error('削除に失敗しました');
 
+      setConfirmDeleteOpen(false);
       await fetchMonthData(); // カレンダーの最新データを再取得
       setSelectedEvent(null); // モーダルを閉じる
     } catch (e: unknown) {
@@ -363,7 +366,12 @@ export default function CalendarPage({
       {/* 💡 詳細・編集・削除用モーダル */}
       <Dialog
         open={!!selectedEvent}
-        onOpenChange={(open) => !open && setSelectedEvent(null)}
+        onOpenChange={(open) => {
+          if (!open) {
+            setSelectedEvent(null);
+            setConfirmDeleteOpen(false);
+          }
+        }}
       >
         <DialogContent className="max-w-xl">
           <LessonDeletePanel
@@ -374,8 +382,11 @@ export default function CalendarPage({
             presetLessonTypes={lessonTypes}
             isSavingPresets={isSaving}
             presetsError={panelError}
-            onClose={() => setSelectedEvent(null)}
-            onDelete={handleDelete}
+            onClose={() => {
+              setSelectedEvent(null);
+              setConfirmDeleteOpen(false);
+            }}
+            onDelete={() => setConfirmDeleteOpen(true)}
             onSavePresets={handleSavePresets}
             onPresetChange={(next) => {
               // 選択状態を一時的にローカルStateに保持
@@ -384,6 +395,19 @@ export default function CalendarPage({
           />
         </DialogContent>
       </Dialog>
+
+      <ConfirmDeleteDialog
+        open={confirmDeleteOpen}
+        onOpenChange={setConfirmDeleteOpen}
+        title="コマを削除しますか？"
+        description={
+          selectedEvent
+            ? `「${selectedEvent.title}」を削除します。この操作は取り消せません。`
+            : undefined
+        }
+        isConfirming={isSaving}
+        onConfirm={handleDelete}
+      />
     </section>
   );
 }

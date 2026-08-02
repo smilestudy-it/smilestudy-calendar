@@ -7,7 +7,7 @@ import { Navigate, Route, Routes, useLocation } from 'react-router-dom';
 import { useAuth0 } from '@auth0/auth0-react';
 
 import AppShell from './components/AppShell';
-import LoginButton from './components/ui/LoginButton';
+import LoginButton from './components/LoginButton';
 import { useCurrentUser } from './hooks/useCurrentUser';
 
 const HomePage = lazy(() => import('./pages/HomePage'));

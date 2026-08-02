@@ -5,8 +5,9 @@ import { useContext, useState } from 'react';
 import type { ComponentProps } from 'react';
 
 import { SelectedClassroomContext } from '@/components/AppShell';
+import { ConfirmDeleteDialog } from '@/components/ConfirmDeleteDialog';
+import { FormErrorAlert } from '@/components/FormErrorAlert';
 import { Button } from '@/components/ui/button';
-import { FormErrorAlert } from '@/components/ui/form-error-alert';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Separator } from '@/components/ui/separator';
@@ -23,6 +24,11 @@ export default function ClassroomAdminPanel({ getAccessTokenSilently }: Props) {
   const [name, setName] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [pendingDelete, setPendingDelete] = useState<{
+    id: string;
+    name: string;
+  } | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
   const shellClassroom = useContext(SelectedClassroomContext);
 
   const authedFetch = useAuthedFetch(getAccessTokenSilently);
@@ -64,19 +70,29 @@ export default function ClassroomAdminPanel({ getAccessTokenSilently }: Props) {
     }
   };
 
-  const handleDelete = async (id: string) => {
+  const handleConfirmDelete = async () => {
+    if (!pendingDelete) {
+      return;
+    }
+    setIsDeleting(true);
     setError(null);
     try {
-      const response = await authedFetch(`/api/classrooms/${id}`, {
-        method: 'DELETE',
-      });
+      const response = await authedFetch(
+        `/api/classrooms/${pendingDelete.id}`,
+        {
+          method: 'DELETE',
+        },
+      );
       if (!response.ok) {
         setError('教室の削除に失敗しました。');
         return;
       }
+      setPendingDelete(null);
       await shellClassroom?.refreshClassrooms();
     } catch {
       setError('教室の削除に失敗しました。');
+    } finally {
+      setIsDeleting(false);
     }
   };
 
@@ -124,7 +140,9 @@ export default function ClassroomAdminPanel({ getAccessTokenSilently }: Props) {
                 type="button"
                 variant="destructive"
                 size="sm"
-                onClick={() => void handleDelete(room.id)}
+                onClick={() =>
+                  setPendingDelete({ id: room.id, name: room.name })
+                }
               >
                 削除
               </Button>
@@ -137,6 +155,23 @@ export default function ClassroomAdminPanel({ getAccessTokenSilently }: Props) {
           )}
         </ul>
       )}
+
+      <ConfirmDeleteDialog
+        open={pendingDelete != null}
+        onOpenChange={(open) => {
+          if (!open) {
+            setPendingDelete(null);
+          }
+        }}
+        title="教室を削除しますか？"
+        description={
+          pendingDelete
+            ? `「${pendingDelete.name}」を削除します。この操作は取り消せません。`
+            : undefined
+        }
+        isConfirming={isDeleting}
+        onConfirm={handleConfirmDelete}
+      />
     </section>
   );
 }

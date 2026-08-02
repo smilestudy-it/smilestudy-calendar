@@ -39,7 +39,7 @@ import { useAuthedFetch } from '@/hooks/useAuthedFetch';
 import type { CurrentUser } from '@/types/currentUser';
 import type { AppRole } from '@/types/role';
 
-import LogoutButton from './ui/LogoutButton';
+import LogoutButton from './LogoutButton';
 
 type Classroom = { id: string; name: string };
 
