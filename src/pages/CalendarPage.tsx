@@ -170,8 +170,16 @@ export default function CalendarPage({
 
   const teacherById = useMemo(() => toMapById(teachers), [teachers]);
 
+  // staff は自分のコマだけ表示（空席判定用の API 全体取得は維持）
+  const visibleLessons = useMemo(() => {
+    if (!currentUser || currentUser.role !== 'staff') {
+      return lessons;
+    }
+    return lessons.filter((l) => l.teacherId === currentUser.id);
+  }, [currentUser, lessons]);
+
   const calendarEvents = useMemo(() => {
-    return lessons.map((l) => {
+    return visibleLessons.map((l) => {
       const te = teacherById.get(l.teacherId);
       const teacherLastName =
         te?.lastName?.trim() ||
@@ -191,7 +199,7 @@ export default function CalendarPage({
         textColor: '#ffffff',
       };
     });
-  }, [lessons, teacherById]);
+  }, [visibleLessons, teacherById]);
 
   // 💡 パネルからの PATCH (更新) 処理
   const handleSavePresets = async () => {
@@ -332,7 +340,7 @@ export default function CalendarPage({
               events={calendarEvents}
               onFocusDateChange={setFocusDate}
               onEventClick={(event) => {
-                const lesson = lessons.find((l) => l.id === event.id);
+                const lesson = visibleLessons.find((l) => l.id === event.id);
                 if (!lesson) return;
 
                 setSelectedEvent({
