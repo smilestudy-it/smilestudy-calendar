@@ -48,6 +48,7 @@ lessonsApp.get(
     if (!from || !to || error) {
       return c.json({ message: error ?? 'invalid request' }, 400);
     }
+    const actor = c.var.currentUser;
     const db = getDb(c.env);
     const lessonRows = await db
       .select({
@@ -67,6 +68,7 @@ lessonsApp.get(
           isNull(lessons.deletedAt),
           lt(lessons.startAt, to),
           gt(lessons.endAt, from),
+          actor.role === 'staff' ? eq(lessons.teacherId, actor.id) : undefined,
         ),
       );
 
