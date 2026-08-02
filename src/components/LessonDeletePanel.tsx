@@ -175,7 +175,7 @@ export default function LessonDeletePanel({
             type="button"
             variant="outline"
             onClick={onClose}
-            disabled={isDeleting}
+            disabled={isDeleting || isSavingPresets}
           >
             閉じる
           </Button>
@@ -184,7 +184,7 @@ export default function LessonDeletePanel({
               type="button"
               variant="destructive"
               onClick={onDelete}
-              disabled={isDeleting}
+              disabled={isDeleting || isSavingPresets}
             >
               {isDeleting ? '削除中...' : '削除'}
             </Button>

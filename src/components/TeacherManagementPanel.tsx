@@ -464,7 +464,7 @@ export default function TeacherManagementPanel({
         </form>
       </section>
 
-      <FormErrorAlert message={error} />
+      <FormErrorAlert message={pendingDelete ? null : error} />
 
       {canListAdmins && (
         <>
@@ -496,12 +496,13 @@ export default function TeacherManagementPanel({
                         type="button"
                         variant="destructive"
                         size="sm"
-                        onClick={() =>
+                        onClick={() => {
+                          setError(null);
                           setPendingDelete({
                             id: row.id,
                             name: `${row.lastName} ${row.firstName}`.trim(),
-                          })
-                        }
+                          });
+                        }}
                       >
                         削除
                       </Button>
@@ -569,12 +570,13 @@ export default function TeacherManagementPanel({
                     type="button"
                     variant="destructive"
                     size="sm"
-                    onClick={() =>
+                    onClick={() => {
+                      setError(null);
                       setPendingDelete({
                         id: row.id,
                         name: `${row.lastName} ${row.firstName}`.trim(),
-                      })
-                    }
+                      });
+                    }}
                   >
                     削除
                   </Button>
@@ -595,6 +597,7 @@ export default function TeacherManagementPanel({
         onOpenChange={(open) => {
           if (!open) {
             setPendingDelete(null);
+            setError(null);
           }
         }}
         title="ユーザーを削除しますか？"
@@ -603,6 +606,7 @@ export default function TeacherManagementPanel({
             ? `「${pendingDelete.name}」を削除します。この操作は取り消せません。`
             : undefined
         }
+        error={pendingDelete ? error : null}
         isConfirming={isDeleting}
         onConfirm={handleConfirmDelete}
       />

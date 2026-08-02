@@ -121,7 +121,7 @@ export default function ClassroomAdminPanel({ getAccessTokenSilently }: Props) {
         </Button>
       </form>
 
-      <FormErrorAlert message={error} />
+      <FormErrorAlert message={pendingDelete ? null : error} />
       <FormErrorAlert message={listError} />
 
       <Separator />
@@ -140,9 +140,10 @@ export default function ClassroomAdminPanel({ getAccessTokenSilently }: Props) {
                 type="button"
                 variant="destructive"
                 size="sm"
-                onClick={() =>
-                  setPendingDelete({ id: room.id, name: room.name })
-                }
+                onClick={() => {
+                  setError(null);
+                  setPendingDelete({ id: room.id, name: room.name });
+                }}
               >
                 削除
               </Button>
@@ -161,6 +162,7 @@ export default function ClassroomAdminPanel({ getAccessTokenSilently }: Props) {
         onOpenChange={(open) => {
           if (!open) {
             setPendingDelete(null);
+            setError(null);
           }
         }}
         title="教室を削除しますか？"
@@ -169,6 +171,7 @@ export default function ClassroomAdminPanel({ getAccessTokenSilently }: Props) {
             ? `「${pendingDelete.name}」を削除します。この操作は取り消せません。`
             : undefined
         }
+        error={pendingDelete ? error : null}
         isConfirming={isDeleting}
         onConfirm={handleConfirmDelete}
       />

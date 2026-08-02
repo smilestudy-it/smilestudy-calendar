@@ -3,6 +3,7 @@
  */
 import type { ReactNode } from 'react';
 
+import { FormErrorAlert } from '@/components/FormErrorAlert';
 import {
   AlertDialog,
   AlertDialogCancel,
@@ -19,6 +20,8 @@ type Props = {
   onOpenChange: (open: boolean) => void;
   title?: string;
   description?: ReactNode;
+  /** 確認実行後の失敗メッセージ。ダイアログを開いたまま表示する */
+  error?: string | null;
   confirmLabel?: string;
   cancelLabel?: string;
   isConfirming?: boolean;
@@ -30,6 +33,7 @@ export function ConfirmDeleteDialog({
   onOpenChange,
   title = '削除の確認',
   description = 'この操作は取り消せません。本当に削除しますか？',
+  error = null,
   confirmLabel = '削除する',
   cancelLabel = 'キャンセル',
   isConfirming = false,
@@ -59,6 +63,7 @@ export function ConfirmDeleteDialog({
               <div>{description}</div>
             </AlertDialogDescription>
           )}
+          <FormErrorAlert message={error} />
         </AlertDialogHeader>
         <AlertDialogFooter>
           <AlertDialogCancel disabled={isConfirming}>

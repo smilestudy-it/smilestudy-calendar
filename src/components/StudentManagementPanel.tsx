@@ -460,7 +460,7 @@ export default function StudentManagementPanel({
         </section>
       )}
 
-      <FormErrorAlert message={error} />
+      <FormErrorAlert message={pendingDelete ? null : error} />
 
       <Separator />
 
@@ -552,9 +552,10 @@ export default function StudentManagementPanel({
                         type="button"
                         variant="destructive"
                         size="sm"
-                        onClick={() =>
-                          setPendingDelete({ id: row.id, name: row.name })
-                        }
+                        onClick={() => {
+                          setError(null);
+                          setPendingDelete({ id: row.id, name: row.name });
+                        }}
                       >
                         削除
                       </Button>
@@ -572,6 +573,7 @@ export default function StudentManagementPanel({
         onOpenChange={(open) => {
           if (!open) {
             setPendingDelete(null);
+            setError(null);
           }
         }}
         title="生徒を削除しますか？"
@@ -580,6 +582,7 @@ export default function StudentManagementPanel({
             ? `「${pendingDelete.name}」を削除します。この操作は取り消せません。`
             : undefined
         }
+        error={pendingDelete ? error : null}
         isConfirming={isDeleting}
         onConfirm={handleConfirmDeleteStudent}
       />
