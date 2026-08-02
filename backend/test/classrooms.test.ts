@@ -856,6 +856,28 @@ describe('classrooms api flow', () => {
     expect(state.presetSubjects[0]?.deletedAt).toBeNull();
   });
 
+  it('returns 403 for manager and staff users', async () => {
+    state.userRole = 'manager';
+    const managerGet = await app.request(
+      '/api/classrooms',
+      { method: 'GET' },
+      env,
+    );
+    expect(managerGet.status).toBe(403);
+
+    state.userRole = 'staff';
+    const staffPost = await app.request(
+      '/api/classrooms',
+      {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ name: 'Class C' }),
+      },
+      env,
+    );
+    expect(staffPost.status).toBe(403);
+  });
+
   it('returns 404 when user does not exist', async () => {
     state.userRole = null;
     const response = await app.request(

@@ -57,7 +57,7 @@ describe('lesson validators', () => {
       endAt: '2025-06-01T11:00:00.000Z',
     });
     expect(r.input).toBeUndefined();
-    expect(r.error).toBe('Invalid input: expected string, received undefined');
+    expect(r.error).toBe('subject id is required');
   });
 
   it('validateCreateLessonInput accepts ISO instants', () => {
@@ -77,7 +77,7 @@ describe('lesson validators', () => {
   it('validatePatchLessonInput requires both fields', () => {
     const r = validatePatchLessonInput({ lessonTypeId: 'lt-1' });
     expect(r.input).toBeUndefined();
-    expect(r.error).toBe('Invalid input: expected string, received undefined');
+    expect(r.error).toBe('subject id is required');
   });
 
   it('validatePatchLessonInput accepts subject and lesson type ids', () => {
