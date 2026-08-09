@@ -140,6 +140,11 @@ const createTimeSlotSchema = z
     }
   });
 
+const createHolidaySchema = z.object({
+  classroomId: z.string().trim().min(1, 'classroom id is requried'),
+  date: z.iso.date({ message: '日付形式が不正です' }),
+});
+
 const patchSubjectSchema = z.object({
   name: z
     .string()
@@ -188,6 +193,7 @@ type CreateUserInput = {
 type CreateStudentInput = z.infer<typeof studentSchema>;
 type CreatePresetNameInput = z.infer<typeof presetNameBodySchema>;
 type CreateTimeSlotInput = z.infer<typeof createTimeSlotSchema>;
+type CreateHolidayInput = z.infer<typeof createHolidaySchema>;
 type PatchSubjectInput = z.infer<typeof patchSubjectSchema>;
 type PatchLessonTypeInput = z.infer<typeof patchLessonTypeSchema>;
 type PatchTimeSlotInput = z.infer<typeof patchTimeSlotSchema>;
@@ -263,6 +269,17 @@ export function validateCreateTimeSlotInput(body: unknown): {
   error?: string;
 } {
   const result = createTimeSlotSchema.safeParse(body);
+  if (!result.success) {
+    return { error: firstIssueMessage(result.error) };
+  }
+  return { input: result.data };
+}
+
+export function validateCreateHolidayInput(body: unknown): {
+  input?: CreateHolidayInput;
+  error?: string;
+} {
+  const result = createHolidaySchema.safeParse(body);
   if (!result.success) {
     return { error: firstIssueMessage(result.error) };
   }

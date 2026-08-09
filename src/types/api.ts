@@ -11,3 +11,4 @@ export type TimeSlotListItem = {
   endTime: string;
 };
 export type ClassroomListItem = { id: string; name: string };
+export type HolidayListItem = { id: string; date: string };

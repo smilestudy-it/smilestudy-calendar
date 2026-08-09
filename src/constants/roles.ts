@@ -41,3 +41,12 @@ export function canAccessPresetsSettings(
   }
   return (PRESET_SETTINGS_ROLES as readonly string[]).includes(role);
 }
+
+/**
+ * 休業日設定画面へ遷移できるか。教室長以上。
+ */
+export function canAccessHolidaysSettings(
+  role: CurrentUser['role'] | string | undefined,
+): boolean {
+  return canAccessPresetsSettings(role);
+}

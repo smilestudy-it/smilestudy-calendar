@@ -20,7 +20,9 @@ import {
 } from '@/components/ui/select';
 import { useAuthedFetch } from '@/hooks/useAuthedFetch';
 import { useSelectedClassroom } from '@/hooks/useSelectedClassroom';
+import { applyHolidayUnavailability } from '@/lib/holidayAvailability';
 import { cn } from '@/lib/utils';
+import type { HolidayListItem } from '@/types/api';
 import type { CurrentUser } from '@/types/currentUser';
 
 dayjs.extend(utc);
@@ -83,6 +85,10 @@ export default function CalendarSingleEditPage({
 
   // その月の「教室全体の授業データ」を丸ごと保持します
   const [monthLessons, setMonthLessons] = useState<Lesson[]>([]);
+  /** 教室休業日（YYYY-MM-DD）。空き枠計算と登録抑止に使う */
+  const [holidayDateSet, setHolidayDateSet] = useState<Set<string>>(
+    () => new Set(),
+  );
 
   const [selectedSlotId, setSelectedSlotId] = useState<string | null>(null);
   const [selectedStudentId, setSelectedStudentId] = useState<string>('');
@@ -98,11 +104,11 @@ export default function CalendarSingleEditPage({
 
   const dateKey = date ? format(date, 'yyyy-MM-dd') : null;
 
-  // 1. 初期データの取得（時間枠、生徒、授業タイプ、科目）
+  // 1. 初期データの取得（時間枠、生徒、授業タイプ、科目、休業日）
   useEffect(() => {
     if (!activeClassroom) return;
     const fetchData = async () => {
-      const [tsRes, stRes, ltRes, subRes] = await Promise.all([
+      const [tsRes, stRes, ltRes, subRes, holRes] = await Promise.all([
         authedFetch(
           `/api/time-slots/${encodeURIComponent(activeClassroom.id)}`,
         ),
@@ -111,6 +117,7 @@ export default function CalendarSingleEditPage({
           `/api/lesson-types/${encodeURIComponent(activeClassroom.id)}`,
         ),
         authedFetch(`/api/subjects/${encodeURIComponent(activeClassroom.id)}`),
+        authedFetch(`/api/holidays/${encodeURIComponent(activeClassroom.id)}`),
       ]);
 
       if (tsRes.ok) {
@@ -132,6 +139,12 @@ export default function CalendarSingleEditPage({
       if (subRes.ok) {
         const data = (await subRes.json()) as SubjectRow[];
         setSubjects(data);
+      }
+      if (holRes.ok) {
+        const data = (await holRes.json()) as HolidayListItem[];
+        setHolidayDateSet(new Set(data.map((h) => h.date)));
+      } else {
+        setHolidayDateSet(new Set());
       }
     };
     void fetchData();
@@ -166,7 +179,7 @@ export default function CalendarSingleEditPage({
     if (timeSlots.length > 0) void fetchMonthShifts();
   }, [fetchMonthShifts, timeSlots.length]);
 
-  // 3. 【重要】講師と生徒の「両方の予定」を計算して塞がっている枠を割り出す
+  // 3. 講師・生徒の予定重複に加え、教室休業日は全日の枠を塞ぐ
   const unavailableSlotsByDate = useMemo(() => {
     const map: Record<string, Set<string>> = {};
     if (!currentUser || !selectedStudentId) return map;
@@ -188,14 +201,30 @@ export default function CalendarSingleEditPage({
         map[dKey].add(slot.id); // 塞がっている枠IDとして登録
       }
     }
+
+    applyHolidayUnavailability(
+      map,
+      holidayDateSet,
+      timeSlots.map((s) => s.id),
+    );
     return map;
-  }, [monthLessons, currentUser, selectedStudentId, timeSlots]);
+  }, [monthLessons, currentUser, selectedStudentId, timeSlots, holidayDateSet]);
+
+  const isSelectedDateHoliday = Boolean(dateKey && holidayDateSet.has(dateKey));
 
   // 生徒や日付が変わったら選択状態とメッセージをリセット
   useEffect(() => {
     setSelectedSlotId(null);
     setMessage(null);
   }, [dateKey, selectedStudentId]);
+
+  // 初期選択日が休業日なら解除（枠パネルを出さない）
+  useEffect(() => {
+    if (dateKey && holidayDateSet.has(dateKey)) {
+      setDate(undefined);
+      setSelectedSlotId(null);
+    }
+  }, [dateKey, holidayDateSet]);
 
   // 4. 1コマ登録処理
   const handleSave = async () => {
@@ -207,6 +236,14 @@ export default function CalendarSingleEditPage({
       !selectedStudentId
     ) {
       setMessage({ text: '時間と生徒を選択してください。', type: 'error' });
+      return;
+    }
+
+    if (holidayDateSet.has(dateKey)) {
+      setMessage({
+        text: '休業日にはコマを登録できません。',
+        type: 'error',
+      });
       return;
     }
 
@@ -338,6 +375,9 @@ export default function CalendarSingleEditPage({
                     onSelect={setDate}
                     month={month}
                     onMonthChange={setMonth}
+                    disabled={(d) =>
+                      holidayDateSet.has(format(d, 'yyyy-MM-dd'))
+                    }
                     className="w-full"
                     classNames={
                       {
@@ -354,15 +394,18 @@ export default function CalendarSingleEditPage({
                       ) => {
                         const { day, modifiers, ...restProps } = props;
                         const dKey = format(day.date, 'yyyy-MM-dd');
+                        const isHoliday = holidayDateSet.has(dKey);
 
-                        // その日の塞がっている枠数を計算
+                        // その日の塞がっている枠数を計算（休業日は全日不可）
                         const busySlotCount =
                           unavailableSlotsByDate[dKey]?.size || 0;
                         const totalSlots = timeSlots.length;
                         const availableCount = totalSlots - busySlotCount;
 
-                        let mark = null;
-                        if (totalSlots > 0) {
+                        let mark: string | null = null;
+                        if (isHoliday) {
+                          mark = '休';
+                        } else if (totalSlots > 0) {
                           if (availableCount <= 0) {
                             mark = '×';
                           } else if (availableCount === 1) {
@@ -381,8 +424,11 @@ export default function CalendarSingleEditPage({
                                 'bg-primary text-primary-foreground hover:bg-primary hover:text-primary-foreground',
                               modifiers.outside &&
                                 'text-muted-foreground opacity-50',
+                              modifiers.disabled &&
+                                'cursor-not-allowed opacity-50',
                               !modifiers.selected &&
                                 !modifiers.outside &&
+                                !modifiers.disabled &&
                                 'hover:bg-accent hover:text-accent-foreground',
                             )}
                           >
@@ -395,7 +441,7 @@ export default function CalendarSingleEditPage({
                                   'mt-1 text-sm font-bold',
                                   modifiers.selected
                                     ? 'text-primary-foreground'
-                                    : mark === '×'
+                                    : mark === '休' || mark === '×'
                                       ? 'text-red-500'
                                       : mark === '△'
                                         ? 'text-yellow-500'
@@ -413,8 +459,8 @@ export default function CalendarSingleEditPage({
                 </CardContent>
               </Card>
 
-              {/* 3. 時間帯選択エリア */}
-              {date && (
+              {/* 3. 時間帯選択エリア（休業日は選択不可のため表示しない） */}
+              {date && !isSelectedDateHoliday && (
                 <Card className="animate-in fade-in slide-in-from-bottom-4 border-primary/20 shadow-md duration-300">
                   <CardHeader className="border-b pb-3">
                     <CardTitle className="text-center text-lg">
@@ -425,7 +471,7 @@ export default function CalendarSingleEditPage({
                     <div className="grid grid-cols-2 gap-3">
                       {timeSlots.map((slot) => {
                         const isSelected = selectedSlotId === slot.id;
-                        // 講師か生徒のどちらかが塞がっていれば disabled にする
+                        // 講師・生徒の重複、または休業日なら disabled
                         const isUnavailable = dateKey
                           ? unavailableSlotsByDate[dateKey]?.has(slot.id)
                           : false;

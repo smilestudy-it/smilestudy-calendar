@@ -7,6 +7,7 @@ import { Hono } from 'hono';
 import { getDb } from '../db';
 import {
   classrooms,
+  holidays,
   lessonTypes,
   lessons,
   students,
@@ -18,6 +19,7 @@ import {
   lessonStudentDisplay,
   lessonTeacherDisplay,
 } from '../lessonDisplay';
+import { toTokyoDateKey } from '../lib/tokyoDate';
 import {
   validateCreateLessonInput,
   validateLessonRangeQuery,
@@ -234,6 +236,22 @@ lessonsApp.post('/', auth, loadUser, async (c) => {
   }
   if (!lessonTypeRes) {
     return c.json({ message: 'invalid lesson type' }, 400);
+  }
+
+  const dateKey = toTokyoDateKey(input.startAt);
+  const [holidayRow] = await db
+    .select({ id: holidays.id })
+    .from(holidays)
+    .where(
+      and(
+        eq(holidays.classroomId, input.classroomId),
+        eq(holidays.date, dateKey),
+        isNull(holidays.deletedAt),
+      ),
+    )
+    .limit(1);
+  if (holidayRow) {
+    return c.json({ message: 'cannot create lesson on a holiday' }, 400);
   }
 
   const id = crypto.randomUUID();

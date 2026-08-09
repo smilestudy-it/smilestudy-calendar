@@ -119,3 +119,15 @@ export const lessons = sqliteTable('lessons', {
   endAt: integer('end_at', { mode: 'timestamp' }).notNull(),
   deletedAt: integer('deleted_at', { mode: 'timestamp' }),
 });
+
+// ----------------------------------------------------
+// 5. 休業日 (Holidays)
+// ----------------------------------------------------
+export const holidays = sqliteTable('holidays', {
+  id: text('id').primaryKey(),
+  classroomId: text('classroom_id')
+    .references(() => classrooms.id)
+    .notNull(),
+  date: text('date').notNull(),
+  deletedAt: integer('deleted_at', { mode: 'timestamp' }),
+});

@@ -184,6 +184,11 @@ export default function AppShell({
         to: '/settings/presets',
         allowedRoles: ['admin', 'manager'],
       },
+      {
+        label: '休業日',
+        to: '/holidays',
+        allowedRoles: ['admin', 'manager'],
+      },
       { label: '教室管理', to: '/classroom', allowedRoles: ['admin'] },
     ];
 

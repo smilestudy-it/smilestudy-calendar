@@ -6,6 +6,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import {
   classrooms,
+  holidays,
   lessonTypes,
   lessons,
   students,
@@ -199,6 +200,12 @@ const state: {
   subjectRows: PresetRow[];
   lessonTypeRows: PresetRow[];
   lessonRows: LessonRow[];
+  holidayRows: Array<{
+    id: string;
+    classroomId: string;
+    date: string;
+    deletedAt: Date | null;
+  }>;
   expectPostLessonTx: boolean;
   expectPatchLessonTx: boolean;
   lessonTxLimitIndex: number;
@@ -227,6 +234,7 @@ const state: {
   subjectRows: [],
   lessonTypeRows: [],
   lessonRows: [],
+  holidayRows: [],
   expectPostLessonTx: false,
   expectPatchLessonTx: false,
   lessonTxLimitIndex: 0,
@@ -333,8 +341,7 @@ vi.mock('../db', () => {
             };
           }
           if (
-            keys.length === 1 &&
-            keys[0] === 'id' &&
+            (keys.length === 0 || (keys.length === 1 && keys[0] === 'id')) &&
             (state.inTx ||
               state.expectPostLessonTx ||
               state.expectPatchLessonTx)
@@ -433,8 +440,7 @@ vi.mock('../db', () => {
             };
           }
           if (
-            keys.length === 1 &&
-            keys[0] === 'id' &&
+            (keys.length === 0 || (keys.length === 1 && keys[0] === 'id')) &&
             (state.inTx ||
               state.expectPostLessonTx ||
               state.expectPatchLessonTx)
@@ -634,7 +640,21 @@ vi.mock('../db', () => {
               },
             };
           }
-          return { where: () => ({ limit: async () => [] }) };
+          return {
+            where: () => ({
+              limit: async () => {
+                if (state.expectPostLessonTx && state.postFixture) {
+                  const row = state.subjectRows.find(
+                    (r) =>
+                      r.deletedAt === null &&
+                      r.classroomId === state.postFixture!.classroomId,
+                  );
+                  return row ? [row] : [];
+                }
+                return [];
+              },
+            }),
+          };
         }
 
         if (table === lessonTypes) {
@@ -659,7 +679,38 @@ vi.mock('../db', () => {
               },
             };
           }
-          return { where: () => ({ limit: async () => [] }) };
+          return {
+            where: () => ({
+              limit: async () => {
+                if (state.expectPostLessonTx && state.postFixture) {
+                  const row = state.lessonTypeRows.find(
+                    (r) =>
+                      r.deletedAt === null &&
+                      r.classroomId === state.postFixture!.classroomId,
+                  );
+                  return row ? [row] : [];
+                }
+                return [];
+              },
+            }),
+          };
+        }
+
+        if (table === holidays) {
+          return {
+            where: (predicate: unknown) => ({
+              limit: async () => {
+                const strings = walkPredicateStrings(predicate);
+                const row = state.holidayRows.find(
+                  (h) =>
+                    h.deletedAt === null &&
+                    strings.includes(h.classroomId) &&
+                    strings.includes(h.date),
+                );
+                return row ? [{ id: row.id }] : [];
+              },
+            }),
+          };
         }
 
         return { where: () => ({ limit: async () => [] }) };
@@ -803,6 +854,7 @@ describe('lessons api', () => {
         deletedAt: null,
       },
     ];
+    state.holidayRows = [];
     state.expectPostLessonTx = false;
     state.expectPatchLessonTx = false;
     state.lessonTxLimitIndex = 0;
@@ -951,6 +1003,51 @@ describe('lessons api', () => {
     expect(res.status).toBe(200);
     const rows = (await res.json()) as Array<{ teacherDisplay: string }>;
     expect(rows[0]?.teacherDisplay).toBe('（削除済み）');
+  });
+
+  it('POST /lessons rejects create on classroom holiday', async () => {
+    state.expectPostLessonTx = true;
+    state.postFixture = {
+      classroomId: 'room-1',
+      teacherId: 'teacher-1',
+      studentId: 'student-1',
+      startAt: t1,
+      endAt: t2,
+    };
+    state.holidayRows = [
+      {
+        id: 'h-block',
+        classroomId: 'room-1',
+        date: '2025-06-10',
+        deletedAt: null,
+      },
+    ];
+    state.users.push({
+      id: 'auth0|admin-user',
+      role: 'admin',
+      classroomId: null,
+      deletedAt: null,
+    });
+    const res = await app.request(
+      '/api/lessons',
+      {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({
+          classroomId: 'room-1',
+          teacherId: 'teacher-1',
+          studentId: 'student-1',
+          subjectId: 'subject-1',
+          lessonTypeId: 'lessonTypeId-1',
+          startAt: t1.toISOString(),
+          endAt: t2.toISOString(),
+        }),
+      },
+      env,
+    );
+    expect(res.status).toBe(400);
+    const body = (await res.json()) as { message?: string };
+    expect(body.message).toBe('cannot create lesson on a holiday');
   });
 
   it('PATCH /lessons returns 403 when staff updates another teacher lesson', async () => {
