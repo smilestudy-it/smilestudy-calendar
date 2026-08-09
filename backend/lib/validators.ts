@@ -141,8 +141,8 @@ const createTimeSlotSchema = z
   });
 
 const createHolidaySchema = z.object({
-  classroomId: z.string().trim().min(1, 'classroom id is requried'),
-  date: z.iso.date({ message: '日付形式が不正です' }),
+  classroomId: z.string().trim().min(1, 'classroom id is required'),
+  date: z.iso.date({ error: '日付形式が不正です' }),
 });
 
 const patchSubjectSchema = z.object({
@@ -329,8 +329,14 @@ const createLessonSchema = z
     teacherId: z.string().trim().min(1, 'teacher id is required'),
     studentId: z.string().trim().min(1, 'student id is required'),
     classroomId: z.string().trim().min(1, 'classroom id is required'),
-    subjectId: z.string().trim().min(1, 'subject id is required'),
-    lessonTypeId: z.string().trim().min(1, 'lesson type id is required'),
+    subjectId: z
+      .string({ error: 'subject id is required' })
+      .trim()
+      .min(1, 'subject id is required'),
+    lessonTypeId: z
+      .string({ error: 'lesson type id is required' })
+      .trim()
+      .min(1, 'lesson type id is required'),
     startAt: lessonInstantSchema,
     endAt: lessonInstantSchema,
   })
@@ -345,8 +351,14 @@ const createLessonSchema = z
   });
 
 const patchLessonSchema = z.object({
-  subjectId: z.string().trim().min(1, 'subject id is required'),
-  lessonTypeId: z.string().trim().min(1, 'lesson type id is required'),
+  subjectId: z
+    .string({ error: 'subject id is required' })
+    .trim()
+    .min(1, 'subject id is required'),
+  lessonTypeId: z
+    .string({ error: 'lesson type id is required' })
+    .trim()
+    .min(1, 'lesson type id is required'),
 });
 
 type CreateLessonInput = z.infer<typeof createLessonSchema>;

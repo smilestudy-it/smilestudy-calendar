@@ -7,6 +7,7 @@ import {
   applyHolidayUnavailability,
   isHolidayDate,
 } from '../../src/lib/holidayAvailability';
+import { isD1HolidayClassroomDateUniqueViolation } from '../lib/sqliteConstraint';
 import { toTokyoDateKey } from '../lib/tokyoDate';
 import { validateCreateHolidayInput } from '../lib/validators';
 
@@ -53,6 +54,21 @@ describe('toTokyoDateKey', () => {
     // 2025-06-09T15:00:00Z == 2025-06-10 00:00 JST
     expect(toTokyoDateKey(new Date('2025-06-09T15:00:00.000Z'))).toBe(
       '2025-06-10',
+    );
+  });
+});
+
+describe('isD1HolidayClassroomDateUniqueViolation', () => {
+  it('detects holidays active unique index name', () => {
+    expect(
+      isD1HolidayClassroomDateUniqueViolation(
+        new Error(
+          'UNIQUE constraint failed: index holidays_classroom_date_active_unique',
+        ),
+      ),
+    ).toBe(true);
+    expect(isD1HolidayClassroomDateUniqueViolation(new Error('other'))).toBe(
+      false,
     );
   });
 });

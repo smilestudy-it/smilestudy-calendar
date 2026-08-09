@@ -641,17 +641,15 @@ vi.mock('../db', () => {
             };
           }
           return {
-            where: () => ({
+            where: (predicate: unknown) => ({
               limit: async () => {
-                if (state.expectPostLessonTx && state.postFixture) {
-                  const row = state.subjectRows.find(
-                    (r) =>
-                      r.deletedAt === null &&
-                      r.classroomId === state.postFixture!.classroomId,
-                  );
-                  return row ? [row] : [];
-                }
-                return [];
+                const classroomIds = state.classrooms.map((c) => c.id);
+                const rows = filterPresetRowsByPredicate(
+                  state.subjectRows,
+                  predicate,
+                  classroomIds,
+                ).filter((r) => r.deletedAt === null);
+                return rows[0] ? [rows[0]] : [];
               },
             }),
           };
@@ -680,17 +678,15 @@ vi.mock('../db', () => {
             };
           }
           return {
-            where: () => ({
+            where: (predicate: unknown) => ({
               limit: async () => {
-                if (state.expectPostLessonTx && state.postFixture) {
-                  const row = state.lessonTypeRows.find(
-                    (r) =>
-                      r.deletedAt === null &&
-                      r.classroomId === state.postFixture!.classroomId,
-                  );
-                  return row ? [row] : [];
-                }
-                return [];
+                const classroomIds = state.classrooms.map((c) => c.id);
+                const rows = filterPresetRowsByPredicate(
+                  state.lessonTypeRows,
+                  predicate,
+                  classroomIds,
+                ).filter((r) => r.deletedAt === null);
+                return rows[0] ? [rows[0]] : [];
               },
             }),
           };

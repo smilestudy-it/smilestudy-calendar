@@ -123,11 +123,19 @@ export const lessons = sqliteTable('lessons', {
 // ----------------------------------------------------
 // 5. 休業日 (Holidays)
 // ----------------------------------------------------
-export const holidays = sqliteTable('holidays', {
-  id: text('id').primaryKey(),
-  classroomId: text('classroom_id')
-    .references(() => classrooms.id)
-    .notNull(),
-  date: text('date').notNull(),
-  deletedAt: integer('deleted_at', { mode: 'timestamp' }),
-});
+export const holidays = sqliteTable(
+  'holidays',
+  {
+    id: text('id').primaryKey(),
+    classroomId: text('classroom_id')
+      .references(() => classrooms.id)
+      .notNull(),
+    date: text('date').notNull(),
+    deletedAt: integer('deleted_at', { mode: 'timestamp' }),
+  },
+  (table) => [
+    uniqueIndex('holidays_classroom_date_active_unique')
+      .on(table.classroomId, table.date)
+      .where(sql`${table.deletedAt} is null`),
+  ],
+);

@@ -85,9 +85,9 @@ export default function CalendarSingleEditPage({
 
   // その月の「教室全体の授業データ」を丸ごと保持します
   const [monthLessons, setMonthLessons] = useState<Lesson[]>([]);
-  /** 教室休業日（YYYY-MM-DD）。空き枠計算と登録抑止に使う */
-  const [holidayDateSet, setHolidayDateSet] = useState<Set<string>>(
-    () => new Set(),
+  /** 教室休業日（YYYY-MM-DD）。null は未取得/失敗で登録不可 */
+  const [holidayDateSet, setHolidayDateSet] = useState<Set<string> | null>(
+    null,
   );
 
   const [selectedSlotId, setSelectedSlotId] = useState<string | null>(null);
@@ -107,47 +107,67 @@ export default function CalendarSingleEditPage({
   // 1. 初期データの取得（時間枠、生徒、授業タイプ、科目、休業日）
   useEffect(() => {
     if (!activeClassroom) return;
-    const fetchData = async () => {
-      const [tsRes, stRes, ltRes, subRes, holRes] = await Promise.all([
-        authedFetch(
-          `/api/time-slots/${encodeURIComponent(activeClassroom.id)}`,
-        ),
-        authedFetch(`/api/students/${encodeURIComponent(activeClassroom.id)}`),
-        authedFetch(
-          `/api/lesson-types/${encodeURIComponent(activeClassroom.id)}`,
-        ),
-        authedFetch(`/api/subjects/${encodeURIComponent(activeClassroom.id)}`),
-        authedFetch(`/api/holidays/${encodeURIComponent(activeClassroom.id)}`),
-      ]);
+    let cancelled = false;
+    const classroomId = activeClassroom.id;
 
-      if (tsRes.ok) {
-        const data = (await tsRes.json()) as TimeSlotRow[];
-        setTimeSlots(
-          data.sort(
-            (a, b) => hmToMinutes(a.startTime) - hmToMinutes(b.startTime),
-          ),
-        );
+    const fetchData = async () => {
+      setHolidayDateSet(null);
+
+      const [tsResult, stResult, ltResult, subResult, holResult] =
+        await Promise.allSettled([
+          authedFetch(`/api/time-slots/${encodeURIComponent(classroomId)}`),
+          authedFetch(`/api/students/${encodeURIComponent(classroomId)}`),
+          authedFetch(`/api/lesson-types/${encodeURIComponent(classroomId)}`),
+          authedFetch(`/api/subjects/${encodeURIComponent(classroomId)}`),
+          authedFetch(`/api/holidays/${encodeURIComponent(classroomId)}`),
+        ]);
+
+      if (cancelled) {
+        return;
       }
-      if (stRes.ok) {
-        const data = (await stRes.json()) as StudentRow[];
-        setStudents(data);
+
+      if (tsResult.status === 'fulfilled' && tsResult.value.ok) {
+        const data = (await tsResult.value.json()) as TimeSlotRow[];
+        if (!cancelled) {
+          setTimeSlots(
+            data.sort(
+              (a, b) => hmToMinutes(a.startTime) - hmToMinutes(b.startTime),
+            ),
+          );
+        }
       }
-      if (ltRes.ok) {
-        const data = (await ltRes.json()) as LessonTypeRow[];
-        setLessonTypes(data);
+      if (stResult.status === 'fulfilled' && stResult.value.ok) {
+        const data = (await stResult.value.json()) as StudentRow[];
+        if (!cancelled) {
+          setStudents(data);
+        }
       }
-      if (subRes.ok) {
-        const data = (await subRes.json()) as SubjectRow[];
-        setSubjects(data);
+      if (ltResult.status === 'fulfilled' && ltResult.value.ok) {
+        const data = (await ltResult.value.json()) as LessonTypeRow[];
+        if (!cancelled) {
+          setLessonTypes(data);
+        }
       }
-      if (holRes.ok) {
-        const data = (await holRes.json()) as HolidayListItem[];
-        setHolidayDateSet(new Set(data.map((h) => h.date)));
-      } else {
-        setHolidayDateSet(new Set());
+      if (subResult.status === 'fulfilled' && subResult.value.ok) {
+        const data = (await subResult.value.json()) as SubjectRow[];
+        if (!cancelled) {
+          setSubjects(data);
+        }
+      }
+      if (holResult.status === 'fulfilled' && holResult.value.ok) {
+        const data = (await holResult.value.json()) as HolidayListItem[];
+        if (!cancelled) {
+          setHolidayDateSet(new Set(data.map((h) => h.date)));
+        }
+      } else if (!cancelled) {
+        // 失敗時は空扱いせず未確定のまま（登録不可）
+        setHolidayDateSet(null);
       }
     };
     void fetchData();
+    return () => {
+      cancelled = true;
+    };
   }, [activeClassroom, authedFetch]);
 
   // 2. 月ごとの授業状況取得（教室全体のデータを取得）
@@ -204,13 +224,16 @@ export default function CalendarSingleEditPage({
 
     applyHolidayUnavailability(
       map,
-      holidayDateSet,
+      holidayDateSet ?? [],
       timeSlots.map((s) => s.id),
     );
     return map;
   }, [monthLessons, currentUser, selectedStudentId, timeSlots, holidayDateSet]);
 
-  const isSelectedDateHoliday = Boolean(dateKey && holidayDateSet.has(dateKey));
+  const holidaysReady = holidayDateSet != null;
+  const isSelectedDateHoliday = Boolean(
+    dateKey && holidayDateSet?.has(dateKey),
+  );
 
   // 生徒や日付が変わったら選択状態とメッセージをリセット
   useEffect(() => {
@@ -220,7 +243,7 @@ export default function CalendarSingleEditPage({
 
   // 初期選択日が休業日なら解除（枠パネルを出さない）
   useEffect(() => {
-    if (dateKey && holidayDateSet.has(dateKey)) {
+    if (dateKey && holidayDateSet?.has(dateKey)) {
       setDate(undefined);
       setSelectedSlotId(null);
     }
@@ -236,6 +259,14 @@ export default function CalendarSingleEditPage({
       !selectedStudentId
     ) {
       setMessage({ text: '時間と生徒を選択してください。', type: 'error' });
+      return;
+    }
+
+    if (!holidayDateSet) {
+      setMessage({
+        text: '休業日情報を取得できないため登録できません。',
+        type: 'error',
+      });
       return;
     }
 
@@ -364,6 +395,10 @@ export default function CalendarSingleEditPage({
             <p className="text-muted-foreground pt-4 text-center text-sm">
               生徒を選択すると、お互いの空き時間カレンダーが表示されます。
             </p>
+          ) : !holidaysReady ? (
+            <p className="text-muted-foreground pt-4 text-center text-sm">
+              休業日情報を確認しています。取得できない場合は登録できません。
+            </p>
           ) : (
             <>
               {/* 2. カレンダーエリア */}
@@ -376,7 +411,7 @@ export default function CalendarSingleEditPage({
                     month={month}
                     onMonthChange={setMonth}
                     disabled={(d) =>
-                      holidayDateSet.has(format(d, 'yyyy-MM-dd'))
+                      Boolean(holidayDateSet?.has(format(d, 'yyyy-MM-dd')))
                     }
                     className="w-full"
                     classNames={
@@ -394,7 +429,7 @@ export default function CalendarSingleEditPage({
                       ) => {
                         const { day, modifiers, ...restProps } = props;
                         const dKey = format(day.date, 'yyyy-MM-dd');
-                        const isHoliday = holidayDateSet.has(dKey);
+                        const isHoliday = Boolean(holidayDateSet?.has(dKey));
 
                         // その日の塞がっている枠数を計算（休業日は全日不可）
                         const busySlotCount =

@@ -6,6 +6,7 @@ import { Hono } from 'hono';
 
 import { getDb } from '../db';
 import { classrooms, holidays } from '../db/schema';
+import { isD1HolidayClassroomDateUniqueViolation } from '../lib/sqliteConstraint';
 import { validateCreateHolidayInput } from '../lib/validators';
 import {
   auth,
@@ -54,17 +55,18 @@ holidaysApp.post('', auth, loadUser, requireManagerOrAbove, async (c) => {
   const db = getDb(c.env);
   const newId = crypto.randomUUID();
 
+  const [activeClassroom] = await db
+    .select({ id: classrooms.id })
+    .from(classrooms)
+    .where(
+      and(eq(classrooms.id, input.classroomId), isNull(classrooms.deletedAt)),
+    )
+    .limit(1);
+  if (!activeClassroom) {
+    return c.json({ message: 'classroom not found' }, 404);
+  }
+
   try {
-    const [activeClassroom] = await db
-      .select({ id: classrooms.id })
-      .from(classrooms)
-      .where(
-        and(eq(classrooms.id, input.classroomId), isNull(classrooms.deletedAt)),
-      )
-      .limit(1);
-    if (!activeClassroom) {
-      throw new Error('CLASSROOM_NOT_FOUND');
-    }
     await db.insert(holidays).values({
       id: newId,
       date: input.date,
@@ -72,10 +74,10 @@ holidaysApp.post('', auth, loadUser, requireManagerOrAbove, async (c) => {
       deletedAt: null,
     });
   } catch (err) {
-    if (err instanceof Error && err.message === 'CLASSROOM_NOT_FOUND') {
-      return c.json({ message: 'classroom not found' }, 404);
+    if (isD1HolidayClassroomDateUniqueViolation(err)) {
+      return c.json({ message: 'holiday already exists' }, 409);
     }
-    return c.json({ message: 'failed to create lesson type' }, 500);
+    return c.json({ message: 'failed to create holiday' }, 500);
   }
 
   return c.json(
@@ -96,7 +98,7 @@ holidaysApp.delete('/:id', auth, loadUser, requireManagerOrAbove, async (c) => {
     .where(and(eq(holidays.id, targetId), isNull(holidays.deletedAt)))
     .limit(1);
   if (!row) {
-    return c.json({ message: 'lesson type not found' }, 404);
+    return c.json({ message: 'holiday not found' }, 404);
   }
 
   const actor = c.var.currentUser;
@@ -111,10 +113,10 @@ holidaysApp.delete('/:id', auth, loadUser, requireManagerOrAbove, async (c) => {
       .set({ deletedAt })
       .where(and(eq(holidays.id, targetId), isNull(holidays.deletedAt)));
     if (res.meta.changes === 0) {
-      return c.json({ message: 'lesson type not found' }, 404);
+      return c.json({ message: 'holiday not found' }, 404);
     }
   } catch {
-    return c.json({ message: 'failed to delete lesson type' }, 500);
+    return c.json({ message: 'failed to delete holiday' }, 500);
   }
   return c.json({ success: true }, 200);
 });
