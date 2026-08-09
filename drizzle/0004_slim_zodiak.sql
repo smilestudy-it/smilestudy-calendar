@@ -1,0 +1,1 @@
+CREATE UNIQUE INDEX `holidays_classroom_date_active_unique` ON `holidays` (`classroom_id`,`date`) WHERE "holidays"."deleted_at" is null;

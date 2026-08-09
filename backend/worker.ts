@@ -12,6 +12,7 @@ import { getActiveStudentAndClassroom } from './lib/studentRead';
 import { validateLessonRangeQuery } from './lib/validators';
 import { auth } from './middleware/honoStack';
 import classroomsApp from './routes/classrooms';
+import holidaysApp from './routes/holidays';
 import lessonTypesApp from './routes/lessonTypes';
 import lessonsApp from './routes/lessons';
 import studentsApp from './routes/students';
@@ -205,6 +206,7 @@ app.route('/subjects', subjectsApp);
 app.route('/lesson-types', lessonTypesApp);
 app.route('/time-slots', timeSlotsApp);
 app.route('/lessons', lessonsApp);
+app.route('/holidays', holidaysApp);
 
 app.get('/me', auth, async (c) => {
   const { sub } = c.var.jwtPayload;

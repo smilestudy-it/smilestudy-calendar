@@ -19,6 +19,7 @@ const StudentManagementPage = lazy(
   () => import('./pages/StudentManagementPage'),
 );
 const PresetsSettingsPage = lazy(() => import('./pages/PresetsSettingsPage'));
+const HolidaysSettingsPage = lazy(() => import('./pages/HolidaysSettingsPage'));
 const CalendarPage = lazy(() => import('./pages/CalendarPage'));
 const CalendarBulkEditPage = lazy(() => import('./pages/CalendarEditPage'));
 const SharedStudentCalendarPage = lazy(
@@ -168,6 +169,15 @@ function App() {
             path="/settings/presets"
             element={
               <PresetsSettingsPage
+                currentUser={currentUser}
+                getAccessTokenSilently={getAccessTokenSilently}
+              />
+            }
+          />
+          <Route
+            path="/holidays"
+            element={
+              <HolidaysSettingsPage
                 currentUser={currentUser}
                 getAccessTokenSilently={getAccessTokenSilently}
               />

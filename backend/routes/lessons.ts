@@ -7,6 +7,7 @@ import { Hono } from 'hono';
 import { getDb } from '../db';
 import {
   classrooms,
+  holidays,
   lessonTypes,
   lessons,
   students,
@@ -18,6 +19,7 @@ import {
   lessonStudentDisplay,
   lessonTeacherDisplay,
 } from '../lessonDisplay';
+import { toTokyoDateKey } from '../lib/tokyoDate';
 import {
   validateCreateLessonInput,
   validateLessonRangeQuery,
@@ -236,21 +238,42 @@ lessonsApp.post('/', auth, loadUser, async (c) => {
     return c.json({ message: 'invalid lesson type' }, 400);
   }
 
+  const dateKey = toTokyoDateKey(input.startAt);
   const id = crypto.randomUUID();
 
   try {
-    await db.insert(lessons).values({
-      id,
-      teacherId: input.teacherId,
-      studentId: input.studentId,
-      classroomId: input.classroomId,
-      subjectId: input.subjectId,
-      lessonTypeId: input.lessonTypeId,
-      startAt: input.startAt,
-      endAt: input.endAt,
-      deletedAt: null,
+    await db.transaction(async (tx) => {
+      const [holidayRow] = await tx
+        .select({ id: holidays.id })
+        .from(holidays)
+        .where(
+          and(
+            eq(holidays.classroomId, input.classroomId),
+            eq(holidays.date, dateKey),
+            isNull(holidays.deletedAt),
+          ),
+        )
+        .limit(1);
+      if (holidayRow) {
+        throw new Error('LESSON_ON_HOLIDAY');
+      }
+
+      await tx.insert(lessons).values({
+        id,
+        teacherId: input.teacherId,
+        studentId: input.studentId,
+        classroomId: input.classroomId,
+        subjectId: input.subjectId,
+        lessonTypeId: input.lessonTypeId,
+        startAt: input.startAt,
+        endAt: input.endAt,
+        deletedAt: null,
+      });
     });
   } catch (err: unknown) {
+    if (err instanceof Error && err.message === 'LESSON_ON_HOLIDAY') {
+      return c.json({ message: 'cannot create lesson on a holiday' }, 400);
+    }
     console.error('create lesson failed', err);
     return c.json({ message: 'create lesson failed' }, 500);
   }

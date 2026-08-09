@@ -140,6 +140,11 @@ const createTimeSlotSchema = z
     }
   });
 
+const createHolidaySchema = z.object({
+  classroomId: z.string().trim().min(1, 'classroom id is required'),
+  date: z.iso.date({ error: '日付形式が不正です' }),
+});
+
 const patchSubjectSchema = z.object({
   name: z
     .string()
@@ -188,6 +193,7 @@ type CreateUserInput = {
 type CreateStudentInput = z.infer<typeof studentSchema>;
 type CreatePresetNameInput = z.infer<typeof presetNameBodySchema>;
 type CreateTimeSlotInput = z.infer<typeof createTimeSlotSchema>;
+type CreateHolidayInput = z.infer<typeof createHolidaySchema>;
 type PatchSubjectInput = z.infer<typeof patchSubjectSchema>;
 type PatchLessonTypeInput = z.infer<typeof patchLessonTypeSchema>;
 type PatchTimeSlotInput = z.infer<typeof patchTimeSlotSchema>;
@@ -269,6 +275,17 @@ export function validateCreateTimeSlotInput(body: unknown): {
   return { input: result.data };
 }
 
+export function validateCreateHolidayInput(body: unknown): {
+  input?: CreateHolidayInput;
+  error?: string;
+} {
+  const result = createHolidaySchema.safeParse(body);
+  if (!result.success) {
+    return { error: firstIssueMessage(result.error) };
+  }
+  return { input: result.data };
+}
+
 export function validatePatchSubjectInput(body: unknown): {
   input?: PatchSubjectInput;
   error?: string;
@@ -312,8 +329,14 @@ const createLessonSchema = z
     teacherId: z.string().trim().min(1, 'teacher id is required'),
     studentId: z.string().trim().min(1, 'student id is required'),
     classroomId: z.string().trim().min(1, 'classroom id is required'),
-    subjectId: z.string().trim().min(1, 'subject id is required'),
-    lessonTypeId: z.string().trim().min(1, 'lesson type id is required'),
+    subjectId: z
+      .string({ error: 'subject id is required' })
+      .trim()
+      .min(1, 'subject id is required'),
+    lessonTypeId: z
+      .string({ error: 'lesson type id is required' })
+      .trim()
+      .min(1, 'lesson type id is required'),
     startAt: lessonInstantSchema,
     endAt: lessonInstantSchema,
   })
@@ -328,8 +351,14 @@ const createLessonSchema = z
   });
 
 const patchLessonSchema = z.object({
-  subjectId: z.string().trim().min(1, 'subject id is required'),
-  lessonTypeId: z.string().trim().min(1, 'lesson type id is required'),
+  subjectId: z
+    .string({ error: 'subject id is required' })
+    .trim()
+    .min(1, 'subject id is required'),
+  lessonTypeId: z
+    .string({ error: 'lesson type id is required' })
+    .trim()
+    .min(1, 'lesson type id is required'),
 });
 
 type CreateLessonInput = z.infer<typeof createLessonSchema>;
