@@ -712,6 +712,27 @@ vi.mock('../db', () => {
         return { where: () => ({ limit: async () => [] }) };
       },
     }),
+    run: async () => {
+      const fixture = state.postFixture;
+      if (fixture) {
+        const dateKey = new Intl.DateTimeFormat('en-CA', {
+          timeZone: 'Asia/Tokyo',
+          year: 'numeric',
+          month: '2-digit',
+          day: '2-digit',
+        }).format(fixture.startAt);
+        const blocked = state.holidayRows.some(
+          (h) =>
+            h.deletedAt === null &&
+            h.classroomId === fixture.classroomId &&
+            h.date === dateKey,
+        );
+        if (blocked) {
+          return { meta: { changes: 0 } };
+        }
+      }
+      return { meta: { changes: 1 } };
+    },
     insert: (table: unknown) => ({
       values: async (value: LessonRow) => {
         if (table === lessons) {
