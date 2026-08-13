@@ -239,41 +239,36 @@ lessonsApp.post('/', auth, loadUser, async (c) => {
   }
 
   const dateKey = toTokyoDateKey(input.startAt);
+  const [holidayRow] = await db
+    .select({ id: holidays.id })
+    .from(holidays)
+    .where(
+      and(
+        eq(holidays.classroomId, input.classroomId),
+        eq(holidays.date, dateKey),
+        isNull(holidays.deletedAt),
+      ),
+    )
+    .limit(1);
+  if (holidayRow) {
+    return c.json({ message: 'cannot create lesson on a holiday' }, 400);
+  }
+
   const id = crypto.randomUUID();
 
   try {
-    await db.transaction(async (tx) => {
-      const [holidayRow] = await tx
-        .select({ id: holidays.id })
-        .from(holidays)
-        .where(
-          and(
-            eq(holidays.classroomId, input.classroomId),
-            eq(holidays.date, dateKey),
-            isNull(holidays.deletedAt),
-          ),
-        )
-        .limit(1);
-      if (holidayRow) {
-        throw new Error('LESSON_ON_HOLIDAY');
-      }
-
-      await tx.insert(lessons).values({
-        id,
-        teacherId: input.teacherId,
-        studentId: input.studentId,
-        classroomId: input.classroomId,
-        subjectId: input.subjectId,
-        lessonTypeId: input.lessonTypeId,
-        startAt: input.startAt,
-        endAt: input.endAt,
-        deletedAt: null,
-      });
+    await db.insert(lessons).values({
+      id,
+      teacherId: input.teacherId,
+      studentId: input.studentId,
+      classroomId: input.classroomId,
+      subjectId: input.subjectId,
+      lessonTypeId: input.lessonTypeId,
+      startAt: input.startAt,
+      endAt: input.endAt,
+      deletedAt: null,
     });
   } catch (err: unknown) {
-    if (err instanceof Error && err.message === 'LESSON_ON_HOLIDAY') {
-      return c.json({ message: 'cannot create lesson on a holiday' }, 400);
-    }
     console.error('create lesson failed', err);
     return c.json({ message: 'create lesson failed' }, 500);
   }

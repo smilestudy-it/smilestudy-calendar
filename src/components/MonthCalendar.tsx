@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 
 import type { EventClickArg, EventInput } from '@fullcalendar/core/index.js';
 import jaLocale from '@fullcalendar/core/locales/ja';
@@ -33,7 +33,6 @@ export default function MonthCalendar({
   showHeaderToolbar = false,
   calendarKey,
 }: Props) {
-  const calendarRef = useRef<FullCalendar>(null);
   const [holidayDates, setHolidayDates] = useState<string[]>([]);
   const holidayDateSet = useMemo(() => new Set(holidayDates), [holidayDates]);
 
@@ -75,10 +74,6 @@ export default function MonthCalendar({
     };
   }, [focusDate]);
 
-  useEffect(() => {
-    calendarRef.current?.getApi().gotoDate(focusDate);
-  }, [focusDate]);
-
   const getDateColorClass = (date: Date) => {
     if (holidayDateSet.has(toDateKey(date)) || date.getDay() === 0) {
       return 'text-red-500';
@@ -91,8 +86,7 @@ export default function MonthCalendar({
 
   return (
     <FullCalendar
-      ref={calendarRef}
-      key={calendarKey}
+      key={calendarKey ?? `${focusDate.getFullYear()}-${focusDate.getMonth()}`}
       plugins={[dayGridPlugin]}
       initialView="dayGridMonth"
       initialDate={focusDate}
@@ -122,6 +116,7 @@ export default function MonthCalendar({
         if (!onFocusDateChange) {
           return;
         }
+        // currentStart = 表示中の月の1日。activeStart はグリッド先頭（前月）になり得る。
         const next = arg.view.currentStart;
         if (
           next.getFullYear() !== focusDate.getFullYear() ||
