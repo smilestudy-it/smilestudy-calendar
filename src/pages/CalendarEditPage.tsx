@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import type { ClassNames } from 'react-day-picker';
 import type { Modifiers } from 'react-day-picker';
+import { ja } from 'react-day-picker/locale';
 import { Link } from 'react-router-dom';
 
 import { endOfMonth, format, startOfMonth } from 'date-fns';
@@ -410,6 +411,11 @@ export default function CalendarSingleEditPage({
                     onSelect={setDate}
                     month={month}
                     onMonthChange={setMonth}
+                    locale={ja}
+                    formatters={{
+                      formatCaption: (d) =>
+                        `${d.getFullYear()}年${d.getMonth() + 1}月`,
+                    }}
                     disabled={(d) =>
                       Boolean(holidayDateSet?.has(format(d, 'yyyy-MM-dd')))
                     }

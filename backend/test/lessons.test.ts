@@ -712,6 +712,112 @@ vi.mock('../db', () => {
         return { where: () => ({ limit: async () => [] }) };
       },
     }),
+    run: async (query: SQL) => {
+      const fixture = state.postFixture;
+      if (fixture) {
+        const dateKey = new Intl.DateTimeFormat('en-CA', {
+          timeZone: 'Asia/Tokyo',
+          year: 'numeric',
+          month: '2-digit',
+          day: '2-digit',
+        }).format(fixture.startAt);
+
+        // Extract all string chunks from the query (recursively)
+        const extractStringChunks = (q: unknown): string[] => {
+          const chunks: string[] = [];
+          const visited = new Set<object>();
+          const stack: unknown[] = [q];
+          while (stack.length > 0) {
+            const current = stack.pop();
+            if (!current || typeof current !== 'object') {
+              continue;
+            }
+            if (visited.has(current)) {
+              continue;
+            }
+            visited.add(current);
+            if (is(current, StringChunk)) {
+              chunks.push((current as StringChunk).value.join(''));
+            }
+            if (is(current, SQL)) {
+              for (const chunk of (current as SQL).queryChunks) {
+                stack.push(chunk);
+              }
+            }
+          }
+          return chunks;
+        };
+
+        // Extract all parameter values from the query
+        // In drizzle-orm, parameters in queryChunks are the non-StringChunk items
+        const extractParamValues = (q: SQL): unknown[] => {
+          const values: unknown[] = [];
+          const visited = new Set<object>();
+          const stack: SQL[] = [q];
+          while (stack.length > 0) {
+            const current = stack.pop();
+            if (!current) {
+              continue;
+            }
+            if (visited.has(current)) {
+              continue;
+            }
+            visited.add(current);
+            for (const chunk of current.queryChunks) {
+              if (is(chunk, SQL)) {
+                stack.push(chunk);
+              } else if (!is(chunk, StringChunk)) {
+                // Parameters are direct values in queryChunks
+                values.push(chunk);
+              }
+            }
+          }
+          return values;
+        };
+
+        const stringChunks = extractStringChunks(query);
+        const sqlText = stringChunks.join('');
+        const paramValues = extractParamValues(query);
+
+        // Verify the query contains the expected structure
+        if (!sqlText.includes('INSERT INTO lessons')) {
+          throw new Error(
+            'run mock: expected INSERT INTO lessons in query text',
+          );
+        }
+        if (!sqlText.includes('WHERE NOT EXISTS')) {
+          throw new Error(
+            'run mock: expected WHERE NOT EXISTS holiday guard in query text',
+          );
+        }
+        if (!sqlText.includes('FROM holidays')) {
+          throw new Error('run mock: expected FROM holidays in query text');
+        }
+
+        // Verify the query contains the expected parameter values
+        if (!paramValues.includes(fixture.classroomId)) {
+          throw new Error(
+            `run mock: expected classroomId param ${fixture.classroomId} in query, got: ${JSON.stringify(paramValues)}`,
+          );
+        }
+        if (!paramValues.includes(dateKey)) {
+          throw new Error(
+            `run mock: expected dateKey param ${dateKey} in query, got: ${JSON.stringify(paramValues)}`,
+          );
+        }
+
+        const blocked = state.holidayRows.some(
+          (h) =>
+            h.deletedAt === null &&
+            h.classroomId === fixture.classroomId &&
+            h.date === dateKey,
+        );
+        if (blocked) {
+          return { meta: { changes: 0 } };
+        }
+      }
+      return { meta: { changes: 1 } };
+    },
     insert: (table: unknown) => ({
       values: async (value: LessonRow) => {
         if (table === lessons) {

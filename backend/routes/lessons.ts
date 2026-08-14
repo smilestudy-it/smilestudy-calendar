@@ -1,13 +1,12 @@
 /*
   lesson追加/削除などのAPIを管理
 */
-import { and, eq, gt, inArray, isNull, lt } from 'drizzle-orm';
+import { and, eq, gt, inArray, isNull, lt, sql } from 'drizzle-orm';
 import { Hono } from 'hono';
 
 import { getDb } from '../db';
 import {
   classrooms,
-  holidays,
   lessonTypes,
   lessons,
   students,
@@ -240,40 +239,31 @@ lessonsApp.post('/', auth, loadUser, async (c) => {
 
   const dateKey = toTokyoDateKey(input.startAt);
   const id = crypto.randomUUID();
+  const startAtUnix = Math.floor(input.startAt.getTime() / 1000);
+  const endAtUnix = Math.floor(input.endAt.getTime() / 1000);
 
   try {
-    await db.transaction(async (tx) => {
-      const [holidayRow] = await tx
-        .select({ id: holidays.id })
-        .from(holidays)
-        .where(
-          and(
-            eq(holidays.classroomId, input.classroomId),
-            eq(holidays.date, dateKey),
-            isNull(holidays.deletedAt),
-          ),
-        )
-        .limit(1);
-      if (holidayRow) {
-        throw new Error('LESSON_ON_HOLIDAY');
-      }
-
-      await tx.insert(lessons).values({
-        id,
-        teacherId: input.teacherId,
-        studentId: input.studentId,
-        classroomId: input.classroomId,
-        subjectId: input.subjectId,
-        lessonTypeId: input.lessonTypeId,
-        startAt: input.startAt,
-        endAt: input.endAt,
-        deletedAt: null,
-      });
-    });
-  } catch (err: unknown) {
-    if (err instanceof Error && err.message === 'LESSON_ON_HOLIDAY') {
+    // D1 は BEGIN 非対応のため、休業日判定と insert を1文で行う
+    const res = await db.run(sql`
+      INSERT INTO lessons (
+        id, teacher_id, student_id, classroom_id,
+        subject_id, lesson_type_id, start_at, end_at, deleted_at
+      )
+      SELECT
+        ${id}, ${input.teacherId}, ${input.studentId}, ${input.classroomId},
+        ${input.subjectId}, ${input.lessonTypeId},
+        ${startAtUnix}, ${endAtUnix}, NULL
+      WHERE NOT EXISTS (
+        SELECT 1 FROM holidays
+        WHERE classroom_id = ${input.classroomId}
+          AND date = ${dateKey}
+          AND deleted_at IS NULL
+      )
+    `);
+    if (res.meta.changes === 0) {
       return c.json({ message: 'cannot create lesson on a holiday' }, 400);
     }
+  } catch (err: unknown) {
     console.error('create lesson failed', err);
     return c.json({ message: 'create lesson failed' }, 500);
   }
