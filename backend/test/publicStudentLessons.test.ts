@@ -394,6 +394,7 @@ describe('GET /api/public/student-lessons', () => {
     expect(res.status).toBe(200);
     const payload = (await res.json()) as {
       studentName: string;
+      classroomId: string;
       lessons: Array<{
         id: string;
         teacherDisplay: string;
@@ -403,6 +404,7 @@ describe('GET /api/public/student-lessons', () => {
       }>;
     };
     expect(payload.studentName).toBe('佐藤 花子');
+    expect(payload.classroomId).toBe('room-1');
     expect(payload.lessons.map((r) => r.id)).toEqual(['L-pub', 'L-draft']);
     expect(payload.lessons[0]?.teacherDisplay).toContain('山田');
     expect(payload.lessons[0]?.teacherColor).toBe('#22c55e');

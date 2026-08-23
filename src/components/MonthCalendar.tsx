@@ -15,6 +15,7 @@ type CalendarEventClick = {
 type Props = {
   focusDate: Date;
   events?: EventInput[];
+  closureDates?: string[];
   onFocusDateChange?: (date: Date) => void;
   onDateClick?: (date: Date) => void;
   onEventClick?: (event: CalendarEventClick) => void;
@@ -23,9 +24,23 @@ type Props = {
   calendarKey?: string;
 };
 
+/**
+ * Renders a Japanese month calendar with holidays, closure dates, events, and optional date selection and navigation callbacks.
+ *
+ * @param focusDate - The month to display initially.
+ * @param events - Calendar events to display.
+ * @param closureDates - Dates marked as closed in `YYYY-MM-DD` format.
+ * @param onFocusDateChange - Called when the displayed month changes.
+ * @param onDateClick - Called when a day cell is clicked.
+ * @param onEventClick - Called when a calendar event is clicked.
+ * @param selectedDate - The date to highlight.
+ * @param showHeaderToolbar - Whether to display previous, title, and next controls.
+ * @param calendarKey - Optional key used to control calendar remounting.
+ */
 export default function MonthCalendar({
   focusDate,
   events = [],
+  closureDates = [],
   onFocusDateChange,
   onDateClick,
   onEventClick,
@@ -35,6 +50,7 @@ export default function MonthCalendar({
 }: Props) {
   const [holidayDates, setHolidayDates] = useState<string[]>([]);
   const holidayDateSet = useMemo(() => new Set(holidayDates), [holidayDates]);
+  const closureDateSet = useMemo(() => new Set(closureDates), [closureDates]);
 
   const toDateKey = (date: Date) => {
     const y = date.getFullYear();
@@ -107,11 +123,19 @@ export default function MonthCalendar({
           : false
       }
       events={events}
-      dayCellContent={(arg) => (
-        <span className={getDateColorClass(arg.date)}>
-          {arg.date.getDate()}
-        </span>
-      )}
+      dayCellContent={(arg) => {
+        const isClosure = closureDateSet.has(toDateKey(arg.date));
+        return (
+          <div className="flex flex-col items-center leading-none">
+            <span className={getDateColorClass(arg.date)}>
+              {arg.date.getDate()}
+            </span>
+            {isClosure && (
+              <span className="mt-0.5 text-xs font-bold text-red-500">休</span>
+            )}
+          </div>
+        );
+      }}
       datesSet={(arg) => {
         if (!onFocusDateChange) {
           return;

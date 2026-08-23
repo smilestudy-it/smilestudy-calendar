@@ -8,12 +8,7 @@ import { getDb } from '../db';
 import { classrooms, holidays } from '../db/schema';
 import { isD1HolidayClassroomDateUniqueViolation } from '../lib/sqliteConstraint';
 import { validateCreateHolidayInput } from '../lib/validators';
-import {
-  auth,
-  loadUser,
-  requireClassroomScope,
-  requireManagerOrAbove,
-} from '../middleware/honoStack';
+import { auth, loadUser, requireManagerOrAbove } from '../middleware/honoStack';
 import type { ApiBindings, AppVariables } from '../types/apiTypes';
 
 const holidaysApp = new Hono<{
@@ -21,26 +16,20 @@ const holidaysApp = new Hono<{
   Variables: AppVariables;
 }>();
 
-holidaysApp.get(
-  '/:classroomId',
-  auth,
-  loadUser,
-  requireClassroomScope((c) => c.req.param('classroomId') ?? null),
-  async (c) => {
-    const classroomId = c.req.param('classroomId');
-    if (!classroomId) {
-      return c.json({ message: 'classroom id is required' }, 400);
-    }
-    const db = getDb(c.env);
-    const rows = await db
-      .select({ id: holidays.id, date: holidays.date })
-      .from(holidays)
-      .where(
-        and(eq(holidays.classroomId, classroomId), isNull(holidays.deletedAt)),
-      );
-    return c.json(rows, 200);
-  },
-);
+holidaysApp.get('/:classroomId', async (c) => {
+  const classroomId = c.req.param('classroomId');
+  if (!classroomId) {
+    return c.json({ message: 'classroom id is required' }, 400);
+  }
+  const db = getDb(c.env);
+  const rows = await db
+    .select({ id: holidays.id, date: holidays.date })
+    .from(holidays)
+    .where(
+      and(eq(holidays.classroomId, classroomId), isNull(holidays.deletedAt)),
+    );
+  return c.json(rows, 200);
+});
 
 holidaysApp.post('', auth, loadUser, requireManagerOrAbove, async (c) => {
   const actor = c.var.currentUser;

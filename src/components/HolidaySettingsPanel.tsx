@@ -24,6 +24,7 @@ import {
 } from '@/components/ui/select';
 import { Separator } from '@/components/ui/separator';
 import { useAuthedFetch } from '@/hooks/useAuthedFetch';
+import { fetchClassroomHolidays } from '@/lib/classroomHolidays';
 import type { ClassroomListItem, HolidayListItem } from '@/types/api';
 import type { CurrentUser } from '@/types/currentUser';
 
@@ -42,6 +43,12 @@ function formatHolidayLabel(isoDate: string): string {
   return d.format('YYYY年M月D日（ddd）');
 }
 
+/**
+ * Manages classroom holiday settings for administrators and assigned classroom users.
+ *
+ * @param currentUser - The authenticated user whose role and classroom determine access.
+ * @param getAccessTokenSilently - Retrieves an access token for authenticated API requests.
+ */
 export default function HolidaySettingsPanel({
   currentUser,
   getAccessTokenSilently,
@@ -120,19 +127,12 @@ export default function HolidaySettingsPanel({
     setIsLoadingHolidays(true);
     setError(null);
     try {
-      const res = await authedFetch(
-        `/api/holidays/${encodeURIComponent(classroomAtStart)}`,
-        { signal: ac.signal },
-      );
+      const data = await fetchClassroomHolidays(classroomAtStart, {
+        signal: ac.signal,
+      });
       if (gen !== loadGen.current || ac.signal.aborted) {
         return;
       }
-      if (!res.ok) {
-        setError('休業日一覧の取得に失敗しました。');
-        setHolidays([]);
-        return;
-      }
-      const data = (await res.json()) as HolidayListItem[];
       setHolidays(data);
     } catch (e) {
       if (gen !== loadGen.current || ac.signal.aborted) {
@@ -145,7 +145,7 @@ export default function HolidaySettingsPanel({
         setIsLoadingHolidays(false);
       }
     }
-  }, [authedFetch]);
+  }, []);
 
   useEffect(() => {
     activeClassroomIdRef.current = activeClassroomId;

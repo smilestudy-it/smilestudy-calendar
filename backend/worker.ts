@@ -171,7 +171,14 @@ app.get('/public/student-lessons', async (c) => {
     lessonTypeName: lessonPresetDisplay(lessonTypeById.get(row.lessonTypeId)),
   }));
 
-  return c.json({ studentName: studentRow.name, lessons: rows }, 200);
+  return c.json(
+    {
+      studentName: studentRow.name,
+      classroomId: studentRow.classroomId,
+      lessons: rows,
+    },
+    200,
+  );
 });
 
 /** 未認証。指定年月の日本の祝日一覧を返す。 */

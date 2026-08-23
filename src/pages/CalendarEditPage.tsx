@@ -21,9 +21,9 @@ import {
 } from '@/components/ui/select';
 import { useAuthedFetch } from '@/hooks/useAuthedFetch';
 import { useSelectedClassroom } from '@/hooks/useSelectedClassroom';
+import { fetchClassroomHolidays } from '@/lib/classroomHolidays';
 import { applyHolidayUnavailability } from '@/lib/holidayAvailability';
 import { cn } from '@/lib/utils';
-import type { HolidayListItem } from '@/types/api';
 import type { CurrentUser } from '@/types/currentUser';
 
 dayjs.extend(utc);
@@ -70,6 +70,12 @@ function hmToMinutes(hm: string): number {
   return h * 60 + m;
 }
 
+/**
+ * Provides the interface for selecting and registering a lesson slot for a student in the active classroom.
+ *
+ * @param currentUser - The authenticated teacher responsible for the lesson.
+ * @param getAccessTokenSilently - Retrieves an access token for authenticated requests.
+ */
 export default function CalendarSingleEditPage({
   currentUser,
   getAccessTokenSilently,
@@ -120,7 +126,7 @@ export default function CalendarSingleEditPage({
           authedFetch(`/api/students/${encodeURIComponent(classroomId)}`),
           authedFetch(`/api/lesson-types/${encodeURIComponent(classroomId)}`),
           authedFetch(`/api/subjects/${encodeURIComponent(classroomId)}`),
-          authedFetch(`/api/holidays/${encodeURIComponent(classroomId)}`),
+          fetchClassroomHolidays(classroomId),
         ]);
 
       if (cancelled) {
@@ -155,8 +161,8 @@ export default function CalendarSingleEditPage({
           setSubjects(data);
         }
       }
-      if (holResult.status === 'fulfilled' && holResult.value.ok) {
-        const data = (await holResult.value.json()) as HolidayListItem[];
+      if (holResult.status === 'fulfilled') {
+        const data = holResult.value;
         if (!cancelled) {
           setHolidayDateSet(new Set(data.map((h) => h.date)));
         }
