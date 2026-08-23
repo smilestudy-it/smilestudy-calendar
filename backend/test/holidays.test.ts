@@ -239,23 +239,10 @@ describe('holidays api', () => {
       expect(rows.some((r) => r.id === 'h-del')).toBe(false);
     });
 
-    it('returns 403 when manager requests another classroom', async () => {
-      state.userRole = 'manager';
-      state.jwtSub = 'auth0|manager-user';
-      const res = await app.request(
-        '/api/holidays/room-2',
-        { method: 'GET' },
-        env,
-      );
-      expect(res.status).toBe(403);
-    });
-
-    it('allows staff for their classroom', async () => {
-      state.userRole = 'staff';
-      state.jwtSub = 'auth0|staff-user';
+    it('does not require Authorization header', async () => {
       const res = await app.request(
         '/api/holidays/room-1',
-        { method: 'GET' },
+        { method: 'GET', headers: {} },
         env,
       );
       expect(res.status).toBe(200);

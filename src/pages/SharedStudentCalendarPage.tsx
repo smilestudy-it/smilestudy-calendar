@@ -15,6 +15,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
+import { fetchClassroomHolidayDates } from '@/lib/classroomHolidays';
 
 dayjs.locale('ja');
 
@@ -33,11 +34,12 @@ export default function SharedStudentCalendarPage() {
   const studentId = (searchParams.get('student_id') ?? '').trim();
   const [focusDate, setFocusDate] = useState(() => new Date());
   const [studentName, setStudentName] = useState('');
+  const [classroomId, setClassroomId] = useState<string | null>(null);
   const [lessons, setLessons] = useState<PublicLesson[]>([]);
   const [listError, setListError] = useState<string | null>(null);
   const [isLoadingMonth, setIsLoadingMonth] = useState(false);
+  const [closureDates, setClosureDates] = useState<string[]>([]);
 
-  // 💡 選択されたコマの情報を保持するState
   const [selectedLesson, setSelectedLesson] = useState<PublicLesson | null>(
     null,
   );
@@ -56,7 +58,9 @@ export default function SharedStudentCalendarPage() {
     const load = async () => {
       if (!studentId) {
         setStudentName('');
+        setClassroomId(null);
         setLessons([]);
+        setClosureDates([]);
         return;
       }
       setIsLoadingMonth(true);
@@ -74,28 +78,36 @@ export default function SharedStudentCalendarPage() {
             '表示できません。リンクが無効か、対象の生徒が見つかりません。',
           );
           setStudentName('');
+          setClassroomId(null);
           setLessons([]);
+          setClosureDates([]);
           return;
         }
         if (!res.ok) {
           setListError('コマ一覧の取得に失敗しました。');
           setStudentName('');
+          setClassroomId(null);
           setLessons([]);
+          setClosureDates([]);
           return;
         }
         const data = (await res.json()) as {
           studentName?: string;
+          classroomId?: string;
           lessons?: PublicLesson[];
         };
         if (!isDisposed) {
           setStudentName(data.studentName ?? '');
+          setClassroomId(data.classroomId ?? null);
           setLessons(data.lessons ?? []);
         }
       } catch {
         if (!isDisposed) {
           setListError('ネットワークエラーが発生しました。');
           setStudentName('');
+          setClassroomId(null);
           setLessons([]);
+          setClosureDates([]);
         }
       } finally {
         if (!isDisposed) {
@@ -108,6 +120,24 @@ export default function SharedStudentCalendarPage() {
       isDisposed = true;
     };
   }, [studentId, monthEndExclusive, monthStart]);
+
+  useEffect(() => {
+    let cancelled = false;
+    const loadClosureDates = async () => {
+      if (!classroomId) {
+        setClosureDates([]);
+        return;
+      }
+      const dates = await fetchClassroomHolidayDates(classroomId);
+      if (!cancelled) {
+        setClosureDates(dates);
+      }
+    };
+    void loadClosureDates();
+    return () => {
+      cancelled = true;
+    };
+  }, [classroomId]);
 
   useEffect(() => {
     setSelectedLesson(null);
@@ -211,9 +241,9 @@ export default function SharedStudentCalendarPage() {
           <MonthCalendar
             focusDate={focusDate}
             events={calendarEvents}
+            closureDates={closureDates}
             onFocusDateChange={setFocusDate}
             onEventClick={(event) => {
-              // 💡 イベントがクリックされたら詳細を表示
               const lesson = lessons.find((l) => l.id === event.id);
               if (lesson) {
                 setSelectedLesson(lesson);
@@ -223,7 +253,6 @@ export default function SharedStudentCalendarPage() {
         )}
       </div>
 
-      {/* 💡 コマの詳細表示用モーダル (閲覧専用) */}
       <Dialog
         open={!!selectedLesson}
         onOpenChange={(open) => !open && setSelectedLesson(null)}

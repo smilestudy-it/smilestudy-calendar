@@ -16,6 +16,7 @@ import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent } from '@/components/ui/dialog';
 import { useAuthedFetch } from '@/hooks/useAuthedFetch';
 import { useSelectedClassroom } from '@/hooks/useSelectedClassroom';
+import { fetchClassroomHolidayDates } from '@/lib/classroomHolidays';
 import type { CurrentUser } from '@/types/currentUser';
 
 dayjs.locale('ja');
@@ -74,6 +75,7 @@ export default function CalendarPage({
   const [lessonTypes, setLessonTypes] = useState<PresetRow[]>([]);
   const [listError, setListError] = useState<string | null>(null);
   const [isLoadingMonth, setIsLoadingMonth] = useState(false);
+  const [closureDates, setClosureDates] = useState<string[]>([]);
 
   // モーダルと編集関連のState
   const [selectedEvent, setSelectedEvent] = useState<LessonDetailTarget | null>(
@@ -169,6 +171,24 @@ export default function CalendarPage({
     void fetchMonthData(controller.signal);
     return () => controller.abort();
   }, [fetchMonthData]);
+
+  useEffect(() => {
+    let cancelled = false;
+    const loadClosureDates = async () => {
+      if (!activeClassroom) {
+        setClosureDates([]);
+        return;
+      }
+      const dates = await fetchClassroomHolidayDates(activeClassroom.id);
+      if (!cancelled) {
+        setClosureDates(dates);
+      }
+    };
+    void loadClosureDates();
+    return () => {
+      cancelled = true;
+    };
+  }, [activeClassroom]);
 
   const teacherById = useMemo(() => toMapById(teachers), [teachers]);
 
@@ -341,6 +361,7 @@ export default function CalendarPage({
             <MonthCalendar
               focusDate={focusDate}
               events={calendarEvents}
+              closureDates={closureDates}
               onFocusDateChange={setFocusDate}
               onEventClick={(event) => {
                 const lesson = visibleLessons.find((l) => l.id === event.id);
