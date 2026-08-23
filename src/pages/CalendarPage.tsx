@@ -174,17 +174,22 @@ export default function CalendarPage({
 
   useEffect(() => {
     let cancelled = false;
-    const loadClosureDates = async () => {
-      if (!activeClassroom) {
-        setClosureDates([]);
-        return;
-      }
-      const dates = await fetchClassroomHolidayDates(activeClassroom.id);
+    const classroomId = activeClassroom?.id;
+    setClosureDates([]);
+
+    if (!classroomId) {
+      return () => {
+        cancelled = true;
+      };
+    }
+
+    void (async () => {
+      const dates = await fetchClassroomHolidayDates(classroomId);
       if (!cancelled) {
         setClosureDates(dates);
       }
-    };
-    void loadClosureDates();
+    })();
+
     return () => {
       cancelled = true;
     };

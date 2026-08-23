@@ -123,17 +123,22 @@ export default function SharedStudentCalendarPage() {
 
   useEffect(() => {
     let cancelled = false;
-    const loadClosureDates = async () => {
-      if (!classroomId) {
-        setClosureDates([]);
-        return;
-      }
-      const dates = await fetchClassroomHolidayDates(classroomId);
+    const classroomAtStart = classroomId;
+    setClosureDates([]);
+
+    if (!classroomAtStart) {
+      return () => {
+        cancelled = true;
+      };
+    }
+
+    void (async () => {
+      const dates = await fetchClassroomHolidayDates(classroomAtStart);
       if (!cancelled) {
         setClosureDates(dates);
       }
-    };
-    void loadClosureDates();
+    })();
+
     return () => {
       cancelled = true;
     };
