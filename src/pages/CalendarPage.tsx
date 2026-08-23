@@ -63,6 +63,11 @@ function buildModalEventTitle(lesson: LessonApi) {
     : `${lesson.teacherDisplay} - ${lesson.studentDisplay}`;
 }
 
+/**
+ * Displays the monthly lesson calendar for the active classroom.
+ *
+ * @returns The calendar page or an access-denied message when no user is available.
+ */
 export default function CalendarPage({
   currentUser,
   getAccessTokenSilently,

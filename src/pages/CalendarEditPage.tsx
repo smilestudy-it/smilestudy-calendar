@@ -70,6 +70,12 @@ function hmToMinutes(hm: string): number {
   return h * 60 + m;
 }
 
+/**
+ * Provides the interface for selecting and registering a lesson slot for a student in the active classroom.
+ *
+ * @param currentUser - The authenticated teacher responsible for the lesson.
+ * @param getAccessTokenSilently - Retrieves an access token for authenticated requests.
+ */
 export default function CalendarSingleEditPage({
   currentUser,
   getAccessTokenSilently,

@@ -29,6 +29,9 @@ type PublicLesson = {
   lessonTypeName: string;
 };
 
+/**
+ * Displays a public monthly calendar of lessons for the student specified in the URL.
+ */
 export default function SharedStudentCalendarPage() {
   const [searchParams] = useSearchParams();
   const studentId = (searchParams.get('student_id') ?? '').trim();

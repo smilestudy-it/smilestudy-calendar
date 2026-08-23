@@ -43,6 +43,12 @@ function formatHolidayLabel(isoDate: string): string {
   return d.format('YYYY年M月D日（ddd）');
 }
 
+/**
+ * Manages classroom holiday settings for administrators and assigned classroom users.
+ *
+ * @param currentUser - The authenticated user whose role and classroom determine access.
+ * @param getAccessTokenSilently - Retrieves an access token for authenticated API requests.
+ */
 export default function HolidaySettingsPanel({
   currentUser,
   getAccessTokenSilently,

@@ -1,6 +1,12 @@
 import type { HolidayListItem } from '@/types/api';
 
-/** 教室休業日一覧（GET /api/holidays/:classroomId、認証不要）。 */
+/**
+ * Fetches the holidays for a classroom.
+ *
+ * @param classroomId - The classroom identifier.
+ * @returns The classroom holiday items.
+ * @throws Error if the request fails.
+ */
 export async function fetchClassroomHolidays(
   classroomId: string,
   init?: RequestInit,
@@ -15,7 +21,12 @@ export async function fetchClassroomHolidays(
   return (await res.json()) as HolidayListItem[];
 }
 
-/** 休業日の日付キー（YYYY-MM-DD）のみ。失敗時は空配列。 */
+/**
+ * Retrieves the holiday dates for a classroom.
+ *
+ * @param classroomId - The classroom identifier
+ * @returns The holiday dates in `YYYY-MM-DD` format, or an empty array if retrieval fails.
+ */
 export async function fetchClassroomHolidayDates(
   classroomId: string,
   init?: RequestInit,

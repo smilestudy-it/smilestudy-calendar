@@ -24,6 +24,19 @@ type Props = {
   calendarKey?: string;
 };
 
+/**
+ * Renders a Japanese month calendar with holidays, closure dates, events, and optional date selection and navigation callbacks.
+ *
+ * @param focusDate - The month to display initially.
+ * @param events - Calendar events to display.
+ * @param closureDates - Dates marked as closed in `YYYY-MM-DD` format.
+ * @param onFocusDateChange - Called when the displayed month changes.
+ * @param onDateClick - Called when a day cell is clicked.
+ * @param onEventClick - Called when a calendar event is clicked.
+ * @param selectedDate - The date to highlight.
+ * @param showHeaderToolbar - Whether to display previous, title, and next controls.
+ * @param calendarKey - Optional key used to control calendar remounting.
+ */
 export default function MonthCalendar({
   focusDate,
   events = [],
