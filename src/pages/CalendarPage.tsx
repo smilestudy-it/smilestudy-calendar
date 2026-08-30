@@ -399,7 +399,7 @@ export default function CalendarPage({
                   setPanelError(null); // 開くたびにエラーをリセット
                 }}
               />
-              <div className="space-v-2 pt-1">
+              <div className="space-y-2 pt-1">
                 <p className="text-muted-foreground text-sm tabular-nums">
                   合計 {visibleLessons.length}コマ
                 </p>

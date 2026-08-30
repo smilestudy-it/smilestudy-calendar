@@ -125,10 +125,14 @@ export default function SharedStudentCalendarPage() {
   }, [studentId, monthEndExclusive, monthStart]);
 
   const LessonCountBySubjectAndType = useMemo(() => {
-    const map = new Map<string, number>();
+    const map = new Map<string, Map<string, number>>();
     for (const lesson of lessons) {
-      const displayStr = lesson.subjectName + "[" + lesson.lessonTypeName + "]";
-      map.set(displayStr, (map.get(displayStr) ?? 0) + 1);
+      let bySubject = map.get(lesson.lessonTypeName);
+      if (!bySubject) {
+        bySubject = new Map<string, number>();
+        map.set(lesson.lessonTypeName, bySubject);
+      }
+      bySubject.set(lesson.subjectName, (bySubject.get(lesson.subjectName) ?? 0) + 1)
     }
     return [...map].sort((a, b) => a[0].localeCompare(b[0], 'ja'));
   }, [lessons])
@@ -267,20 +271,38 @@ export default function SharedStudentCalendarPage() {
                 }
               }}
             />
-            <div className="space-v-2 pt-1">
+            <div className="space-y-2 pt-1">
               <p className="text-muted-foreground text-sm tabular-nums">
                 合計 {lessons.length}コマ
               </p>
               <div className="flex flex-wrap gap-2">
-                {LessonCountBySubjectAndType.map(([displayStr, count]) => (
-                  <span
-                    key={displayStr}
-                    className="inline-flex items-center gap-1.5 rounded-md border px-2.5 py-1 text-sm"
-                  >
-                    <span>{displayStr}</span>
-                    <span className="font-semibold tabular-nums">{count}</span>
-                  </span>
-                ))}
+                {LessonCountBySubjectAndType.map(([lessonType, bySubject]) => {
+                  const total = [...bySubject.values()].reduce((sum, n) => sum + n, 0);
+                  return (
+                    <div
+                      key={JSON.stringify(lessonType)}
+                      className="flex flex-wrap items-center gap-2"
+                    >
+                      {/* 左: タイプ名 + 合計 */}
+                      <span className="text-sm">
+                        <span className="font-medium text-foreground">{lessonType}</span>{' '}
+                        <span className="font-semibold tabular-nums text-foreground">{total}</span>
+                      </span>
+                      {/* 右: 科目ごとの内訳 */}
+                      {[...bySubject]
+                        .sort((a, b) => a[0].localeCompare(b[0], 'ja')) // 文字列順
+                        .map(([subject, count]) => (
+                          <span
+                            key={JSON.stringify(subject)}
+                            className="inline-flex items-center gap-1.5 rounded-full bg-muted/40 px-2.5 py-1 text-xs text-muted-foreground border"
+                          >
+                            <span>{subject}</span>
+                            <span className="tabular-nums">{count}</span>
+                          </span>
+                        ))}
+                    </div>
+                  )
+                })}
               </div>
             </div>
           </>
