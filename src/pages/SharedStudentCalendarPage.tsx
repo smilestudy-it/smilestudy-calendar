@@ -124,6 +124,22 @@ export default function SharedStudentCalendarPage() {
     };
   }, [studentId, monthEndExclusive, monthStart]);
 
+  const LessonCountBySubjectAndType = useMemo(() => {
+    const map = new Map<string, Map<string, number>>();
+    for (const lesson of lessons) {
+      let bySubject = map.get(lesson.lessonTypeName);
+      if (!bySubject) {
+        bySubject = new Map<string, number>();
+        map.set(lesson.lessonTypeName, bySubject);
+      }
+      bySubject.set(
+        lesson.subjectName,
+        (bySubject.get(lesson.subjectName) ?? 0) + 1,
+      );
+    }
+    return [...map].sort((a, b) => a[0].localeCompare(b[0], 'ja'));
+  }, [lessons]);
+
   useEffect(() => {
     let cancelled = false;
     const classroomAtStart = classroomId;
@@ -246,18 +262,61 @@ export default function SharedStudentCalendarPage() {
             月のコマを読み込み中...
           </p>
         ) : (
-          <MonthCalendar
-            focusDate={focusDate}
-            events={calendarEvents}
-            closureDates={closureDates}
-            onFocusDateChange={setFocusDate}
-            onEventClick={(event) => {
-              const lesson = lessons.find((l) => l.id === event.id);
-              if (lesson) {
-                setSelectedLesson(lesson);
-              }
-            }}
-          />
+          <>
+            <MonthCalendar
+              focusDate={focusDate}
+              events={calendarEvents}
+              closureDates={closureDates}
+              onFocusDateChange={setFocusDate}
+              onEventClick={(event) => {
+                const lesson = lessons.find((l) => l.id === event.id);
+                if (lesson) {
+                  setSelectedLesson(lesson);
+                }
+              }}
+            />
+            <div className="space-y-2 pt-1">
+              <p className="text-muted-foreground text-sm tabular-nums">
+                合計 {lessons.length}コマ
+              </p>
+              <div className="flex flex-wrap gap-2">
+                {LessonCountBySubjectAndType.map(([lessonType, bySubject]) => {
+                  const total = [...bySubject.values()].reduce(
+                    (sum, n) => sum + n,
+                    0,
+                  );
+                  return (
+                    <div
+                      key={JSON.stringify(lessonType)}
+                      className="flex flex-wrap items-center gap-2"
+                    >
+                      {/* 左: タイプ名 + 合計 */}
+                      <span className="text-sm">
+                        <span className="text-foreground font-medium">
+                          {lessonType}
+                        </span>{' '}
+                        <span className="text-foreground font-semibold tabular-nums">
+                          {total}
+                        </span>
+                      </span>
+                      {/* 右: 科目ごとの内訳 */}
+                      {[...bySubject]
+                        .sort((a, b) => a[0].localeCompare(b[0], 'ja')) // 文字列順
+                        .map(([subject, count]) => (
+                          <span
+                            key={JSON.stringify(subject)}
+                            className="bg-muted/40 text-muted-foreground inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs"
+                          >
+                            <span>{subject}</span>
+                            <span className="tabular-nums">{count}</span>
+                          </span>
+                        ))}
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          </>
         )}
       </div>
 
