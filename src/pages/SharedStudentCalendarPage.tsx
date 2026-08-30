@@ -124,6 +124,15 @@ export default function SharedStudentCalendarPage() {
     };
   }, [studentId, monthEndExclusive, monthStart]);
 
+  const LessonCountBySubjectAndType = useMemo(() => {
+    const map = new Map<string, number>();
+    for (const lesson of lessons) {
+      const displayStr = lesson.subjectName + "[" + lesson.lessonTypeName + "]";
+      map.set(displayStr, (map.get(displayStr) ?? 0) + 1);
+    }
+    return [...map].sort((a, b) => a[0].localeCompare(b[0], 'ja'));
+  }, [lessons])
+
   useEffect(() => {
     let cancelled = false;
     const classroomAtStart = classroomId;
@@ -158,9 +167,8 @@ export default function SharedStudentCalendarPage() {
         .join(' · ');
       return {
         id: l.id,
-        title: `${dayjs(l.startAt).format('HH:mm')}${
-          subLt ? ` (${subLt})` : ''
-        }`,
+        title: `${dayjs(l.startAt).format('HH:mm')}${subLt ? ` (${subLt})` : ''
+          }`,
         start: l.startAt,
         end: l.endAt,
         backgroundColor:
@@ -246,18 +254,36 @@ export default function SharedStudentCalendarPage() {
             月のコマを読み込み中...
           </p>
         ) : (
-          <MonthCalendar
-            focusDate={focusDate}
-            events={calendarEvents}
-            closureDates={closureDates}
-            onFocusDateChange={setFocusDate}
-            onEventClick={(event) => {
-              const lesson = lessons.find((l) => l.id === event.id);
-              if (lesson) {
-                setSelectedLesson(lesson);
-              }
-            }}
-          />
+          <>
+            <MonthCalendar
+              focusDate={focusDate}
+              events={calendarEvents}
+              closureDates={closureDates}
+              onFocusDateChange={setFocusDate}
+              onEventClick={(event) => {
+                const lesson = lessons.find((l) => l.id === event.id);
+                if (lesson) {
+                  setSelectedLesson(lesson);
+                }
+              }}
+            />
+            <div className="space-v-2 pt-1">
+              <p className="text-muted-foreground text-sm tabular-nums">
+                合計 {lessons.length}コマ
+              </p>
+              <div className="flex flex-wrap gap-2">
+                {LessonCountBySubjectAndType.map(([displayStr, count]) => (
+                  <span
+                    key={displayStr}
+                    className="inline-flex items-center gap-1.5 rounded-md border px-2.5 py-1 text-sm"
+                  >
+                    <span>{displayStr}</span>
+                    <span className="font-semibold tabular-nums">{count}</span>
+                  </span>
+                ))}
+              </div>
+            </div>
+          </>
         )}
       </div>
 

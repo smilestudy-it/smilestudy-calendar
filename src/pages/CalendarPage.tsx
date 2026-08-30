@@ -215,7 +215,7 @@ export default function CalendarPage({
     for (const lesson of visibleLessons) {
       map.set(lesson.subjectDisplay, (map.get(lesson.subjectDisplay) ?? 0) + 1);
     }
-    return [...map]
+    return [...map].sort((a, b) => a[0].localeCompare(b[0], 'ja'));
   }, [visibleLessons])
 
   const calendarEvents = useMemo(() => {
