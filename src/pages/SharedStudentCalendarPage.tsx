@@ -132,10 +132,13 @@ export default function SharedStudentCalendarPage() {
         bySubject = new Map<string, number>();
         map.set(lesson.lessonTypeName, bySubject);
       }
-      bySubject.set(lesson.subjectName, (bySubject.get(lesson.subjectName) ?? 0) + 1)
+      bySubject.set(
+        lesson.subjectName,
+        (bySubject.get(lesson.subjectName) ?? 0) + 1,
+      );
     }
     return [...map].sort((a, b) => a[0].localeCompare(b[0], 'ja'));
-  }, [lessons])
+  }, [lessons]);
 
   useEffect(() => {
     let cancelled = false;
@@ -171,8 +174,9 @@ export default function SharedStudentCalendarPage() {
         .join(' · ');
       return {
         id: l.id,
-        title: `${dayjs(l.startAt).format('HH:mm')}${subLt ? ` (${subLt})` : ''
-          }`,
+        title: `${dayjs(l.startAt).format('HH:mm')}${
+          subLt ? ` (${subLt})` : ''
+        }`,
         start: l.startAt,
         end: l.endAt,
         backgroundColor:
@@ -277,7 +281,10 @@ export default function SharedStudentCalendarPage() {
               </p>
               <div className="flex flex-wrap gap-2">
                 {LessonCountBySubjectAndType.map(([lessonType, bySubject]) => {
-                  const total = [...bySubject.values()].reduce((sum, n) => sum + n, 0);
+                  const total = [...bySubject.values()].reduce(
+                    (sum, n) => sum + n,
+                    0,
+                  );
                   return (
                     <div
                       key={JSON.stringify(lessonType)}
@@ -285,8 +292,12 @@ export default function SharedStudentCalendarPage() {
                     >
                       {/* 左: タイプ名 + 合計 */}
                       <span className="text-sm">
-                        <span className="font-medium text-foreground">{lessonType}</span>{' '}
-                        <span className="font-semibold tabular-nums text-foreground">{total}</span>
+                        <span className="text-foreground font-medium">
+                          {lessonType}
+                        </span>{' '}
+                        <span className="text-foreground font-semibold tabular-nums">
+                          {total}
+                        </span>
                       </span>
                       {/* 右: 科目ごとの内訳 */}
                       {[...bySubject]
@@ -294,14 +305,14 @@ export default function SharedStudentCalendarPage() {
                         .map(([subject, count]) => (
                           <span
                             key={JSON.stringify(subject)}
-                            className="inline-flex items-center gap-1.5 rounded-full bg-muted/40 px-2.5 py-1 text-xs text-muted-foreground border"
+                            className="bg-muted/40 text-muted-foreground inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs"
                           >
                             <span>{subject}</span>
                             <span className="tabular-nums">{count}</span>
                           </span>
                         ))}
                     </div>
-                  )
+                  );
                 })}
               </div>
             </div>

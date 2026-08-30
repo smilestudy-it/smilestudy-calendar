@@ -216,7 +216,7 @@ export default function CalendarPage({
       map.set(lesson.subjectDisplay, (map.get(lesson.subjectDisplay) ?? 0) + 1);
     }
     return [...map].sort((a, b) => a[0].localeCompare(b[0], 'ja'));
-  }, [visibleLessons])
+  }, [visibleLessons]);
 
   const calendarEvents = useMemo(() => {
     return visibleLessons.map((l) => {
@@ -410,7 +410,9 @@ export default function CalendarPage({
                       className="inline-flex items-center gap-1.5 rounded-md border px-2.5 py-1 text-sm"
                     >
                       <span>{subject}</span>
-                      <span className="font-semibold tabular-nums">{count}</span>
+                      <span className="font-semibold tabular-nums">
+                        {count}
+                      </span>
                     </span>
                   ))}
                 </div>
