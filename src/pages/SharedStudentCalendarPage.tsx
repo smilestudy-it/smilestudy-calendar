@@ -16,6 +16,7 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 import { fetchClassroomHolidayDates } from '@/lib/classroomHolidays';
+import { readableTextOnHex } from '@/lib/readableTextOnHex';
 
 dayjs.locale('ja');
 
@@ -202,7 +203,7 @@ export default function SharedStudentCalendarPage() {
         end: l.endAt,
         backgroundColor: eventColor,
         borderColor: eventColor,
-        textColor: '#ffffff',
+        textColor: readableTextOnHex(eventColor),
       };
     });
   }, [lessons]);
@@ -326,7 +327,7 @@ export default function SharedStudentCalendarPage() {
                               className="size-2.5 shrink-0 rounded-full"
                               style={{
                                 backgroundColor:
-                                  subjectColorByName.get(subject),
+                                  subjectColorByName.get(subject) ?? '#6366f1',
                               }}
                               aria-hidden
                             />

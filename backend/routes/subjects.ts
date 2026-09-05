@@ -84,12 +84,17 @@ subjectsApp.patch('/:id', auth, loadUser, requireManagerOrAbove, async (c) => {
   if (actor.role !== 'admin' && actor.classroomId !== row.classroomId) {
     return c.json({ message: 'forbidden' }, 403);
   }
-  const nextName = input.name ?? row.name;
-  const nextColor = input.color ?? row.color;
+  const patch: { name?: string; color?: string } = {};
+  if (input.name !== undefined) {
+    patch.name = input.name;
+  }
+  if (input.color !== undefined) {
+    patch.color = input.color;
+  }
   try {
     const res = await db
       .update(subjects)
-      .set({ name: nextName, color: nextColor })
+      .set(patch)
       .where(and(eq(subjects.id, targetId), isNull(subjects.deletedAt)));
     if (res.meta.changes === 0) {
       return c.json({ message: 'subject not found' }, 500);
@@ -100,8 +105,8 @@ subjectsApp.patch('/:id', auth, loadUser, requireManagerOrAbove, async (c) => {
   return c.json(
     {
       id: targetId,
-      name: nextName,
-      color: nextColor,
+      name: input.name ?? row.name,
+      color: input.color ?? row.color,
       classroomId: row.classroomId,
     },
     200,

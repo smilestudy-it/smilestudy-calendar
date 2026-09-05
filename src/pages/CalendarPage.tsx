@@ -17,6 +17,7 @@ import { Dialog, DialogContent } from '@/components/ui/dialog';
 import { useAuthedFetch } from '@/hooks/useAuthedFetch';
 import { useSelectedClassroom } from '@/hooks/useSelectedClassroom';
 import { fetchClassroomHolidayDates } from '@/lib/classroomHolidays';
+import { readableTextOnHex } from '@/lib/readableTextOnHex';
 import type { CurrentUser } from '@/types/currentUser';
 
 dayjs.locale('ja');
@@ -263,7 +264,7 @@ export default function CalendarPage({
         end: l.endAt,
         backgroundColor: eventColor,
         borderColor: eventColor,
-        textColor: '#ffffff',
+        textColor: readableTextOnHex(eventColor),
       };
     });
   }, [visibleLessons, teacherById, isStaff]);
