@@ -47,6 +47,7 @@ type PresetRow = {
   id: string;
   classroomId: string;
   name: string;
+  color?: string;
   deletedAt: Date | null;
 };
 
@@ -635,6 +636,7 @@ vi.mock('../db', () => {
                 ).map((s) => ({
                   id: s.id,
                   name: s.name,
+                  color: s.color ?? '#6366f1',
                   deletedAt: s.deletedAt,
                 }));
               },
@@ -945,6 +947,7 @@ describe('lessons api', () => {
         id: 'subject-1',
         classroomId: 'room-1',
         name: '英語',
+        color: '#22c55e',
         deletedAt: null,
       },
     ];
@@ -1001,6 +1004,7 @@ describe('lessons api', () => {
       teacherDisplay: string;
       studentDisplay: string;
       subjectDisplay: string;
+      subjectColor: string | null;
       lessonTypeDisplay: string;
     }>;
     expect(rows.some((r) => r.id === 'L1')).toBe(true);
@@ -1008,6 +1012,7 @@ describe('lessons api', () => {
     expect(row?.teacherDisplay).toContain('山田');
     expect(row?.studentDisplay).toBe('生徒A');
     expect(row?.subjectDisplay).toBe('英語');
+    expect(row?.subjectColor).toBe('#22c55e');
     expect(row?.lessonTypeDisplay).toBe('通常');
   });
 
