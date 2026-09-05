@@ -211,6 +211,7 @@ export default function CalendarPage({
     return lessons.filter((l) => l.teacherId === currentUser.id);
   }, [currentUser, lessons]);
 
+  /** 科目名ごとのコマ数を集計し、名前順にソートした配列を返す */
   const lessonCountBySubject: [string, number][] = useMemo(() => {
     const map = new Map<string, number>();
     for (const lesson of visibleLessons) {
@@ -221,6 +222,7 @@ export default function CalendarPage({
 
   const isStaff = currentUser?.role === 'staff';
 
+  /** 講師カレンダーで科目名から表示色を引くためのマップ（スタッフのみ） */
   const subjectColorByName = useMemo(() => {
     if (!isStaff) {
       return new Map<string, string>();

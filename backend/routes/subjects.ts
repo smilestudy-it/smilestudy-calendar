@@ -23,6 +23,7 @@ const subjectsApp = new Hono<{
   Variables: AppVariables;
 }>();
 
+/** 科目追加時に使うランダムな16進数カラーコード（#000000〜#ffffff）を生成する */
 function randomSubjectColor(): string {
   const n = Math.floor(Math.random() * 0x1000000);
   return `#${n.toString(16).padStart(6, '0')}`;

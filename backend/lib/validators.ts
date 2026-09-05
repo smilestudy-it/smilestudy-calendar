@@ -5,6 +5,7 @@ import { z } from 'zod';
 
 type HexColor = string & { readonly __brand: 'HexColor' };
 
+/** 16進数カラーコード (#RRGGBB 形式) のバリデーションスキーマ */
 const hexColorSchema = z
   .string()
   .trim()

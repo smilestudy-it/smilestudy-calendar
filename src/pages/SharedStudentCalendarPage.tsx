@@ -125,6 +125,7 @@ export default function SharedStudentCalendarPage() {
     };
   }, [studentId, monthEndExclusive, monthStart]);
 
+  /** 授業種別ごとに科目別のコマ数を集計し、種別名順にソートした配列を返す */
   const LessonCountBySubjectAndType = useMemo(() => {
     const map = new Map<string, Map<string, number>>();
     for (const lesson of lessons) {
@@ -141,6 +142,7 @@ export default function SharedStudentCalendarPage() {
     return [...map].sort((a, b) => a[0].localeCompare(b[0], 'ja'));
   }, [lessons]);
 
+  /** 生徒カレンダーで科目名から表示色を引くためのマップ */
   const subjectColorByName = useMemo(() => {
     const map = new Map<string, string>();
     for (const lesson of lessons) {
