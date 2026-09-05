@@ -5,6 +5,14 @@ import { z } from 'zod';
 
 type HexColor = string & { readonly __brand: 'HexColor' };
 
+/** 16進数カラーコード (#RRGGBB 形式) のバリデーションスキーマ */
+const hexColorSchema = z
+  .string()
+  .trim()
+  .min(1, 'color is required')
+  .regex(/^#(?:[0-9a-fA-F]{6})$/, 'invalid color')
+  .transform((value) => value as HexColor);
+
 const classroomSchema = z.object({
   name: z
     .string()
@@ -26,12 +34,7 @@ const userSchema = z
       .min(1, 'last name is required')
       .max(100, 'last name must be 100 characters or less'),
     classroomId: z.string().trim().nullable().optional(),
-    color: z
-      .string()
-      .trim()
-      .min(1, 'color is required')
-      .regex(/^#(?:[0-9a-fA-F]{6})$/, 'invalid color')
-      .transform((value) => value as HexColor),
+    color: hexColorSchema,
     email: z.string().trim().pipe(z.email('invalid email')),
     role: z
       .enum(['admin', 'manager', 'staff'], 'invalid role')
@@ -151,9 +154,16 @@ const patchSubjectSchema = z.object({
     .trim()
     .min(1, 'name is required')
     .max(100, 'name must be 100 characters or less'),
+  color: hexColorSchema,
 });
 
-const patchLessonTypeSchema = patchSubjectSchema;
+const patchLessonTypeSchema = z.object({
+  name: z
+    .string()
+    .trim()
+    .min(1, 'name is required')
+    .max(100, 'name must be 100 characters or less'),
+});
 
 const patchTimeSlotSchema = z
   .object({
@@ -261,7 +271,11 @@ export function validateCreateLessonTypeInput(body: unknown): {
   input?: CreatePresetNameInput;
   error?: string;
 } {
-  return validateCreateSubjectInput(body);
+  const result = presetNameBodySchema.safeParse(body);
+  if (!result.success) {
+    return { error: firstIssueMessage(result.error) };
+  }
+  return { input: result.data };
 }
 
 export function validateCreateTimeSlotInput(body: unknown): {

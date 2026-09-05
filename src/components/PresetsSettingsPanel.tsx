@@ -78,6 +78,7 @@ export default function PresetsSettingsPanel({
   const [newSlotEnd, setNewSlotEnd] = useState('18:30');
 
   const [draftNames, setDraftNames] = useState<Record<string, string>>({});
+  const [draftColors, setDraftColors] = useState<Record<string, string>>({});
   const [draftSlots, setDraftSlots] = useState<
     Record<string, { start: string; end: string }>
   >({});
@@ -148,6 +149,7 @@ export default function PresetsSettingsPanel({
       setLessonTypes(result.lessonTypes);
       setTimeSlots(result.timeSlots);
       setDraftNames({});
+      setDraftColors({});
       setDraftSlots({});
     } catch (e) {
       if (gen !== loadPresetsGen.current || ac.signal.aborted) {
@@ -262,8 +264,14 @@ export default function PresetsSettingsPanel({
   };
 
   const patchSubject = async (id: string) => {
-    const name = (draftNames[id] ?? '').trim();
-    if (!name) {
+    const name = (
+      draftNames[id] ??
+      subjects.find((s) => s.id === id)?.name ??
+      ''
+    ).trim();
+    const color =
+      draftColors[id] ?? subjects.find((s) => s.id === id)?.color ?? '';
+    if (!name || !/^#(?:[0-9a-fA-F]{6})$/.test(color)) {
       return;
     }
     setError(null);
@@ -271,7 +279,7 @@ export default function PresetsSettingsPanel({
       const res = await authedFetch(`/api/subjects/${id}`, {
         method: 'PATCH',
         headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ name }),
+        body: JSON.stringify({ name, color }),
       });
       if (!res.ok) {
         setError(
@@ -492,6 +500,8 @@ export default function PresetsSettingsPanel({
             onAdd={handleAddSubject}
             draftNames={draftNames}
             setDraftNames={setDraftNames}
+            draftColors={draftColors}
+            setDraftColors={setDraftColors}
             onPatch={patchSubject}
             onDisable={(id) => {
               const row = subjects.find((s) => s.id === id);

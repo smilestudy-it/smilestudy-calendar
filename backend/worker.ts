@@ -117,13 +117,14 @@ app.get('/public/student-lessons', async (c) => {
 
   const subjectById = new Map<
     string,
-    { name: string; deletedAt: Date | null }
+    { name: string; color: string; deletedAt: Date | null }
   >();
   if (subjectIds.length > 0) {
     const subRows = await db
       .select({
         id: subjects.id,
         name: subjects.name,
+        color: subjects.color,
         deletedAt: subjects.deletedAt,
       })
       .from(subjects)
@@ -134,7 +135,11 @@ app.get('/public/student-lessons', async (c) => {
         ),
       );
     for (const s of subRows) {
-      subjectById.set(s.id, { name: s.name, deletedAt: s.deletedAt });
+      subjectById.set(s.id, {
+        name: s.name,
+        color: s.color,
+        deletedAt: s.deletedAt,
+      });
     }
   }
 
@@ -168,6 +173,7 @@ app.get('/public/student-lessons', async (c) => {
     teacherDisplay: lessonTeacherDisplay(teacherById.get(row.teacherId)),
     teacherColor: teacherById.get(row.teacherId)?.color ?? null,
     subjectName: lessonPresetDisplay(subjectById.get(row.subjectId)),
+    subjectColor: subjectById.get(row.subjectId)?.color ?? null,
     lessonTypeName: lessonPresetDisplay(lessonTypeById.get(row.lessonTypeId)),
   }));
 

@@ -17,6 +17,7 @@ import { Dialog, DialogContent } from '@/components/ui/dialog';
 import { useAuthedFetch } from '@/hooks/useAuthedFetch';
 import { useSelectedClassroom } from '@/hooks/useSelectedClassroom';
 import { fetchClassroomHolidayDates } from '@/lib/classroomHolidays';
+import { readableTextOnHex } from '@/lib/readableTextOnHex';
 import type { CurrentUser } from '@/types/currentUser';
 
 dayjs.locale('ja');
@@ -33,6 +34,7 @@ type LessonApi = {
   teacherDisplay: string;
   studentDisplay: string;
   subjectDisplay: string;
+  subjectColor: string | null;
   lessonTypeDisplay: string;
 };
 
@@ -210,6 +212,7 @@ export default function CalendarPage({
     return lessons.filter((l) => l.teacherId === currentUser.id);
   }, [currentUser, lessons]);
 
+  /** 科目名ごとのコマ数を集計し、名前順にソートした配列を返す */
   const lessonCountBySubject: [string, number][] = useMemo(() => {
     const map = new Map<string, number>();
     for (const lesson of visibleLessons) {
@@ -218,6 +221,26 @@ export default function CalendarPage({
     return [...map].sort((a, b) => a[0].localeCompare(b[0], 'ja'));
   }, [visibleLessons]);
 
+  const isStaff = currentUser?.role === 'staff';
+
+  /** 講師カレンダーで科目名から表示色を引くためのマップ（スタッフのみ） */
+  const subjectColorByName = useMemo(() => {
+    if (!isStaff) {
+      return new Map<string, string>();
+    }
+    const map = new Map<string, string>();
+    for (const lesson of visibleLessons) {
+      if (
+        lesson.subjectColor &&
+        /^#([0-9a-fA-F]{6})$/.test(lesson.subjectColor) &&
+        !map.has(lesson.subjectDisplay)
+      ) {
+        map.set(lesson.subjectDisplay, lesson.subjectColor);
+      }
+    }
+    return map;
+  }, [isStaff, visibleLessons]);
+
   const calendarEvents = useMemo(() => {
     return visibleLessons.map((l) => {
       const te = teacherById.get(l.teacherId);
@@ -225,10 +248,15 @@ export default function CalendarPage({
         te?.lastName?.trim() ||
         l.teacherDisplay.trim().split(/\s+/)[0] ||
         l.teacherId;
-      const eventColor =
+      const teacherColor =
         te?.color && /^#([0-9a-fA-F]{6})$/.test(te.color)
           ? te.color
           : '#6366f1';
+      const subjectColor =
+        l.subjectColor && /^#([0-9a-fA-F]{6})$/.test(l.subjectColor)
+          ? l.subjectColor
+          : '#6366f1';
+      const eventColor = isStaff ? subjectColor : teacherColor;
       return {
         id: l.id,
         title: teacherLastName,
@@ -236,10 +264,10 @@ export default function CalendarPage({
         end: l.endAt,
         backgroundColor: eventColor,
         borderColor: eventColor,
-        textColor: '#ffffff',
+        textColor: readableTextOnHex(eventColor),
       };
     });
-  }, [visibleLessons, teacherById]);
+  }, [visibleLessons, teacherById, isStaff]);
 
   // 💡 パネルからの PATCH (更新) 処理
   const handleSavePresets = async () => {
@@ -409,6 +437,16 @@ export default function CalendarPage({
                       key={subject}
                       className="inline-flex items-center gap-1.5 rounded-md border px-2.5 py-1 text-sm"
                     >
+                      {isStaff && (
+                        <span
+                          className="size-2.5 shrink-0 rounded-full"
+                          style={{
+                            backgroundColor:
+                              subjectColorByName.get(subject) ?? '#6366f1',
+                          }}
+                          aria-hidden
+                        />
+                      )}
                       <span>{subject}</span>
                       <span className="font-semibold tabular-nums">
                         {count}

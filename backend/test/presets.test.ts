@@ -18,6 +18,7 @@ type ClassroomRow = { id: string; deletedAt: Date | null };
 type SubjectRow = {
   id: string;
   name: string;
+  color: string;
   classroomId: string;
   deletedAt: Date | null;
 };
@@ -138,7 +139,11 @@ vi.mock('../db', () => {
 
         if (table === subjects) {
           const keys = Object.keys(selection);
-          if (keys.includes('name') && keys.includes('id')) {
+          if (
+            keys.includes('name') &&
+            keys.includes('id') &&
+            !keys.includes('classroomId')
+          ) {
             return {
               where: async (predicate: unknown) => {
                 const classroomId = extractRequestedId(predicate);
@@ -147,7 +152,7 @@ vi.mock('../db', () => {
                     (r) =>
                       r.classroomId === classroomId && r.deletedAt === null,
                   )
-                  .map((r) => ({ id: r.id, name: r.name }));
+                  .map((r) => ({ id: r.id, name: r.name, color: r.color }));
               },
             };
           }
@@ -159,7 +164,14 @@ vi.mock('../db', () => {
                   (r) => r.id === targetId && r.deletedAt === null,
                 );
                 return row
-                  ? [{ id: row.id, classroomId: row.classroomId }]
+                  ? [
+                      {
+                        id: row.id,
+                        classroomId: row.classroomId,
+                        name: row.name,
+                        color: row.color,
+                      },
+                    ]
                   : [];
               },
             }),
@@ -258,6 +270,7 @@ vi.mock('../db', () => {
       set: (value: {
         deletedAt?: Date | null;
         name?: string;
+        color?: string;
         startTime?: string;
         endTime?: string;
       }) => ({
@@ -283,6 +296,9 @@ vi.mock('../db', () => {
             return apply(state.subjectRows, (row) => {
               if (value.name !== undefined) {
                 row.name = value.name;
+              }
+              if (value.color !== undefined) {
+                row.color = value.color;
               }
               if (value.deletedAt !== undefined) {
                 row.deletedAt = value.deletedAt;
@@ -352,12 +368,14 @@ describe('presets api', () => {
       {
         id: 'sub-1',
         name: '英語',
+        color: '#22c55e',
         classroomId: 'room-1',
         deletedAt: null,
       },
       {
         id: 'sub-del',
         name: '削除済',
+        color: '#64748b',
         classroomId: 'room-1',
         deletedAt: new Date(),
       },
@@ -433,7 +451,9 @@ describe('presets api', () => {
       );
       expect(res.status).toBe(201);
       expect(state.subjectRows.length).toBe(before + 1);
-      expect(state.subjectRows.some((r) => r.name === '数学')).toBe(true);
+      const created = state.subjectRows.find((r) => r.name === '数学');
+      expect(created).toBeTruthy();
+      expect(created?.color).toMatch(/^#[0-9a-fA-F]{6}$/);
     });
 
     it('returns 403 when manager targets another classroom', async () => {
@@ -472,13 +492,16 @@ describe('presets api', () => {
         {
           method: 'PATCH',
           headers: { 'content-type': 'application/json' },
-          body: JSON.stringify({ name: '英語A' }),
+          body: JSON.stringify({ name: '英語A', color: '#1f1e33' }),
         },
         env,
       );
       expect(res.status).toBe(200);
       expect(state.subjectRows.find((r) => r.id === 'sub-1')?.name).toBe(
         '英語A',
+      );
+      expect(state.subjectRows.find((r) => r.id === 'sub-1')?.color).toBe(
+        '#1f1e33',
       );
     });
   });

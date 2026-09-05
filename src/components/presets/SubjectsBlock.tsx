@@ -15,6 +15,8 @@ type Props = {
   onAdd: (e: React.FormEvent) => void;
   draftNames: Record<string, string>;
   setDraftNames: React.Dispatch<React.SetStateAction<Record<string, string>>>;
+  draftColors: Record<string, string>;
+  setDraftColors: React.Dispatch<React.SetStateAction<Record<string, string>>>;
   onPatch: (id: string) => void;
   onDisable: (id: string) => void;
 };
@@ -26,6 +28,8 @@ export default function SubjectsBlock({
   onAdd,
   draftNames,
   setDraftNames,
+  draftColors,
+  setDraftColors,
   onPatch,
   onDisable,
 }: Props) {
@@ -44,6 +48,9 @@ export default function SubjectsBlock({
         </div>
         <Button type="submit">追加</Button>
       </form>
+      <p className="text-muted-foreground text-xs">
+        追加時は表示色が自動で割り当てられます。あとから変更できます。
+      </p>
       <ul className="space-y-3">
         {subjects.map((row) => (
           <li
@@ -58,6 +65,18 @@ export default function SubjectsBlock({
               }
               maxLength={100}
               className="min-w-0 flex-1"
+            />
+            <Input
+              aria-label={`科目 ${row.name} の表示色`}
+              type="color"
+              value={draftColors[row.id] ?? row.color}
+              onChange={(e) =>
+                setDraftColors((prev) => ({
+                  ...prev,
+                  [row.id]: e.target.value,
+                }))
+              }
+              className="h-8 w-12 shrink-0 cursor-pointer p-1"
             />
             <div className="flex shrink-0 flex-wrap gap-2">
               <Button

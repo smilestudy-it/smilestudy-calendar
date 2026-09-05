@@ -16,6 +16,7 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 import { fetchClassroomHolidayDates } from '@/lib/classroomHolidays';
+import { readableTextOnHex } from '@/lib/readableTextOnHex';
 
 dayjs.locale('ja');
 
@@ -26,6 +27,7 @@ type PublicLesson = {
   teacherDisplay: string;
   teacherColor: string | null;
   subjectName: string;
+  subjectColor: string | null;
   lessonTypeName: string;
 };
 
@@ -124,6 +126,7 @@ export default function SharedStudentCalendarPage() {
     };
   }, [studentId, monthEndExclusive, monthStart]);
 
+  /** 授業種別ごとに科目別のコマ数を集計し、種別名順にソートした配列を返す */
   const LessonCountBySubjectAndType = useMemo(() => {
     const map = new Map<string, Map<string, number>>();
     for (const lesson of lessons) {
@@ -138,6 +141,21 @@ export default function SharedStudentCalendarPage() {
       );
     }
     return [...map].sort((a, b) => a[0].localeCompare(b[0], 'ja'));
+  }, [lessons]);
+
+  /** 生徒カレンダーで科目名から表示色を引くためのマップ */
+  const subjectColorByName = useMemo(() => {
+    const map = new Map<string, string>();
+    for (const lesson of lessons) {
+      if (
+        lesson.subjectColor &&
+        /^#([0-9a-fA-F]{6})$/.test(lesson.subjectColor) &&
+        !map.has(lesson.subjectName)
+      ) {
+        map.set(lesson.subjectName, lesson.subjectColor);
+      }
+    }
+    return map;
   }, [lessons]);
 
   useEffect(() => {
@@ -172,6 +190,10 @@ export default function SharedStudentCalendarPage() {
       const subLt = [l.subjectName, l.lessonTypeName]
         .filter((name) => name !== '（不明）')
         .join(' · ');
+      const eventColor =
+        l.subjectColor && /^#([0-9a-fA-F]{6})$/.test(l.subjectColor)
+          ? l.subjectColor
+          : '#6366f1';
       return {
         id: l.id,
         title: `${dayjs(l.startAt).format('HH:mm')}${
@@ -179,15 +201,9 @@ export default function SharedStudentCalendarPage() {
         }`,
         start: l.startAt,
         end: l.endAt,
-        backgroundColor:
-          l.teacherColor && /^#([0-9a-fA-F]{6})$/.test(l.teacherColor)
-            ? l.teacherColor
-            : '#6366f1',
-        borderColor:
-          l.teacherColor && /^#([0-9a-fA-F]{6})$/.test(l.teacherColor)
-            ? l.teacherColor
-            : '#6366f1',
-        textColor: '#ffffff',
+        backgroundColor: eventColor,
+        borderColor: eventColor,
+        textColor: readableTextOnHex(eventColor),
       };
     });
   }, [lessons]);
@@ -305,8 +321,16 @@ export default function SharedStudentCalendarPage() {
                         .map(([subject, count]) => (
                           <span
                             key={JSON.stringify(subject)}
-                            className="bg-muted/40 text-muted-foreground inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs"
+                            className="text-muted-foreground inline-flex items-center gap-1.5 rounded-md border px-2.5 py-1 text-xs"
                           >
+                            <span
+                              className="size-2.5 shrink-0 rounded-full"
+                              style={{
+                                backgroundColor:
+                                  subjectColorByName.get(subject) ?? '#6366f1',
+                              }}
+                              aria-hidden
+                            />
                             <span>{subject}</span>
                             <span className="tabular-nums">{count}</span>
                           </span>

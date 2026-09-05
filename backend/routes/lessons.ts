@@ -104,6 +104,7 @@ lessonsApp.get(
               .select({
                 id: subjects.id,
                 name: subjects.name,
+                color: subjects.color,
                 deletedAt: subjects.deletedAt,
               })
               .from(subjects)
@@ -143,6 +144,7 @@ lessonsApp.get(
       teacherDisplay: lessonTeacherDisplay(teacherById.get(row.teacherId)),
       studentDisplay: lessonStudentDisplay(studentById.get(row.studentId)),
       subjectDisplay: lessonPresetDisplay(subjectById.get(row.subjectId)),
+      subjectColor: subjectById.get(row.subjectId)?.color ?? null,
       lessonTypeDisplay: lessonPresetDisplay(
         lessonTypeById.get(row.lessonTypeId),
       ),
