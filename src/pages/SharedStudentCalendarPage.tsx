@@ -26,6 +26,7 @@ type PublicLesson = {
   teacherDisplay: string;
   teacherColor: string | null;
   subjectName: string;
+  subjectColor: string | null;
   lessonTypeName: string;
 };
 
@@ -140,6 +141,20 @@ export default function SharedStudentCalendarPage() {
     return [...map].sort((a, b) => a[0].localeCompare(b[0], 'ja'));
   }, [lessons]);
 
+  const subjectColorByName = useMemo(() => {
+    const map = new Map<string, string>();
+    for (const lesson of lessons) {
+      if (
+        lesson.subjectColor &&
+        /^#([0-9a-fA-F]{6})$/.test(lesson.subjectColor) &&
+        !map.has(lesson.subjectName)
+      ) {
+        map.set(lesson.subjectName, lesson.subjectColor);
+      }
+    }
+    return map;
+  }, [lessons]);
+
   useEffect(() => {
     let cancelled = false;
     const classroomAtStart = classroomId;
@@ -172,6 +187,10 @@ export default function SharedStudentCalendarPage() {
       const subLt = [l.subjectName, l.lessonTypeName]
         .filter((name) => name !== '（不明）')
         .join(' · ');
+      const eventColor =
+        l.subjectColor && /^#([0-9a-fA-F]{6})$/.test(l.subjectColor)
+          ? l.subjectColor
+          : '#6366f1';
       return {
         id: l.id,
         title: `${dayjs(l.startAt).format('HH:mm')}${
@@ -179,14 +198,8 @@ export default function SharedStudentCalendarPage() {
         }`,
         start: l.startAt,
         end: l.endAt,
-        backgroundColor:
-          l.teacherColor && /^#([0-9a-fA-F]{6})$/.test(l.teacherColor)
-            ? l.teacherColor
-            : '#6366f1',
-        borderColor:
-          l.teacherColor && /^#([0-9a-fA-F]{6})$/.test(l.teacherColor)
-            ? l.teacherColor
-            : '#6366f1',
+        backgroundColor: eventColor,
+        borderColor: eventColor,
         textColor: '#ffffff',
       };
     });
@@ -305,8 +318,16 @@ export default function SharedStudentCalendarPage() {
                         .map(([subject, count]) => (
                           <span
                             key={JSON.stringify(subject)}
-                            className="bg-muted/40 text-muted-foreground inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs"
+                            className="text-muted-foreground inline-flex items-center gap-1.5 rounded-md border px-2.5 py-1 text-xs"
                           >
+                            <span
+                              className="size-2.5 shrink-0 rounded-full"
+                              style={{
+                                backgroundColor:
+                                  subjectColorByName.get(subject),
+                              }}
+                              aria-hidden
+                            />
                             <span>{subject}</span>
                             <span className="tabular-nums">{count}</span>
                           </span>

@@ -23,6 +23,11 @@ const subjectsApp = new Hono<{
   Variables: AppVariables;
 }>();
 
+function randomSubjectColor(): string {
+  const n = Math.floor(Math.random() * 0x1000000);
+  return `#${n.toString(16).padStart(6, '0')}`;
+}
+
 // 科目取得
 subjectsApp.get(
   '/:classroomId',
@@ -36,7 +41,11 @@ subjectsApp.get(
     }
     const db = getDb(c.env);
     const rows = await db
-      .select({ id: subjects.id, name: subjects.name })
+      .select({
+        id: subjects.id,
+        name: subjects.name,
+        color: subjects.color,
+      })
       .from(subjects)
       .where(
         and(eq(subjects.classroomId, classroomId), isNull(subjects.deletedAt)),
@@ -45,7 +54,7 @@ subjectsApp.get(
   },
 );
 
-// 科目名修正
+// 科目名・色修正
 subjectsApp.patch('/:id', auth, loadUser, requireManagerOrAbove, async (c) => {
   const targetId = c.req.param('id');
   if (!targetId) {
@@ -58,7 +67,12 @@ subjectsApp.patch('/:id', auth, loadUser, requireManagerOrAbove, async (c) => {
   }
   const db = getDb(c.env);
   const [row] = await db
-    .select({ id: subjects.id, classroomId: subjects.classroomId })
+    .select({
+      id: subjects.id,
+      classroomId: subjects.classroomId,
+      name: subjects.name,
+      color: subjects.color,
+    })
     .from(subjects)
     .where(and(eq(subjects.id, targetId), isNull(subjects.deletedAt)))
     .limit(1);
@@ -69,10 +83,12 @@ subjectsApp.patch('/:id', auth, loadUser, requireManagerOrAbove, async (c) => {
   if (actor.role !== 'admin' && actor.classroomId !== row.classroomId) {
     return c.json({ message: 'forbidden' }, 403);
   }
+  const nextName = input.name ?? row.name;
+  const nextColor = input.color ?? row.color;
   try {
     const res = await db
       .update(subjects)
-      .set({ name: input.name })
+      .set({ name: nextName, color: nextColor })
       .where(and(eq(subjects.id, targetId), isNull(subjects.deletedAt)));
     if (res.meta.changes === 0) {
       return c.json({ message: 'subject not found' }, 500);
@@ -81,7 +97,12 @@ subjectsApp.patch('/:id', auth, loadUser, requireManagerOrAbove, async (c) => {
     return c.json({ message: 'failed to update subject' }, 500);
   }
   return c.json(
-    { id: targetId, name: input.name, classroomId: row.classroomId },
+    {
+      id: targetId,
+      name: nextName,
+      color: nextColor,
+      classroomId: row.classroomId,
+    },
     200,
   );
 });
@@ -133,6 +154,7 @@ subjectsApp.post('', auth, loadUser, requireManagerOrAbove, async (c) => {
   }
   const db = getDb(c.env);
   const newId = crypto.randomUUID();
+  const color = randomSubjectColor();
 
   try {
     const [activeClassroom] = await db
@@ -148,6 +170,7 @@ subjectsApp.post('', auth, loadUser, requireManagerOrAbove, async (c) => {
     await db.insert(subjects).values({
       id: newId,
       name: input.name,
+      color: color,
       classroomId: input.classroomId,
       deletedAt: null,
     });
@@ -159,7 +182,12 @@ subjectsApp.post('', auth, loadUser, requireManagerOrAbove, async (c) => {
   }
 
   return c.json(
-    { id: newId, name: input.name, classroomId: input.classroomId },
+    {
+      id: newId,
+      name: input.name,
+      color: color,
+      classroomId: input.classroomId,
+    },
     201,
   );
 });

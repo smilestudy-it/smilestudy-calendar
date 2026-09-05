@@ -42,6 +42,7 @@ type SubjectRow = {
   id: string;
   classroomId: string;
   name: string;
+  color: string;
   deletedAt: Date | null;
 };
 type LessonTypeRow = {
@@ -233,6 +234,7 @@ vi.mock('../db', () => {
                   .map((s) => ({
                     id: s.id,
                     name: s.name,
+                    color: s.color,
                     deletedAt: s.deletedAt,
                   }));
               },
@@ -310,7 +312,13 @@ describe('GET /api/public/student-lessons', () => {
       },
     ];
     state.subjectRows = [
-      { id: 'sub-1', classroomId: 'room-1', name: '英語', deletedAt: null },
+      {
+        id: 'sub-1',
+        classroomId: 'room-1',
+        name: '英語',
+        color: '#22c55e',
+        deletedAt: null,
+      },
     ];
     state.lessonTypeRows = [
       { id: 'lt-1', classroomId: 'room-1', name: '通常', deletedAt: null },
@@ -400,6 +408,7 @@ describe('GET /api/public/student-lessons', () => {
         teacherDisplay: string;
         teacherColor: string | null;
         subjectName: string;
+        subjectColor: string | null;
         lessonTypeName: string;
       }>;
     };
@@ -409,6 +418,7 @@ describe('GET /api/public/student-lessons', () => {
     expect(payload.lessons[0]?.teacherDisplay).toContain('山田');
     expect(payload.lessons[0]?.teacherColor).toBe('#22c55e');
     expect(payload.lessons[0]?.subjectName).toBe('英語');
+    expect(payload.lessons[0]?.subjectColor).toBe('#22c55e');
     expect(payload.lessons[0]?.lessonTypeName).toBe('通常');
   });
 
@@ -417,6 +427,7 @@ describe('GET /api/public/student-lessons', () => {
       id: 'sub-1',
       classroomId: 'room-1',
       name: '英語',
+      color: '#22c55e',
       deletedAt: new Date(),
     };
     const res = await app.request(

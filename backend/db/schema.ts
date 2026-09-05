@@ -73,6 +73,7 @@ export const subjects = sqliteTable('subjects', {
     .references(() => classrooms.id)
     .notNull(),
   name: text('name').notNull(), // 例: "英語", "数学"
+  color: text('color').default('#6366f1').notNull(), // 生徒カレンダー等の表示色
   deletedAt: integer('deleted_at', { mode: 'timestamp' }),
 });
 
