@@ -22,7 +22,10 @@ import {
 import { useAuthedFetch } from '@/hooks/useAuthedFetch';
 import { useSelectedClassroom } from '@/hooks/useSelectedClassroom';
 import { fetchClassroomHolidays } from '@/lib/classroomHolidays';
-import { applyHolidayUnavailability } from '@/lib/holidayAvailability';
+import {
+  applyHolidayUnavailability,
+  applyStudentSlotUnavailability,
+} from '@/lib/holidayAvailability';
 import { cn } from '@/lib/utils';
 import type { CurrentUser } from '@/types/currentUser';
 
@@ -96,6 +99,9 @@ export default function CalendarSingleEditPage({
   const [holidayDateSet, setHolidayDateSet] = useState<Set<string> | null>(
     null,
   );
+  /** 選択生徒の不可枠。null は未取得/失敗で登録不可 */
+  const [studentUnavailableEntries, setStudentUnavailableEntries] =
+    useState<Array<{ date: string; timeSlotId: string }> | null>(null);
 
   const [selectedSlotId, setSelectedSlotId] = useState<string | null>(null);
   const [selectedStudentId, setSelectedStudentId] = useState<string>('');
@@ -206,7 +212,45 @@ export default function CalendarSingleEditPage({
     if (timeSlots.length > 0) void fetchMonthShifts();
   }, [fetchMonthShifts, timeSlots.length]);
 
-  // 3. 講師・生徒の予定重複に加え、教室休業日は全日の枠を塞ぐ
+  // 2b. 選択生徒の不可枠
+  useEffect(() => {
+    if (!selectedStudentId) {
+      setStudentUnavailableEntries([]);
+      return;
+    }
+    let cancelled = false;
+    setStudentUnavailableEntries(null);
+    const load = async () => {
+      try {
+        const qs = new URLSearchParams({ student_id: selectedStudentId });
+        const res = await fetch(
+          `/api/public/student-unavaliable-schedule?${qs}`,
+        );
+        if (!res.ok) {
+          throw new Error('failed to fetch student unavailable schedule');
+        }
+        const data = (await res.json()) as {
+          student_unavailable_schedule: Array<{
+            date: string;
+            timeSlotId: string;
+          }>;
+        };
+        if (!cancelled) {
+          setStudentUnavailableEntries(data.student_unavailable_schedule);
+        }
+      } catch {
+        if (!cancelled) {
+          setStudentUnavailableEntries(null);
+        }
+      }
+    };
+    void load();
+    return () => {
+      cancelled = true;
+    };
+  }, [selectedStudentId]);
+
+  // 3. 講師・生徒の予定重複・教室休業日・生徒不可枠を塞ぐ
   const unavailableSlotsByDate = useMemo(() => {
     const map: Record<string, Set<string>> = {};
     if (!currentUser || !selectedStudentId) return map;
@@ -234,10 +278,20 @@ export default function CalendarSingleEditPage({
       holidayDateSet ?? [],
       timeSlots.map((s) => s.id),
     );
+    applyStudentSlotUnavailability(map, studentUnavailableEntries ?? []);
     return map;
-  }, [monthLessons, currentUser, selectedStudentId, timeSlots, holidayDateSet]);
+  }, [
+    monthLessons,
+    currentUser,
+    selectedStudentId,
+    timeSlots,
+    holidayDateSet,
+    studentUnavailableEntries,
+  ]);
 
   const holidaysReady = holidayDateSet != null;
+  const studentUnavailableReady =
+    !selectedStudentId || studentUnavailableEntries != null;
   const isSelectedDateHoliday = Boolean(
     dateKey && holidayDateSet?.has(dateKey),
   );
@@ -280,6 +334,26 @@ export default function CalendarSingleEditPage({
     if (holidayDateSet.has(dateKey)) {
       setMessage({
         text: '休業日にはコマを登録できません。',
+        type: 'error',
+      });
+      return;
+    }
+
+    if (studentUnavailableEntries == null) {
+      setMessage({
+        text: '生徒の不可枠を取得できないため登録できません。',
+        type: 'error',
+      });
+      return;
+    }
+
+    if (
+      studentUnavailableEntries.some(
+        (e) => e.date === dateKey && e.timeSlotId === selectedSlotId,
+      )
+    ) {
+      setMessage({
+        text: '生徒が来られない時間帯にはコマを登録できません。',
         type: 'error',
       });
       return;
@@ -402,9 +476,9 @@ export default function CalendarSingleEditPage({
             <p className="text-muted-foreground pt-4 text-center text-sm">
               生徒を選択すると、お互いの空き時間カレンダーが表示されます。
             </p>
-          ) : !holidaysReady ? (
+          ) : !holidaysReady || !studentUnavailableReady ? (
             <p className="text-muted-foreground pt-4 text-center text-sm">
-              休業日情報を確認しています。取得できない場合は登録できません。
+              休業日・生徒の不可枠を確認しています。取得できない場合は登録できません。
             </p>
           ) : (
             <>

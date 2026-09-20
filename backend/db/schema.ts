@@ -140,3 +140,29 @@ export const holidays = sqliteTable(
       .where(sql`${table.deletedAt} is null`),
   ],
 );
+
+// ----------------------------------------------------
+// 6. 生徒からの日程 (student_unavailable_times)
+// ----------------------------------------------------
+export const student_unavailable_times = sqliteTable(
+  'students_unable_schedule',
+  {
+    id: text('id').primaryKey(),
+    studentId: text('student_id')
+      .references(() => students.id)
+      .notNull(),
+    classroomId: text('classroom_id')
+      .references(() => classrooms.id)
+      .notNull(),
+    date: text('date').notNull(),
+    timeSlotId: text('timeslot_id')
+      .references(() => timeSlots.id)
+      .notNull(),
+    deletedAt: integer('deleted_at', { mode: 'timestamp' }),
+  },
+  (table) => [
+    uniqueIndex('students_unable_schedule_active_unique')
+      .on(table.studentId, table.date, table.timeSlotId)
+      .where(sql`${table.deletedAt} is null`),
+  ],
+);

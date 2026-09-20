@@ -16,6 +16,10 @@ export const USERS_EMAIL_ACTIVE_UNIQUE_INDEX = 'users_email_active_unique';
 export const HOLIDAYS_CLASSROOM_DATE_ACTIVE_UNIQUE_INDEX =
   'holidays_classroom_date_active_unique';
 
+/** `drizzle` partial unique index on active student unavailable slots */
+export const STUDENTS_UNABLE_SCHEDULE_ACTIVE_UNIQUE_INDEX =
+  'students_unable_schedule_active_unique';
+
 export function isD1ClassroomNameUniqueViolation(error: unknown): boolean {
   const text = collectErrorTextParts(error).join(' ');
   return text.includes(CLASSROOMS_NAME_ACTIVE_UNIQUE_INDEX);
@@ -31,6 +35,22 @@ export function isD1HolidayClassroomDateUniqueViolation(
 ): boolean {
   const text = collectErrorTextParts(error).join(' ');
   return text.includes(HOLIDAYS_CLASSROOM_DATE_ACTIVE_UNIQUE_INDEX);
+}
+
+/** 生徒不可枠の有効行に対する一意制約違反かを判定する。 */
+export function isD1StudentUnavailableActiveUniqueViolation(
+  error: unknown,
+): boolean {
+  const text = collectErrorTextParts(error).join(' ');
+  if (text.includes(STUDENTS_UNABLE_SCHEDULE_ACTIVE_UNIQUE_INDEX)) {
+    return true;
+  }
+  // SQLite may report the column list instead of the index name
+  return (
+    text.includes('students_unable_schedule.student_id') &&
+    text.includes('students_unable_schedule.date') &&
+    text.includes('students_unable_schedule.timeslot_id')
+  );
 }
 
 export function isD1ForeignKeyViolation(error: unknown): boolean {

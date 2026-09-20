@@ -148,6 +148,12 @@ const createHolidaySchema = z.object({
   date: z.iso.date({ error: '日付形式が不正です' }),
 });
 
+/** 公開 API: 指定日の不可枠を一括同期（空配列 = その日を全解除） */
+const createStudentUnavailableTimesSchema = z.object({
+  date: z.iso.date({ error: '日付形式が不正です' }),
+  timeSlotIds: z.array(z.string().trim().min(1, 'time slot id is required')),
+});
+
 const patchSubjectSchema = z.object({
   name: z
     .string()
@@ -204,6 +210,9 @@ type CreateStudentInput = z.infer<typeof studentSchema>;
 type CreatePresetNameInput = z.infer<typeof presetNameBodySchema>;
 type CreateTimeSlotInput = z.infer<typeof createTimeSlotSchema>;
 type CreateHolidayInput = z.infer<typeof createHolidaySchema>;
+type CreateStudentUnavailableTimesInput = z.infer<
+  typeof createStudentUnavailableTimesSchema
+>;
 type PatchSubjectInput = z.infer<typeof patchSubjectSchema>;
 type PatchLessonTypeInput = z.infer<typeof patchLessonTypeSchema>;
 type PatchTimeSlotInput = z.infer<typeof patchTimeSlotSchema>;
@@ -294,6 +303,18 @@ export function validateCreateHolidayInput(body: unknown): {
   error?: string;
 } {
   const result = createHolidaySchema.safeParse(body);
+  if (!result.success) {
+    return { error: firstIssueMessage(result.error) };
+  }
+  return { input: result.data };
+}
+
+/** 公開 API の生徒不可枠一括同期リクエストを検証する。 */
+export function validateCreateStudentUnavailableTimesInput(body: unknown): {
+  input?: CreateStudentUnavailableTimesInput;
+  error?: string;
+} {
+  const result = createStudentUnavailableTimesSchema.safeParse(body);
   if (!result.success) {
     return { error: firstIssueMessage(result.error) };
   }

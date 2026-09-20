@@ -2,7 +2,7 @@
  * （責務）生徒向け共有ビュー（未認証）。student_id クエリで月次コマを表示。
  */
 import { useEffect, useMemo, useState } from 'react';
-import { useSearchParams } from 'react-router-dom';
+import { Link, useSearchParams } from 'react-router-dom';
 
 import dayjs from 'dayjs';
 import 'dayjs/locale/ja';
@@ -37,6 +37,9 @@ type PublicLesson = {
 export default function SharedStudentCalendarPage() {
   const [searchParams] = useSearchParams();
   const studentId = (searchParams.get('student_id') ?? '').trim();
+  const shareSearch = searchParams.toString()
+    ? `?${searchParams.toString()}`
+    : '';
   const [focusDate, setFocusDate] = useState(() => new Date());
   const [studentName, setStudentName] = useState('');
   const [classroomId, setClassroomId] = useState<string | null>(null);
@@ -222,12 +225,19 @@ export default function SharedStudentCalendarPage() {
 
   return (
     <section className="mx-auto max-w-6xl space-y-6">
-      <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h1 className="text-foreground text-lg font-semibold md:text-xl">
             共有カレンダー{studentName ? `(${studentName})` : ''}
           </h1>
         </div>
+        {!listError && (
+          <Button asChild size="sm">
+            <Link to={`/share/unavailable${shareSearch}`}>
+              授業不可時間帯を登録
+            </Link>
+          </Button>
+        )}
       </div>
 
       {listError && (
@@ -306,7 +316,6 @@ export default function SharedStudentCalendarPage() {
                       key={JSON.stringify(lessonType)}
                       className="flex flex-wrap items-center gap-2"
                     >
-                      {/* 左: タイプ名 + 合計 */}
                       <span className="text-sm">
                         <span className="text-foreground font-medium">
                           {lessonType}
@@ -315,9 +324,8 @@ export default function SharedStudentCalendarPage() {
                           {total}
                         </span>
                       </span>
-                      {/* 右: 科目ごとの内訳 */}
                       {[...bySubject]
-                        .sort((a, b) => a[0].localeCompare(b[0], 'ja')) // 文字列順
+                        .sort((a, b) => a[0].localeCompare(b[0], 'ja'))
                         .map(([subject, count]) => (
                           <span
                             key={JSON.stringify(subject)}

@@ -5,10 +5,14 @@ import { describe, expect, it } from 'vitest';
 
 import {
   applyHolidayUnavailability,
+  applyStudentSlotUnavailability,
   isHolidayDate,
 } from '../../src/lib/holidayAvailability';
-import { isD1HolidayClassroomDateUniqueViolation } from '../lib/sqliteConstraint';
-import { toTokyoDateKey } from '../lib/tokyoDate';
+import {
+  isD1HolidayClassroomDateUniqueViolation,
+  isD1StudentUnavailableActiveUniqueViolation,
+} from '../lib/sqliteConstraint';
+import { toTokyoDateKey, toTokyoHm } from '../lib/tokyoDate';
 import { validateCreateHolidayInput } from '../lib/validators';
 
 describe('validateCreateHolidayInput', () => {
@@ -58,6 +62,12 @@ describe('toTokyoDateKey', () => {
   });
 });
 
+describe('toTokyoHm', () => {
+  it('maps UTC instant to Asia/Tokyo HH:mm', () => {
+    expect(toTokyoHm(new Date('2025-06-10T10:00:00.000Z'))).toBe('19:00');
+  });
+});
+
 describe('isD1HolidayClassroomDateUniqueViolation', () => {
   it('detects holidays active unique index name', () => {
     expect(
@@ -70,6 +80,33 @@ describe('isD1HolidayClassroomDateUniqueViolation', () => {
     expect(isD1HolidayClassroomDateUniqueViolation(new Error('other'))).toBe(
       false,
     );
+  });
+
+  it('detects students unable schedule active unique index name', () => {
+    expect(
+      isD1StudentUnavailableActiveUniqueViolation(
+        new Error(
+          'UNIQUE constraint failed: index students_unable_schedule_active_unique',
+        ),
+      ),
+    ).toBe(true);
+  });
+
+  it('detects students unable schedule unique column-list error form', () => {
+    expect(
+      isD1StudentUnavailableActiveUniqueViolation(
+        new Error(
+          'UNIQUE constraint failed: students_unable_schedule.student_id, students_unable_schedule.date, students_unable_schedule.timeslot_id',
+        ),
+      ),
+    ).toBe(true);
+    expect(
+      isD1StudentUnavailableActiveUniqueViolation(
+        new Error(
+          'UNIQUE constraint failed: students_unable_schedule.student_id',
+        ),
+      ),
+    ).toBe(false);
   });
 });
 
@@ -87,5 +124,16 @@ describe('holidayAvailability (lesson registration UI)', () => {
     const holidays = new Set(['2026-08-15']);
     expect(isHolidayDate('2026-08-15', holidays)).toBe(true);
     expect(isHolidayDate('2026-08-16', holidays)).toBe(false);
+  });
+
+  it('marks student unavailable slots', () => {
+    const map: Record<string, Set<string>> = {};
+    applyStudentSlotUnavailability(map, [
+      { date: '2026-08-15', timeSlotId: 'slot-a' },
+      { date: '2026-08-15', timeSlotId: 'slot-b' },
+      { date: '2026-08-16', timeSlotId: 'slot-a' },
+    ]);
+    expect(map['2026-08-15']).toEqual(new Set(['slot-a', 'slot-b']));
+    expect(map['2026-08-16']).toEqual(new Set(['slot-a']));
   });
 });

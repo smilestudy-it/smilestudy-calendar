@@ -10,12 +10,7 @@ import {
   validateCreateTimeSlotInput,
   validatePatchTimeSlotInput,
 } from '../lib/validators';
-import {
-  auth,
-  loadUser,
-  requireClassroomScope,
-  requireManagerOrAbove,
-} from '../middleware/honoStack';
+import { auth, loadUser, requireManagerOrAbove } from '../middleware/honoStack';
 import type { ApiBindings, AppVariables } from '../types/apiTypes';
 
 const timeSlotsApp = new Hono<{
@@ -23,33 +18,25 @@ const timeSlotsApp = new Hono<{
   Variables: AppVariables;
 }>();
 
-timeSlotsApp.get(
-  '/:classroomId',
-  auth,
-  loadUser,
-  requireClassroomScope((c) => c.req.param('classroomId') ?? null),
-  async (c) => {
-    const classroomId = c.req.param('classroomId');
-    if (!classroomId) {
-      return c.json({ message: 'classroom id is required' }, 400);
-    }
-    const db = getDb(c.env);
-    const rows = await db
-      .select({
-        id: timeSlots.id,
-        startTime: timeSlots.startTime,
-        endTime: timeSlots.endTime,
-      })
-      .from(timeSlots)
-      .where(
-        and(
-          eq(timeSlots.classroomId, classroomId),
-          isNull(timeSlots.deletedAt),
-        ),
-      );
-    return c.json(rows, 200);
-  },
-);
+/** 未認証可。生徒共有カレンダー等から教室の時間枠一覧を取得する */
+timeSlotsApp.get('/:classroomId', async (c) => {
+  const classroomId = c.req.param('classroomId');
+  if (!classroomId) {
+    return c.json({ message: 'classroom id is required' }, 400);
+  }
+  const db = getDb(c.env);
+  const rows = await db
+    .select({
+      id: timeSlots.id,
+      startTime: timeSlots.startTime,
+      endTime: timeSlots.endTime,
+    })
+    .from(timeSlots)
+    .where(
+      and(eq(timeSlots.classroomId, classroomId), isNull(timeSlots.deletedAt)),
+    );
+  return c.json(rows, 200);
+});
 
 timeSlotsApp.post('', auth, loadUser, requireManagerOrAbove, async (c) => {
   const actor = c.var.currentUser;

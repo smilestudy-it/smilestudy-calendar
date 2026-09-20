@@ -9,6 +9,7 @@ import {
   holidays,
   lessonTypes,
   lessons,
+  student_unavailable_times,
   students,
   subjects,
   users,
@@ -207,6 +208,20 @@ const state: {
     date: string;
     deletedAt: Date | null;
   }>;
+  timeSlotRows: Array<{
+    id: string;
+    classroomId: string;
+    startTime: string;
+    deletedAt: Date | null;
+  }>;
+  unableScheduleRows: Array<{
+    id: string;
+    studentId: string;
+    classroomId: string;
+    date: string;
+    timeSlotId: string;
+    deletedAt: Date | null;
+  }>;
   expectPostLessonTx: boolean;
   expectPatchLessonTx: boolean;
   lessonTxLimitIndex: number;
@@ -236,6 +251,8 @@ const state: {
   lessonTypeRows: [],
   lessonRows: [],
   holidayRows: [],
+  timeSlotRows: [],
+  unableScheduleRows: [],
   expectPostLessonTx: false,
   expectPatchLessonTx: false,
   lessonTxLimitIndex: 0,
@@ -711,6 +728,38 @@ vi.mock('../db', () => {
           };
         }
 
+        if (table === student_unavailable_times) {
+          return {
+            innerJoin: () => ({
+              where: (predicate: unknown) => ({
+                limit: async () => {
+                  const strings = walkPredicateStrings(predicate);
+                  const row = state.unableScheduleRows.find((u) => {
+                    if (u.deletedAt !== null) {
+                      return false;
+                    }
+                    if (!strings.includes(u.studentId)) {
+                      return false;
+                    }
+                    if (!strings.includes(u.date)) {
+                      return false;
+                    }
+                    const slot = state.timeSlotRows.find(
+                      (ts) =>
+                        ts.id === u.timeSlotId &&
+                        ts.deletedAt === null &&
+                        strings.includes(ts.classroomId) &&
+                        strings.includes(ts.startTime),
+                    );
+                    return Boolean(slot);
+                  });
+                  return row ? [{ id: row.id }] : [];
+                },
+              }),
+            }),
+          };
+        }
+
         return { where: () => ({ limit: async () => [] }) };
       },
     }),
@@ -795,6 +844,11 @@ vi.mock('../db', () => {
         if (!sqlText.includes('FROM holidays')) {
           throw new Error('run mock: expected FROM holidays in query text');
         }
+        if (!sqlText.includes('students_unable_schedule')) {
+          throw new Error(
+            'run mock: expected students_unable_schedule guard in query text',
+          );
+        }
 
         // Verify the query contains the expected parameter values
         if (!paramValues.includes(fixture.classroomId)) {
@@ -808,13 +862,46 @@ vi.mock('../db', () => {
           );
         }
 
-        const blocked = state.holidayRows.some(
+        const startHm = new Intl.DateTimeFormat('en-GB', {
+          timeZone: 'Asia/Tokyo',
+          hour: '2-digit',
+          minute: '2-digit',
+          hourCycle: 'h23',
+        })
+          .formatToParts(fixture.startAt)
+          .reduce(
+            (acc, p) => {
+              if (p.type === 'hour') acc.hour = p.value;
+              if (p.type === 'minute') acc.minute = p.value;
+              return acc;
+            },
+            { hour: '00', minute: '00' },
+          );
+        const startHmKey = `${startHm.hour.padStart(2, '0')}:${startHm.minute.padStart(2, '0')}`;
+
+        const blockedHoliday = state.holidayRows.some(
           (h) =>
             h.deletedAt === null &&
             h.classroomId === fixture.classroomId &&
             h.date === dateKey,
         );
-        if (blocked) {
+        const blockedNg = state.unableScheduleRows.some((u) => {
+          if (u.deletedAt !== null) {
+            return false;
+          }
+          if (u.studentId !== fixture.studentId || u.date !== dateKey) {
+            return false;
+          }
+          const slot = state.timeSlotRows.find(
+            (ts) =>
+              ts.id === u.timeSlotId &&
+              ts.deletedAt === null &&
+              ts.classroomId === fixture.classroomId &&
+              ts.startTime === startHmKey,
+          );
+          return Boolean(slot);
+        });
+        if (blockedHoliday || blockedNg) {
           return { meta: { changes: 0 } };
         }
       }
@@ -960,6 +1047,8 @@ describe('lessons api', () => {
       },
     ];
     state.holidayRows = [];
+    state.timeSlotRows = [];
+    state.unableScheduleRows = [];
     state.expectPostLessonTx = false;
     state.expectPatchLessonTx = false;
     state.lessonTxLimitIndex = 0;
@@ -1155,6 +1244,63 @@ describe('lessons api', () => {
     expect(res.status).toBe(400);
     const body = (await res.json()) as { message?: string };
     expect(body.message).toBe('cannot create lesson on a holiday');
+  });
+
+  it('POST /lessons rejects create on student unavailable slot', async () => {
+    state.expectPostLessonTx = true;
+    state.postFixture = {
+      classroomId: 'room-1',
+      teacherId: 'teacher-1',
+      studentId: 'student-1',
+      startAt: t1,
+      endAt: t2,
+    };
+    state.timeSlotRows = [
+      {
+        id: 'slot-19',
+        classroomId: 'room-1',
+        startTime: '19:00',
+        deletedAt: null,
+      },
+    ];
+    state.unableScheduleRows = [
+      {
+        id: 'ng-1',
+        studentId: 'student-1',
+        classroomId: 'room-1',
+        date: '2025-06-10',
+        timeSlotId: 'slot-19',
+        deletedAt: null,
+      },
+    ];
+    state.users.push({
+      id: 'auth0|admin-user',
+      role: 'admin',
+      classroomId: null,
+      deletedAt: null,
+    });
+    const res = await app.request(
+      '/api/lessons',
+      {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({
+          classroomId: 'room-1',
+          teacherId: 'teacher-1',
+          studentId: 'student-1',
+          subjectId: 'subject-1',
+          lessonTypeId: 'lessonTypeId-1',
+          startAt: t1.toISOString(),
+          endAt: t2.toISOString(),
+        }),
+      },
+      env,
+    );
+    expect(res.status).toBe(400);
+    const body = (await res.json()) as { message?: string };
+    expect(body.message).toBe(
+      'cannot create lesson on student unavailable time',
+    );
   });
 
   it('PATCH /lessons returns 403 when staff updates another teacher lesson', async () => {

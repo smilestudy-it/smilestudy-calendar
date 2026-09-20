@@ -632,5 +632,23 @@ describe('presets api', () => {
       );
       expect(res.status).toBe(400);
     });
+
+    it('GET lists time slots without auth', async () => {
+      state.userRole = null;
+      const res = await app.request(
+        '/api/time-slots/room-1',
+        { method: 'GET' },
+        env,
+      );
+      expect(res.status).toBe(200);
+      const rows = (await res.json()) as Array<{
+        id: string;
+        startTime: string;
+        endTime: string;
+      }>;
+      expect(rows).toEqual([
+        { id: 'ts-1', startTime: '17:00', endTime: '18:30' },
+      ]);
+    });
   });
 });

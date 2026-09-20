@@ -25,10 +25,14 @@ const CalendarBulkEditPage = lazy(() => import('./pages/CalendarEditPage'));
 const SharedStudentCalendarPage = lazy(
   () => import('./pages/SharedStudentCalendarPage'),
 );
+const SharedStudentUnavailablePage = lazy(
+  () => import('./pages/SharedStudentUnavailablePage'),
+);
 
 /** `/share` または `/share/...` のみ。`/shared` などは除外 */
 const SHARE_APP_PATH = /^\/share(?:\/|$)/;
 
+/** 共有ページと認証済み管理画面のルーティングを切り替える。 */
 function App() {
   const location = useLocation();
   const isSharePath = SHARE_APP_PATH.test(location.pathname);
@@ -69,6 +73,10 @@ function App() {
             <Route
               path="/share/calendar"
               element={<SharedStudentCalendarPage />}
+            />
+            <Route
+              path="/share/unavailable"
+              element={<SharedStudentUnavailablePage />}
             />
             <Route
               path="/share/*"

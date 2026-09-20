@@ -159,7 +159,13 @@ export default function MonthCalendar({
           return;
         }
         arg.el.style.cursor = 'pointer';
-        arg.el.onclick = () => onDateClick(arg.date);
+        arg.el.onclick = (ev: MouseEvent) => {
+          const target = ev.target as HTMLElement | null;
+          if (target?.closest('.fc-event')) {
+            return;
+          }
+          onDateClick(arg.date);
+        };
       }}
       eventClick={(arg: EventClickArg) => {
         if (!onEventClick) {
