@@ -42,6 +42,7 @@ type UnavailableEntry = {
   timeSlotId: string;
 };
 
+/** `HH:mm` 形式の時刻を日付内の経過分へ変換する。 */
 function hmToMinutes(hm: string): number {
   const [h, m] = hm.split(':').map(Number);
   return h * 60 + m;
@@ -58,10 +59,12 @@ function tokyoMonthRangeIso(month: Date): { from: string; to: string } {
   };
 }
 
+/** ISO 日時を Asia/Tokyo の暦日キーへ変換する。 */
 function toTokyoDateKey(iso: string): string {
   return dayjs(iso).tz('Asia/Tokyo').format('YYYY-MM-DD');
 }
 
+/** ISO 日時を Asia/Tokyo の `HH:mm` へ変換する。 */
 function toTokyoHm(iso: string): string {
   return dayjs(iso).tz('Asia/Tokyo').format('HH:mm');
 }

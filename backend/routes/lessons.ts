@@ -156,6 +156,7 @@ lessonsApp.get(
   },
 );
 
+/** 認証済みユーザーの権限と各種制約を検証して授業を登録する。 */
 lessonsApp.post('/', auth, loadUser, async (c) => {
   const actor = c.var.currentUser;
   const body = await c.req.json<unknown>().catch(() => null);

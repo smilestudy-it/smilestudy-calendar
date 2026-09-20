@@ -37,6 +37,7 @@ export function isD1HolidayClassroomDateUniqueViolation(
   return text.includes(HOLIDAYS_CLASSROOM_DATE_ACTIVE_UNIQUE_INDEX);
 }
 
+/** 生徒不可枠の有効行に対する一意制約違反かを判定する。 */
 export function isD1StudentUnavailableActiveUniqueViolation(
   error: unknown,
 ): boolean {

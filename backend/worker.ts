@@ -198,7 +198,7 @@ app.get('/public/student-lessons', async (c) => {
   );
 });
 
-/* 未認証 生徒の来れない日程を取得する */
+/** 未認証で、生徒の登録済み不可枠を取得する。 */
 app.get('/public/student-unavaliable-schedule', async (c) => {
   const studentId = (c.req.query('student_id') ?? '').trim();
   if (!studentId) {
@@ -228,7 +228,7 @@ app.get('/public/student-unavaliable-schedule', async (c) => {
   return c.json({ student_unavailable_schedule }, 200);
 });
 
-/* 未認証 生徒が来れない日程を更新する */
+/** 未認証で、指定日における生徒の不可枠を一括同期する。 */
 app.put('/public/student-unavaliable-schedule', async (c) => {
   const studentId = (c.req.query('student_id') ?? '').trim();
   if (!studentId) {

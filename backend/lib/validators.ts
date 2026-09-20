@@ -309,6 +309,7 @@ export function validateCreateHolidayInput(body: unknown): {
   return { input: result.data };
 }
 
+/** 公開 API の生徒不可枠一括同期リクエストを検証する。 */
 export function validateCreateStudentUnavailableTimesInput(body: unknown): {
   input?: CreateStudentUnavailableTimesInput;
   error?: string;
