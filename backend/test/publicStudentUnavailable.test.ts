@@ -205,14 +205,22 @@ vi.mock('../db', () => {
             return { meta: { changes: 0 } };
           }
           const { strings } = walkPredicate(predicate);
+          const dateKeys = strings.filter((s) => /^\d{4}-\d{2}-\d{2}$/.test(s));
           let changes = 0;
           for (const row of state.unavailableRows) {
-            if (strings.includes(row.id) && row.deletedAt === null) {
-              if (value.deletedAt !== undefined) {
-                row.deletedAt = value.deletedAt;
-              }
-              changes += 1;
+            if (row.deletedAt !== null) {
+              continue;
             }
+            const byId = strings.includes(row.id);
+            const byStudentDate =
+              strings.includes(row.studentId) && dateKeys.includes(row.date);
+            if (!byId && !byStudentDate) {
+              continue;
+            }
+            if (value.deletedAt !== undefined) {
+              row.deletedAt = value.deletedAt;
+            }
+            changes += 1;
           }
           return { meta: { changes } };
         },

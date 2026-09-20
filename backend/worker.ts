@@ -266,13 +266,11 @@ app.put('/public/student-unavaliable-schedule', async (c) => {
   }
 
   try {
-    // D1 は BEGIN 非対応のため、削除と挿入を batch でまとめて実行する
-    const existing = await db
-      .select({
-        id: student_unavailable_times.id,
-        timeSlotId: student_unavailable_times.timeSlotId,
-      })
-      .from(student_unavailable_times)
+    // D1 は BEGIN 非対応のため、当日の有効行を一括論理削除してから最新集合を insert する
+    const deletedAt = new Date();
+    const softDeleteDay = db
+      .update(student_unavailable_times)
+      .set({ deletedAt })
       .where(
         and(
           eq(student_unavailable_times.studentId, studentId),
@@ -281,24 +279,11 @@ app.put('/public/student-unavaliable-schedule', async (c) => {
         ),
       );
 
-    const existingBySlot = new Map(
-      existing.map((row) => [row.timeSlotId, row.id]),
-    );
-    const nextSet = new Set(uniqueSlotIds);
-    const toDeleteIds = existing
-      .filter((row) => !nextSet.has(row.timeSlotId))
-      .map((row) => row.id);
-    const toInsertIds = uniqueSlotIds.filter((id) => !existingBySlot.has(id));
-
-    const deletedAt = new Date();
-    if (toDeleteIds.length > 0 && toInsertIds.length > 0) {
+    if (uniqueSlotIds.length > 0) {
       await db.batch([
-        db
-          .update(student_unavailable_times)
-          .set({ deletedAt })
-          .where(inArray(student_unavailable_times.id, toDeleteIds)),
+        softDeleteDay,
         db.insert(student_unavailable_times).values(
-          toInsertIds.map((timeSlotId) => ({
+          uniqueSlotIds.map((timeSlotId) => ({
             id: crypto.randomUUID(),
             studentId,
             classroomId,
@@ -308,22 +293,8 @@ app.put('/public/student-unavaliable-schedule', async (c) => {
           })),
         ),
       ]);
-    } else if (toDeleteIds.length > 0) {
-      await db
-        .update(student_unavailable_times)
-        .set({ deletedAt })
-        .where(inArray(student_unavailable_times.id, toDeleteIds));
-    } else if (toInsertIds.length > 0) {
-      await db.insert(student_unavailable_times).values(
-        toInsertIds.map((timeSlotId) => ({
-          id: crypto.randomUUID(),
-          studentId,
-          classroomId,
-          date: input.date,
-          timeSlotId,
-          deletedAt: null,
-        })),
-      );
+    } else {
+      await softDeleteDay;
     }
   } catch (err) {
     if (isD1StudentUnavailableActiveUniqueViolation(err)) {

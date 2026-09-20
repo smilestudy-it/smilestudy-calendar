@@ -41,7 +41,15 @@ export function isD1StudentUnavailableActiveUniqueViolation(
   error: unknown,
 ): boolean {
   const text = collectErrorTextParts(error).join(' ');
-  return text.includes(STUDENTS_UNABLE_SCHEDULE_ACTIVE_UNIQUE_INDEX);
+  if (text.includes(STUDENTS_UNABLE_SCHEDULE_ACTIVE_UNIQUE_INDEX)) {
+    return true;
+  }
+  // SQLite may report the column list instead of the index name
+  return (
+    text.includes('students_unable_schedule.student_id') &&
+    text.includes('students_unable_schedule.date') &&
+    text.includes('students_unable_schedule.timeslot_id')
+  );
 }
 
 export function isD1ForeignKeyViolation(error: unknown): boolean {

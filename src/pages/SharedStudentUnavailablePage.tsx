@@ -87,6 +87,8 @@ export default function SharedStudentUnavailablePage() {
   >(() => new Map());
   /** 不可枠一覧の取得成功。失敗時は編集不可 */
   const [scheduleReady, setScheduleReady] = useState(false);
+  /** 時間枠一覧の取得成功。失敗時は編集不可 */
+  const [timeSlotsReady, setTimeSlotsReady] = useState(false);
 
   const [date, setDate] = useState<Date | undefined>(new Date());
   const [month, setMonth] = useState<Date>(new Date());
@@ -110,6 +112,8 @@ export default function SharedStudentUnavailablePage() {
       setLoadError(null);
       setHolidayDateSet(null);
       setScheduleReady(false);
+      setTimeSlotsReady(false);
+      setTimeSlots([]);
       try {
         const { from, to } = tokyoMonthRangeIso(new Date());
         const lessonQs = new URLSearchParams({
@@ -191,16 +195,24 @@ export default function SharedStudentUnavailablePage() {
                   (a, b) => hmToMinutes(a.startTime) - hmToMinutes(b.startTime),
                 ),
               );
+              setTimeSlotsReady(true);
             }
+          } else if (!cancelled) {
+            setTimeSlots([]);
+            setTimeSlotsReady(false);
           }
         } else if (!cancelled) {
           setHolidayDateSet(new Set());
+          setTimeSlots([]);
+          setTimeSlotsReady(true);
         }
       } catch {
         if (!cancelled) {
           setLoadError('データの取得に失敗しました。');
           setHolidayDateSet(null);
           setScheduleReady(false);
+          setTimeSlotsReady(false);
+          setTimeSlots([]);
         }
       }
     };
@@ -331,7 +343,7 @@ export default function SharedStudentUnavailablePage() {
       });
       return;
     }
-    if (!scheduleReady) {
+    if (!scheduleReady || !timeSlotsReady) {
       setMessage({
         text: '授業不可時間帯を取得できないため登録できません。',
         type: 'error',
@@ -403,7 +415,7 @@ export default function SharedStudentUnavailablePage() {
   }
 
   const holidaysReady = holidayDateSet != null;
-  const editorReady = holidaysReady && scheduleReady;
+  const editorReady = holidaysReady && scheduleReady && timeSlotsReady;
 
   return (
     <section className="mx-auto max-w-lg space-y-4">

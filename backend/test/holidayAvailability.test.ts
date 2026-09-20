@@ -91,6 +91,23 @@ describe('isD1HolidayClassroomDateUniqueViolation', () => {
       ),
     ).toBe(true);
   });
+
+  it('detects students unable schedule unique column-list error form', () => {
+    expect(
+      isD1StudentUnavailableActiveUniqueViolation(
+        new Error(
+          'UNIQUE constraint failed: students_unable_schedule.student_id, students_unable_schedule.date, students_unable_schedule.timeslot_id',
+        ),
+      ),
+    ).toBe(true);
+    expect(
+      isD1StudentUnavailableActiveUniqueViolation(
+        new Error(
+          'UNIQUE constraint failed: students_unable_schedule.student_id',
+        ),
+      ),
+    ).toBe(false);
+  });
 });
 
 describe('holidayAvailability (lesson registration UI)', () => {
