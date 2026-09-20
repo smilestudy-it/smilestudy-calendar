@@ -6,10 +6,20 @@ import { and, eq, gt, inArray, isNull, lt } from 'drizzle-orm';
 import { Hono } from 'hono';
 
 import { getDb } from './db';
-import { lessonTypes, lessons, subjects, users } from './db/schema';
+import {
+  lessonTypes,
+  lessons,
+  student_unavailable_times,
+  subjects,
+  timeSlots,
+  users,
+} from './db/schema';
 import { lessonPresetDisplay, lessonTeacherDisplay } from './lessonDisplay';
 import { getActiveStudentAndClassroom } from './lib/studentRead';
-import { validateLessonRangeQuery } from './lib/validators';
+import {
+  validateCreateStudentUnavailableTimesInput,
+  validateLessonRangeQuery,
+} from './lib/validators';
 import { auth } from './middleware/honoStack';
 import classroomsApp from './routes/classrooms';
 import holidaysApp from './routes/holidays';
@@ -185,6 +195,130 @@ app.get('/public/student-lessons', async (c) => {
     },
     200,
   );
+});
+
+/* 未認証 生徒の来れない日程を取得する */
+app.get('/public/student-unavaliable-schedule', async (c) => {
+  const studentId = (c.req.query('student_id') ?? '').trim();
+  if (!studentId) {
+    return c.json({ message: 'student_id is required' }, 400);
+  }
+
+  const db = getDb(c.env);
+  const student_unavailable_schedule = await db
+    .select({
+      id: student_unavailable_times.id,
+      date: student_unavailable_times.date,
+      timeSlotId: student_unavailable_times.timeSlotId,
+    })
+    .from(student_unavailable_times)
+    .where(
+      and(
+        eq(student_unavailable_times.studentId, studentId),
+        isNull(student_unavailable_times.deletedAt),
+      ),
+    );
+
+  return c.json({ student_unavailable_schedule }, 200);
+});
+
+/* 未認証 生徒が来れない日程を更新する */
+app.put('/public/student-unavaliable-schedule', async (c) => {
+  const studentId = (c.req.query('student_id') ?? '').trim();
+  if (!studentId) {
+    return c.json({ message: 'student_id is required' }, 400);
+  }
+
+  const body = await c.req.json<unknown>().catch(() => null);
+  const { input, error } = validateCreateStudentUnavailableTimesInput(body);
+  if (!input) {
+    return c.json({ message: error ?? 'invalid request' }, 400);
+  }
+
+  const db = getDb(c.env);
+  const scope = await getActiveStudentAndClassroom(db, studentId);
+  if (!scope || !scope.classroom) {
+    return c.json({ message: 'not found' }, 404);
+  }
+  const classroomId = scope.student.classroomId;
+  const uniqueSlotIds = [...new Set(input.timeSlotIds)];
+
+  if (uniqueSlotIds.length > 0) {
+    const activeSlots = await db
+      .select({ id: timeSlots.id })
+      .from(timeSlots)
+      .where(
+        and(
+          eq(timeSlots.classroomId, classroomId),
+          isNull(timeSlots.deletedAt),
+          inArray(timeSlots.id, uniqueSlotIds),
+        ),
+      );
+    if (activeSlots.length !== uniqueSlotIds.length) {
+      return c.json({ message: 'invalid time slot id' }, 400);
+    }
+  }
+
+  const existing = await db
+    .select({
+      id: student_unavailable_times.id,
+      timeSlotId: student_unavailable_times.timeSlotId,
+    })
+    .from(student_unavailable_times)
+    .where(
+      and(
+        eq(student_unavailable_times.studentId, studentId),
+        eq(student_unavailable_times.date, input.date),
+        isNull(student_unavailable_times.deletedAt),
+      ),
+    );
+
+  const existingBySlot = new Map(
+    existing.map((row) => [row.timeSlotId, row.id]),
+  );
+  const nextSet = new Set(uniqueSlotIds);
+  const toDeleteIds = existing
+    .filter((row) => !nextSet.has(row.timeSlotId))
+    .map((row) => row.id);
+  const toInsertIds = uniqueSlotIds.filter((id) => !existingBySlot.has(id));
+
+  const deletedAt = new Date();
+  if (toDeleteIds.length > 0) {
+    await db
+      .update(student_unavailable_times)
+      .set({ deletedAt })
+      .where(inArray(student_unavailable_times.id, toDeleteIds));
+  }
+
+  if (toInsertIds.length > 0) {
+    await db.insert(student_unavailable_times).values(
+      toInsertIds.map((timeSlotId) => ({
+        id: crypto.randomUUID(),
+        studentId,
+        classroomId,
+        date: input.date,
+        timeSlotId,
+        deletedAt: null,
+      })),
+    );
+  }
+
+  const rows = await db
+    .select({
+      id: student_unavailable_times.id,
+      date: student_unavailable_times.date,
+      timeSlotId: student_unavailable_times.timeSlotId,
+    })
+    .from(student_unavailable_times)
+    .where(
+      and(
+        eq(student_unavailable_times.studentId, studentId),
+        eq(student_unavailable_times.date, input.date),
+        isNull(student_unavailable_times.deletedAt),
+      ),
+    );
+
+  return c.json({ student_unavailable_schedule: rows }, 200);
 });
 
 /** 未認証。指定年月の日本の祝日一覧を返す。 */

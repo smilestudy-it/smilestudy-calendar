@@ -9,8 +9,10 @@ import {
   classrooms,
   lessonTypes,
   lessons,
+  student_unavailable_times,
   students,
   subjects,
+  timeSlots,
   users,
 } from '../db/schema';
 import {
@@ -18,7 +20,7 @@ import {
   lessonStudentDisplay,
   lessonTeacherDisplay,
 } from '../lessonDisplay';
-import { toTokyoDateKey } from '../lib/tokyoDate';
+import { toTokyoDateKey, toTokyoHm } from '../lib/tokyoDate';
 import {
   validateCreateLessonInput,
   validateLessonRangeQuery,
@@ -240,12 +242,13 @@ lessonsApp.post('/', auth, loadUser, async (c) => {
   }
 
   const dateKey = toTokyoDateKey(input.startAt);
+  const startHm = toTokyoHm(input.startAt);
   const id = crypto.randomUUID();
   const startAtUnix = Math.floor(input.startAt.getTime() / 1000);
   const endAtUnix = Math.floor(input.endAt.getTime() / 1000);
 
   try {
-    // D1 は BEGIN 非対応のため、休業日判定と insert を1文で行う
+    // D1 は BEGIN 非対応のため、休業日・生徒不可枠の判定と insert を1文で行う
     const res = await db.run(sql`
       INSERT INTO lessons (
         id, teacher_id, student_id, classroom_id,
@@ -261,8 +264,43 @@ lessonsApp.post('/', auth, loadUser, async (c) => {
           AND date = ${dateKey}
           AND deleted_at IS NULL
       )
+      AND NOT EXISTS (
+        SELECT 1
+        FROM students_unable_schedule s
+        INNER JOIN time_slots ts ON ts.id = s.timeslot_id
+        WHERE s.student_id = ${input.studentId}
+          AND s.date = ${dateKey}
+          AND s.deleted_at IS NULL
+          AND ts.deleted_at IS NULL
+          AND ts.classroom_id = ${input.classroomId}
+          AND ts.start_time = ${startHm}
+      )
     `);
     if (res.meta.changes === 0) {
+      const [blockedNg] = await db
+        .select({ id: student_unavailable_times.id })
+        .from(student_unavailable_times)
+        .innerJoin(
+          timeSlots,
+          eq(timeSlots.id, student_unavailable_times.timeSlotId),
+        )
+        .where(
+          and(
+            eq(student_unavailable_times.studentId, input.studentId),
+            eq(student_unavailable_times.date, dateKey),
+            isNull(student_unavailable_times.deletedAt),
+            isNull(timeSlots.deletedAt),
+            eq(timeSlots.classroomId, input.classroomId),
+            eq(timeSlots.startTime, startHm),
+          ),
+        )
+        .limit(1);
+      if (blockedNg) {
+        return c.json(
+          { message: 'cannot create lesson on student unavailable time' },
+          400,
+        );
+      }
       return c.json({ message: 'cannot create lesson on a holiday' }, 400);
     }
   } catch (err: unknown) {

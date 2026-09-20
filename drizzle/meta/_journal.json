@@ -43,6 +43,13 @@
       "when": 1788583225727,
       "tag": "0005_subjects_color",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "6",
+      "when": 1789886483337,
+      "tag": "0006_students_unable_schedule",
+      "breakpoints": true
     }
   ]
 }

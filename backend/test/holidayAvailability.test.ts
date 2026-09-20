@@ -5,10 +5,11 @@ import { describe, expect, it } from 'vitest';
 
 import {
   applyHolidayUnavailability,
+  applyStudentSlotUnavailability,
   isHolidayDate,
 } from '../../src/lib/holidayAvailability';
 import { isD1HolidayClassroomDateUniqueViolation } from '../lib/sqliteConstraint';
-import { toTokyoDateKey } from '../lib/tokyoDate';
+import { toTokyoDateKey, toTokyoHm } from '../lib/tokyoDate';
 import { validateCreateHolidayInput } from '../lib/validators';
 
 describe('validateCreateHolidayInput', () => {
@@ -58,6 +59,12 @@ describe('toTokyoDateKey', () => {
   });
 });
 
+describe('toTokyoHm', () => {
+  it('maps UTC instant to Asia/Tokyo HH:mm', () => {
+    expect(toTokyoHm(new Date('2025-06-10T10:00:00.000Z'))).toBe('19:00');
+  });
+});
+
 describe('isD1HolidayClassroomDateUniqueViolation', () => {
   it('detects holidays active unique index name', () => {
     expect(
@@ -87,5 +94,16 @@ describe('holidayAvailability (lesson registration UI)', () => {
     const holidays = new Set(['2026-08-15']);
     expect(isHolidayDate('2026-08-15', holidays)).toBe(true);
     expect(isHolidayDate('2026-08-16', holidays)).toBe(false);
+  });
+
+  it('marks student unavailable slots', () => {
+    const map: Record<string, Set<string>> = {};
+    applyStudentSlotUnavailability(map, [
+      { date: '2026-08-15', timeSlotId: 'slot-a' },
+      { date: '2026-08-15', timeSlotId: 'slot-b' },
+      { date: '2026-08-16', timeSlotId: 'slot-a' },
+    ]);
+    expect(map['2026-08-15']).toEqual(new Set(['slot-a', 'slot-b']));
+    expect(map['2026-08-16']).toEqual(new Set(['slot-a']));
   });
 });
