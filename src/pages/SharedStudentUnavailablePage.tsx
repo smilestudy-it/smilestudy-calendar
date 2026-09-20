@@ -8,9 +8,11 @@ import type { Modifiers } from 'react-day-picker';
 import { ja } from 'react-day-picker/locale';
 import { Link, useSearchParams } from 'react-router-dom';
 
-import { endOfMonth, format, startOfMonth } from 'date-fns';
+import { format } from 'date-fns';
 import dayjs from 'dayjs';
 import 'dayjs/locale/ja';
+import timezone from 'dayjs/plugin/timezone';
+import utc from 'dayjs/plugin/utc';
 
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -19,6 +21,8 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { fetchClassroomHolidays } from '@/lib/classroomHolidays';
 import { cn } from '@/lib/utils';
 
+dayjs.extend(utc);
+dayjs.extend(timezone);
 dayjs.locale('ja');
 
 type TimeSlotRow = {
@@ -43,6 +47,25 @@ function hmToMinutes(hm: string): number {
   return h * 60 + m;
 }
 
+/** 表示月のカレンダー年月を Asia/Tokyo の月境界 ISO に変換 */
+function tokyoMonthRangeIso(month: Date): { from: string; to: string } {
+  const y = month.getFullYear();
+  const m = String(month.getMonth() + 1).padStart(2, '0');
+  const start = dayjs.tz(`${y}-${m}-01`, 'YYYY-MM-DD', 'Asia/Tokyo');
+  return {
+    from: start.toISOString(),
+    to: start.add(1, 'month').toISOString(),
+  };
+}
+
+function toTokyoDateKey(iso: string): string {
+  return dayjs(iso).tz('Asia/Tokyo').format('YYYY-MM-DD');
+}
+
+function toTokyoHm(iso: string): string {
+  return dayjs(iso).tz('Asia/Tokyo').format('HH:mm');
+}
+
 /**
  * Public page for students to mark unavailable lesson time slots.
  */
@@ -62,6 +85,8 @@ export default function SharedStudentUnavailablePage() {
   const [unavailableByDate, setUnavailableByDate] = useState<
     Map<string, Set<string>>
   >(() => new Map());
+  /** 不可枠一覧の取得成功。失敗時は編集不可 */
+  const [scheduleReady, setScheduleReady] = useState(false);
 
   const [date, setDate] = useState<Date | undefined>(new Date());
   const [month, setMonth] = useState<Date>(new Date());
@@ -84,9 +109,9 @@ export default function SharedStudentUnavailablePage() {
     const load = async () => {
       setLoadError(null);
       setHolidayDateSet(null);
+      setScheduleReady(false);
       try {
-        const from = startOfMonth(new Date()).toISOString();
-        const to = endOfMonth(new Date()).toISOString();
+        const { from, to } = tokyoMonthRangeIso(new Date());
         const lessonQs = new URLSearchParams({
           student_id: studentId,
           from,
@@ -99,7 +124,7 @@ export default function SharedStudentUnavailablePage() {
           fetch(`/api/public/student-unavaliable-schedule?${unavailableQs}`),
         ]);
 
-        if (lessonRes.status === 404) {
+        if (lessonRes.status === 404 || unavailableRes.status === 404) {
           if (!cancelled) {
             setLoadError(
               '表示できません。リンクが無効か、対象の生徒が見つかりません。',
@@ -111,6 +136,9 @@ export default function SharedStudentUnavailablePage() {
         if (!lessonRes.ok) {
           throw new Error('生徒情報の取得に失敗しました');
         }
+        if (!unavailableRes.ok) {
+          throw new Error('授業不可時間帯の取得に失敗しました');
+        }
 
         const lessonData = (await lessonRes.json()) as {
           studentName?: string;
@@ -121,22 +149,21 @@ export default function SharedStudentUnavailablePage() {
           setStudentName(lessonData.studentName ?? '');
         }
 
-        if (unavailableRes.ok) {
-          const data = (await unavailableRes.json()) as {
-            student_unavailable_schedule?: UnavailableEntry[];
-          };
-          const map = new Map<string, Set<string>>();
-          for (const row of data.student_unavailable_schedule ?? []) {
-            let set = map.get(row.date);
-            if (!set) {
-              set = new Set();
-              map.set(row.date, set);
-            }
-            set.add(row.timeSlotId);
+        const data = (await unavailableRes.json()) as {
+          student_unavailable_schedule?: UnavailableEntry[];
+        };
+        const map = new Map<string, Set<string>>();
+        for (const row of data.student_unavailable_schedule ?? []) {
+          let set = map.get(row.date);
+          if (!set) {
+            set = new Set();
+            map.set(row.date, set);
           }
-          if (!cancelled) {
-            setUnavailableByDate(map);
-          }
+          set.add(row.timeSlotId);
+        }
+        if (!cancelled) {
+          setUnavailableByDate(map);
+          setScheduleReady(true);
         }
 
         if (cid) {
@@ -173,6 +200,7 @@ export default function SharedStudentUnavailablePage() {
         if (!cancelled) {
           setLoadError('データの取得に失敗しました。');
           setHolidayDateSet(null);
+          setScheduleReady(false);
         }
       }
     };
@@ -182,14 +210,13 @@ export default function SharedStudentUnavailablePage() {
     };
   }, [studentId]);
 
-  // 表示月の授業（○△判定・授業あり枠用）
+  // 表示月の授業（授業あり枠用）
   const fetchMonthLessons = useCallback(async () => {
     if (!studentId || timeSlots.length === 0) {
       return;
     }
     try {
-      const from = startOfMonth(month).toISOString();
-      const to = endOfMonth(month).toISOString();
+      const { from, to } = tokyoMonthRangeIso(month);
       const qs = new URLSearchParams({ student_id: studentId, from, to });
       const res = await fetch(`/api/public/student-lessons?${qs}`);
       if (res.ok) {
@@ -241,10 +268,10 @@ export default function SharedStudentUnavailablePage() {
       return set;
     }
     for (const lesson of monthLessons) {
-      if (format(new Date(lesson.startAt), 'yyyy-MM-dd') !== dateKey) {
+      if (toTokyoDateKey(lesson.startAt) !== dateKey) {
         continue;
       }
-      const hKey = format(new Date(lesson.startAt), 'HH:mm');
+      const hKey = toTokyoHm(lesson.startAt);
       const slot = timeSlots.find((ts) => ts.startTime === hKey);
       if (slot) {
         set.add(slot.id);
@@ -300,6 +327,13 @@ export default function SharedStudentUnavailablePage() {
     if (!holidayDateSet) {
       setMessage({
         text: '休業日情報を取得できないため登録できません。',
+        type: 'error',
+      });
+      return;
+    }
+    if (!scheduleReady) {
+      setMessage({
+        text: '授業不可時間帯を取得できないため登録できません。',
         type: 'error',
       });
       return;
@@ -369,6 +403,7 @@ export default function SharedStudentUnavailablePage() {
   }
 
   const holidaysReady = holidayDateSet != null;
+  const editorReady = holidaysReady && scheduleReady;
 
   return (
     <section className="mx-auto max-w-lg space-y-4">
@@ -387,9 +422,9 @@ export default function SharedStudentUnavailablePage() {
         </Button>
       </div>
 
-      {!holidaysReady ? (
+      {!editorReady ? (
         <p className="text-muted-foreground text-sm">
-          休業日情報を確認しています。取得できない場合は登録できません。
+          休業日・授業不可時間帯を確認しています。取得できない場合は登録できません。
         </p>
       ) : (
         <>

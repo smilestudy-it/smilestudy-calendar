@@ -1,0 +1,1 @@
+CREATE UNIQUE INDEX `students_unable_schedule_active_unique` ON `students_unable_schedule` (`student_id`,`date`,`timeslot_id`) WHERE "students_unable_schedule"."deleted_at" is null;

@@ -160,4 +160,9 @@ export const student_unavailable_times = sqliteTable(
       .notNull(),
     deletedAt: integer('deleted_at', { mode: 'timestamp' }),
   },
+  (table) => [
+    uniqueIndex('students_unable_schedule_active_unique')
+      .on(table.studentId, table.date, table.timeSlotId)
+      .where(sql`${table.deletedAt} is null`),
+  ],
 );

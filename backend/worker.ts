@@ -15,6 +15,7 @@ import {
   users,
 } from './db/schema';
 import { lessonPresetDisplay, lessonTeacherDisplay } from './lessonDisplay';
+import { isD1StudentUnavailableActiveUniqueViolation } from './lib/sqliteConstraint';
 import { getActiveStudentAndClassroom } from './lib/studentRead';
 import {
   validateCreateStudentUnavailableTimesInput,
@@ -205,6 +206,11 @@ app.get('/public/student-unavaliable-schedule', async (c) => {
   }
 
   const db = getDb(c.env);
+  const scope = await getActiveStudentAndClassroom(db, studentId);
+  if (!scope || !scope.classroom) {
+    return c.json({ message: 'not found' }, 404);
+  }
+
   const student_unavailable_schedule = await db
     .select({
       id: student_unavailable_times.id,
@@ -259,48 +265,71 @@ app.put('/public/student-unavaliable-schedule', async (c) => {
     }
   }
 
-  const existing = await db
-    .select({
-      id: student_unavailable_times.id,
-      timeSlotId: student_unavailable_times.timeSlotId,
-    })
-    .from(student_unavailable_times)
-    .where(
-      and(
-        eq(student_unavailable_times.studentId, studentId),
-        eq(student_unavailable_times.date, input.date),
-        isNull(student_unavailable_times.deletedAt),
-      ),
+  try {
+    // D1 は BEGIN 非対応のため、削除と挿入を batch でまとめて実行する
+    const existing = await db
+      .select({
+        id: student_unavailable_times.id,
+        timeSlotId: student_unavailable_times.timeSlotId,
+      })
+      .from(student_unavailable_times)
+      .where(
+        and(
+          eq(student_unavailable_times.studentId, studentId),
+          eq(student_unavailable_times.date, input.date),
+          isNull(student_unavailable_times.deletedAt),
+        ),
+      );
+
+    const existingBySlot = new Map(
+      existing.map((row) => [row.timeSlotId, row.id]),
     );
+    const nextSet = new Set(uniqueSlotIds);
+    const toDeleteIds = existing
+      .filter((row) => !nextSet.has(row.timeSlotId))
+      .map((row) => row.id);
+    const toInsertIds = uniqueSlotIds.filter((id) => !existingBySlot.has(id));
 
-  const existingBySlot = new Map(
-    existing.map((row) => [row.timeSlotId, row.id]),
-  );
-  const nextSet = new Set(uniqueSlotIds);
-  const toDeleteIds = existing
-    .filter((row) => !nextSet.has(row.timeSlotId))
-    .map((row) => row.id);
-  const toInsertIds = uniqueSlotIds.filter((id) => !existingBySlot.has(id));
-
-  const deletedAt = new Date();
-  if (toDeleteIds.length > 0) {
-    await db
-      .update(student_unavailable_times)
-      .set({ deletedAt })
-      .where(inArray(student_unavailable_times.id, toDeleteIds));
-  }
-
-  if (toInsertIds.length > 0) {
-    await db.insert(student_unavailable_times).values(
-      toInsertIds.map((timeSlotId) => ({
-        id: crypto.randomUUID(),
-        studentId,
-        classroomId,
-        date: input.date,
-        timeSlotId,
-        deletedAt: null,
-      })),
-    );
+    const deletedAt = new Date();
+    if (toDeleteIds.length > 0 && toInsertIds.length > 0) {
+      await db.batch([
+        db
+          .update(student_unavailable_times)
+          .set({ deletedAt })
+          .where(inArray(student_unavailable_times.id, toDeleteIds)),
+        db.insert(student_unavailable_times).values(
+          toInsertIds.map((timeSlotId) => ({
+            id: crypto.randomUUID(),
+            studentId,
+            classroomId,
+            date: input.date,
+            timeSlotId,
+            deletedAt: null,
+          })),
+        ),
+      ]);
+    } else if (toDeleteIds.length > 0) {
+      await db
+        .update(student_unavailable_times)
+        .set({ deletedAt })
+        .where(inArray(student_unavailable_times.id, toDeleteIds));
+    } else if (toInsertIds.length > 0) {
+      await db.insert(student_unavailable_times).values(
+        toInsertIds.map((timeSlotId) => ({
+          id: crypto.randomUUID(),
+          studentId,
+          classroomId,
+          date: input.date,
+          timeSlotId,
+          deletedAt: null,
+        })),
+      );
+    }
+  } catch (err) {
+    if (isD1StudentUnavailableActiveUniqueViolation(err)) {
+      return c.json({ message: 'schedule conflict, retry' }, 409);
+    }
+    throw err;
   }
 
   const rows = await db

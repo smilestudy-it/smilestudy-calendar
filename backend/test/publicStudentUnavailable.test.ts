@@ -188,6 +188,7 @@ vi.mock('../db', () => {
         },
       };
     },
+    batch: async (queries: Promise<unknown>[]) => Promise.all(queries),
     insert: (table: unknown) => ({
       values: async (value: UnavailableRow | UnavailableRow[]) => {
         if (table !== student_unavailable_times) {
@@ -279,6 +280,15 @@ describe('/api/public/student-unavaliable-schedule', () => {
       env,
     );
     expect(res.status).toBe(400);
+  });
+
+  it('GET returns 404 when student is missing', async () => {
+    const res = await app.request(
+      '/api/public/student-unavaliable-schedule?student_id=missing',
+      { method: 'GET' },
+      env,
+    );
+    expect(res.status).toBe(404);
   });
 
   it('GET returns empty list when student has no rows', async () => {

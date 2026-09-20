@@ -8,7 +8,10 @@ import {
   applyStudentSlotUnavailability,
   isHolidayDate,
 } from '../../src/lib/holidayAvailability';
-import { isD1HolidayClassroomDateUniqueViolation } from '../lib/sqliteConstraint';
+import {
+  isD1HolidayClassroomDateUniqueViolation,
+  isD1StudentUnavailableActiveUniqueViolation,
+} from '../lib/sqliteConstraint';
 import { toTokyoDateKey, toTokyoHm } from '../lib/tokyoDate';
 import { validateCreateHolidayInput } from '../lib/validators';
 
@@ -77,6 +80,16 @@ describe('isD1HolidayClassroomDateUniqueViolation', () => {
     expect(isD1HolidayClassroomDateUniqueViolation(new Error('other'))).toBe(
       false,
     );
+  });
+
+  it('detects students unable schedule active unique index name', () => {
+    expect(
+      isD1StudentUnavailableActiveUniqueViolation(
+        new Error(
+          'UNIQUE constraint failed: index students_unable_schedule_active_unique',
+        ),
+      ),
+    ).toBe(true);
   });
 });
 
