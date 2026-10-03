@@ -553,7 +553,11 @@ export default function SharedStudentUnavailablePage() {
             <Card className="animate-in fade-in slide-in-from-bottom-4 border-primary/20 shadow-md duration-300">
               <CardHeader className="border-b pb-3">
                 <CardTitle className="text-center text-lg">
-                  {format(date, 'M月d日')} の受講不可時間帯
+                  {format(date, 'M月d日')} の受講
+                  <span className="font-semibold text-orange-600 dark:text-orange-400">
+                    不可
+                  </span>
+                  時間帯
                 </CardTitle>
               </CardHeader>
               <CardContent className="space-y-4 pt-4">
