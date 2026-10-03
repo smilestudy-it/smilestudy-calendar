@@ -250,7 +250,8 @@ export default function SharedStudentCalendarPage() {
         role="note"
         className="text-foreground rounded-lg border border-amber-200 bg-amber-50 px-3.5 py-2.5 text-sm leading-relaxed dark:border-amber-900/60 dark:bg-amber-950/40"
       >
-        振替をご希望の場合は授業の前日までにComiruにてお問い合わせください（対応時間：8:00〜21:30）
+        振替をご希望の場合は授業の<b>前日</b>
+        までにComiruにてお問い合わせください（対応時間：8:00〜21:30）
       </p>
 
       <div className="space-y-4">

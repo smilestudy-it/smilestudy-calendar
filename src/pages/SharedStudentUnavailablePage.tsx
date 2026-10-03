@@ -436,7 +436,8 @@ export default function SharedStudentUnavailablePage() {
           role="note"
           className="text-foreground w-full rounded-lg border border-amber-200 bg-amber-50 px-3.5 py-2.5 text-sm leading-relaxed dark:border-amber-900/60 dark:bg-amber-950/40"
         >
-          余裕を持って日程を組むため、学校・部活動・習い事・通院・送迎などによるどうしても授業ができない時間帯のみご登録ください。
+          ご希望に沿う日程をご案内するため、学校や部活動など
+          <b>どうしても受講が難しい時間帯</b>のみご登録をお願いします。
         </p>
         <p className="text-muted-foreground text-sm">
           日付を選び、授業に入れない時間帯をタップして保存してください。
