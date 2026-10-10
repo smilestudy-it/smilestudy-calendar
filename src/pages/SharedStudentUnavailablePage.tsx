@@ -554,7 +554,7 @@ export default function SharedStudentUnavailablePage() {
             <Card className="animate-in fade-in slide-in-from-bottom-4 border-primary/20 shadow-md duration-300">
               <CardHeader className="border-b pb-3">
                 <CardTitle className="text-center text-lg">
-                  {format(date, 'M月d日')} の受講
+                  {dayjs(date).locale('ja').format('M月D日(ddd)')} の受講
                   <span className="font-semibold text-orange-600 dark:text-orange-400">
                     不可
                   </span>
