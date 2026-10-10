@@ -395,7 +395,7 @@ export default function SharedStudentUnavailablePage() {
   if (!studentId) {
     return (
       <div className="mx-auto max-w-lg space-y-3 text-center">
-        <h1 className="text-lg font-semibold">授業不可時間帯の登録</h1>
+        <h1 className="text-lg font-semibold">受講不可時間帯の登録</h1>
         <p className="text-muted-foreground text-sm">
           URL に <span className="font-mono">student_id</span>{' '}
           パラメータが必要です。
@@ -422,24 +422,31 @@ export default function SharedStudentUnavailablePage() {
 
   return (
     <section className="mx-auto max-w-lg space-y-4">
-      <div className="flex items-start justify-between gap-3">
-        <div>
+      <div className="space-y-3">
+        <div className="flex items-center justify-between gap-3">
           <h1 className="text-foreground text-lg font-semibold md:text-xl">
-            授業不可時間帯の登録
+            受講不可時間帯の登録
             {studentName ? `（${studentName}）` : ''}
           </h1>
-          <p className="text-muted-foreground mt-1 text-sm">
-            日付を選び、授業に入れない時間帯をタップして保存してください。
-          </p>
+          <Button asChild variant="outline" size="sm" className="shrink-0">
+            <Link to={`/share/calendar${shareSearch}`}>戻る</Link>
+          </Button>
         </div>
-        <Button asChild variant="outline" size="sm" className="shrink-0">
-          <Link to={`/share/calendar${shareSearch}`}>戻る</Link>
-        </Button>
+        <p
+          role="note"
+          className="text-foreground w-full rounded-lg border border-amber-200 bg-amber-50 px-3.5 py-2.5 text-sm leading-relaxed dark:border-amber-900/60 dark:bg-amber-950/40"
+        >
+          ご希望に沿う日程をご案内するため、学校や部活動など
+          <b>どうしても受講が難しい時間帯</b>のみご登録をお願いします。
+        </p>
+        <p className="text-muted-foreground text-sm">
+          日付を選び、授業に入れない時間帯をタップして保存してください。
+        </p>
       </div>
 
       {!editorReady ? (
         <p className="text-muted-foreground text-sm">
-          休業日・授業不可時間帯を確認しています。取得できない場合は登録できません。
+          休業日・受講不可時間帯を確認しています。取得できない場合は登録できません。
         </p>
       ) : (
         <>
@@ -537,7 +544,7 @@ export default function SharedStudentUnavailablePage() {
 
           <p className="text-muted-foreground text-center text-xs">
             <span className="font-bold text-blue-600">数字</span>
-            =授業不可の登録数{' '}
+            =受講不可の登録数{' '}
             <span className="font-bold text-orange-600">全</span>
             =全日登録 <span className="font-bold text-red-500">休</span>
             =休業日（登録不可）
@@ -547,7 +554,11 @@ export default function SharedStudentUnavailablePage() {
             <Card className="animate-in fade-in slide-in-from-bottom-4 border-primary/20 shadow-md duration-300">
               <CardHeader className="border-b pb-3">
                 <CardTitle className="text-center text-lg">
-                  {format(date, 'M月d日')} の授業不可時間帯
+                  {dayjs(date).locale('ja').format('M月D日(ddd)')} の受講
+                  <span className="font-semibold text-orange-600 dark:text-orange-400">
+                    不可
+                  </span>
+                  時間帯
                 </CardTitle>
               </CardHeader>
               <CardContent className="space-y-4 pt-4">
@@ -584,7 +595,7 @@ export default function SharedStudentUnavailablePage() {
                             <Badge variant="secondary">授業あり</Badge>
                           ) : isSelected ? (
                             <span className="text-primary-foreground/90 text-xs">
-                              授業不可
+                              受講不可
                             </span>
                           ) : (
                             <span className="text-muted-foreground text-xs">

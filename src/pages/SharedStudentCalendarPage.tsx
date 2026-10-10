@@ -228,13 +228,13 @@ export default function SharedStudentCalendarPage() {
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h1 className="text-foreground text-lg font-semibold md:text-xl">
-            共有カレンダー{studentName ? `(${studentName})` : ''}
+            共有カレンダー{studentName ? `(${studentName} 様)` : ''}
           </h1>
         </div>
         {!listError && (
           <Button asChild size="sm">
             <Link to={`/share/unavailable${shareSearch}`}>
-              授業不可時間帯を登録
+              受講不可時間帯を登録
             </Link>
           </Button>
         )}
@@ -245,6 +245,14 @@ export default function SharedStudentCalendarPage() {
           {listError}
         </p>
       )}
+
+      <p
+        role="note"
+        className="text-foreground rounded-lg border border-amber-200 bg-amber-50 px-3.5 py-2.5 text-sm leading-relaxed dark:border-amber-900/60 dark:bg-amber-950/40"
+      >
+        振替をご希望の場合は授業の<b>前日</b>
+        までにComiruにてお問い合わせください（対応時間：8:00〜21:30）
+      </p>
 
       <div className="space-y-4">
         <div className="flex flex-wrap items-center justify-between gap-2">
