@@ -13,6 +13,7 @@ import dayjs from 'dayjs';
 import 'dayjs/locale/ja';
 import timezone from 'dayjs/plugin/timezone';
 import utc from 'dayjs/plugin/utc';
+import { toast } from 'sonner';
 
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -381,7 +382,7 @@ export default function SharedStudentUnavailablePage() {
         }
         return next;
       });
-      setMessage({ text: '保存しました', type: 'success' });
+      toast.success('保存しました');
     } catch (e: unknown) {
       setMessage({
         text: e instanceof Error ? e.message : 'エラーが発生しました',

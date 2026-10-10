@@ -6,6 +6,8 @@ import { Navigate, Route, Routes, useLocation } from 'react-router-dom';
 
 import { useAuth0 } from '@auth0/auth0-react';
 
+import { Toaster } from '@/components/ui/sonner';
+
 import AppShell from './components/AppShell';
 import LoginButton from './components/LoginButton';
 import { useCurrentUser } from './hooks/useCurrentUser';
@@ -33,7 +35,7 @@ const SharedStudentUnavailablePage = lazy(
 const SHARE_APP_PATH = /^\/share(?:\/|$)/;
 
 /** 共有ページと認証済み管理画面のルーティングを切り替える。 */
-function App() {
+function AppRoutes() {
   const location = useLocation();
   const isSharePath = SHARE_APP_PATH.test(location.pathname);
   const { isAuthenticated, isLoading, error, user, getAccessTokenSilently } =
@@ -216,4 +218,11 @@ function App() {
   );
 }
 
-export default App;
+export default function App() {
+  return (
+    <>
+      <Toaster position="top-center" />
+      <AppRoutes />
+    </>
+  );
+}

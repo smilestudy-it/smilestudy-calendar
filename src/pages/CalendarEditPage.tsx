@@ -8,6 +8,7 @@ import { endOfMonth, format, startOfMonth } from 'date-fns';
 import dayjs from 'dayjs';
 import timezone from 'dayjs/plugin/timezone';
 import utc from 'dayjs/plugin/utc';
+import { toast } from 'sonner';
 
 import { Button } from '@/components/ui/button';
 import { Calendar } from '@/components/ui/calendar';
@@ -413,7 +414,7 @@ export default function CalendarSingleEditPage({
         throw new Error(errorData.message || '保存に失敗しました');
       }
 
-      setMessage({ text: '授業を登録しました！', type: 'success' });
+      toast.success('保存しました');
       setSelectedSlotId(null);
       await fetchMonthShifts(); // 保存後、カレンダーを再計算
     } catch (e: unknown) {
