@@ -47,12 +47,19 @@ function Calendar({
         ...formatters,
       }}
       classNames={{
-        root: cn('w-fit border-collapse', defaultClassNames.root),
+        root: cn('w-fit max-w-full border-collapse', defaultClassNames.root),
         months: cn(
-          'relative flex flex-col gap-4 md:flex-row',
+          'relative flex w-full flex-col gap-4 md:flex-row',
           defaultClassNames.months,
         ),
-        month: cn('flex w-full flex-col gap-4', defaultClassNames.month),
+        month: cn(
+          'flex w-full min-w-0 flex-col gap-4',
+          defaultClassNames.month,
+        ),
+        month_grid: cn(
+          'w-full table-fixed border-collapse',
+          defaultClassNames.month_grid,
+        ),
         nav: cn(
           'absolute inset-x-0 top-0 flex w-full items-center justify-between gap-1',
           defaultClassNames.nav,
@@ -90,11 +97,12 @@ function Calendar({
             : 'flex items-center gap-1 rounded-(--cell-radius) text-sm [&>svg]:size-3.5 [&>svg]:text-muted-foreground',
           defaultClassNames.caption_label,
         ),
-        weekdays: cn('flex', defaultClassNames.weekdays),
+        weekdays: cn('flex w-full', defaultClassNames.weekdays),
         weekday: cn(
-          'flex-1 rounded-(--cell-radius) text-[0.8rem] font-normal text-muted-foreground select-none',
+          'min-w-0 flex-1 rounded-(--cell-radius) text-[0.8rem] font-normal text-muted-foreground select-none',
           defaultClassNames.weekday,
         ),
+        weeks: cn('w-full', defaultClassNames.weeks),
         week: cn('mt-2 flex w-full', defaultClassNames.week),
         week_number_header: cn(
           'w-(--cell-size) select-none',
@@ -105,7 +113,7 @@ function Calendar({
           defaultClassNames.week_number,
         ),
         day: cn(
-          'group/day relative aspect-square h-full w-full rounded-(--cell-radius) p-0 text-center select-none [&:last-child[data-selected=true]_button]:rounded-r-(--cell-radius)',
+          'group/day relative aspect-square h-full w-full min-w-0 flex-1 rounded-(--cell-radius) p-0 text-center select-none [&:last-child[data-selected=true]_button]:rounded-r-(--cell-radius)',
           props.showWeekNumber
             ? '[&:nth-child(2)[data-selected=true]_button]:rounded-l-(--cell-radius)'
             : '[&:first-child[data-selected=true]_button]:rounded-l-(--cell-radius)',
