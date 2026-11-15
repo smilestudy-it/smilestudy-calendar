@@ -26,7 +26,6 @@ export type ReminderRecipient = {
   name: string;
   subject: string;
   html: string;
-  lessons: ReminderLesson[];
 };
 
 /** GAS の doPost が読む JSON。secret は本文に置く（GAS は独自ヘッダを読みにくい）。 */
@@ -131,8 +130,8 @@ function renderStudentMail(
 ${schedule}
 <p><strong>【お願い】</strong></p>
 <ul>
-<li>欠席や遅刻をする場合は、事前にご連絡ください</li>
-<li>体調管理にご注意いただき、元気に授業に参加してください</li>
+<li>欠席や遅刻をする場合は、事前にご連絡ください。</li>
+<li>体調管理にご注意いただき、元気に授業に参加してください。</li>
 </ul>
 <p><strong>【振替・ご連絡について】</strong></p>
 <ul>
@@ -226,7 +225,10 @@ export function buildReminderRecipients(
   date: string,
   rows: ReminderLessonRow[],
 ): ReminderRecipient[] {
-  const byEmail = new Map<string, ReminderRecipient>();
+  const byEmail = new Map<
+    string,
+    ReminderRecipient & { lessons: ReminderLesson[] }
+  >();
 
   const sorted = [...rows].sort(
     (a, b) => a.startAt.getTime() - b.startAt.getTime(),
@@ -261,6 +263,6 @@ export function buildReminderRecipients(
         kind === 'student_same_day'
           ? renderStudentMail(date, recipient.name, recipient.lessons)
           : renderTeacherMail(date, recipient.name, recipient.lessons);
-      return { ...recipient, ...mail };
+      return { email: recipient.email, name: recipient.name, ...mail };
     });
 }

@@ -98,19 +98,14 @@ describe('buildReminderRecipients', () => {
     expect(recipients).toHaveLength(1);
     expect(recipients[0]?.email).toBe('student@example.com');
     expect(recipients[0]?.name).toBe('佐藤花子');
-    expect(recipients[0]?.lessons.map((lesson) => lesson.subjectName)).toEqual([
-      '英語',
-      '数学',
-    ]);
-    expect(recipients[0]?.lessons[0]?.counterpartName).toBe('山田太郎');
-    expect(recipients[0]?.lessons[0]?.startTime).toBe('10:00');
+    expect(recipients[0]?.html).toContain('山田太郎 - 佐藤花子 (英語)');
+    expect(recipients[0]?.html).toContain('鈴木次郎 - 佐藤花子 (数学)');
     expect(recipients[0]?.subject).toBe(
       '【スマイルスタディ】2026年11月16日の授業スケジュール',
     );
     expect(recipients[0]?.html).toContain('佐藤花子さん');
     expect(recipients[0]?.html).toContain('2026年11月16日月曜日');
     expect(recipients[0]?.html).toContain('■ 10:00〜');
-    expect(recipients[0]?.html).toContain('山田太郎 - 佐藤花子 (英語)');
     expect(recipients[0]?.html).toContain('color:#d93025;');
   });
 
@@ -137,9 +132,8 @@ describe('buildReminderRecipients', () => {
         name: '山田太郎',
       }),
     ]);
-    expect(
-      recipients[0]?.lessons.map((lesson) => lesson.counterpartName),
-    ).toEqual(['佐藤花子', '高橋']);
+    expect(recipients[0]?.html).toContain('佐藤花子 (英語[通常])');
+    expect(recipients[0]?.html).toContain('高橋 (英語[通常])');
     expect(recipients[0]?.subject).toBe(
       '【スマイルスタディ】明日（2026年11月17日）の担当授業スケジュール',
     );
@@ -185,7 +179,6 @@ describe('postReminderToGas', () => {
           name: '山田太郎',
           subject: '件名',
           html: '<p>本文</p>',
-          lessons: [],
         },
       ],
     });
