@@ -15,6 +15,7 @@ import {
   users,
 } from './db/schema';
 import { lessonPresetDisplay, lessonTeacherDisplay } from './lessonDisplay';
+import { dispatchLessonReminder } from './lessonReminderJob';
 import { isD1StudentUnavailableActiveUniqueViolation } from './lib/sqliteConstraint';
 import { getActiveStudentAndClassroom } from './lib/studentRead';
 import {
@@ -401,4 +402,13 @@ rootApp.get('*', async (c) => {
 
 export default {
   fetch: rootApp.fetch,
+  async scheduled(
+    event: ScheduledController,
+    env: Bindings,
+    ctx: ExecutionContext,
+  ) {
+    ctx.waitUntil(
+      dispatchLessonReminder(env, event.cron, new Date(event.scheduledTime)),
+    );
+  },
 };

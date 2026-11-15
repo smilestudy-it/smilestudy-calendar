@@ -17,6 +17,10 @@ export type ApiBindings = Env & {
   AUTH0_DB_CONNECTION: string;
   VITE_AUTH0_CLIENT_ID: string;
   ASSETS: Fetcher;
+  /** GAS ウェブアプリの /exec URL。未設定ならリマインドは送らない。 */
+  GAS_REMINDER_URL?: string;
+  /** GAS が本文の secret と照合する共有秘密。 */
+  GAS_REMINDER_SECRET?: string;
 };
 
 /**
