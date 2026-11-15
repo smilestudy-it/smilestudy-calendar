@@ -407,8 +407,13 @@ export default {
     env: Bindings,
     ctx: ExecutionContext,
   ) {
-    ctx.waitUntil(
-      dispatchLessonReminder(env, event.cron, new Date(event.scheduledTime)),
+    const scheduledAt = new Date(event.scheduledTime);
+    const task = dispatchLessonReminder(
+      env,
+      event.cron,
+      Number.isNaN(scheduledAt.getTime()) ? new Date() : scheduledAt,
     );
+    ctx.waitUntil(task);
+    await task;
   },
 };
