@@ -1,7 +1,7 @@
 /**
  * （責務）ルート定義、共有パス /share の未ログイン表示、それ以外の Auth0 ＋管理画面のルーティング。
  */
-import { Suspense, lazy, useEffect } from 'react';
+import { Suspense, lazy, useCallback, useEffect } from 'react';
 import { Navigate, Route, Routes, useLocation } from 'react-router-dom';
 
 import { useAuth0 } from '@auth0/auth0-react';
@@ -40,10 +40,17 @@ function AppRoutes() {
   const isSharePath = SHARE_APP_PATH.test(location.pathname);
   const { isAuthenticated, isLoading, error, user, getAccessTokenSilently } =
     useAuth0();
+  const getAccessToken = useCallback(async (): Promise<string> => {
+    const token = await getAccessTokenSilently();
+    if (!token) {
+      throw new Error('access token is missing');
+    }
+    return token;
+  }, [getAccessTokenSilently]);
   const { currentUser, isLoadingCurrentUser, currentUserError } =
     useCurrentUser({
       isAuthenticated,
-      getAccessTokenSilently,
+      getAccessTokenSilently: getAccessToken,
     });
 
   useEffect(() => {
@@ -136,7 +143,7 @@ function AppRoutes() {
   return (
     <AppShell
       currentUser={currentUser}
-      getAccessTokenSilently={getAccessTokenSilently}
+      getAccessTokenSilently={getAccessToken}
       userName={user?.name}
       userEmail={user?.email}
       role={role}
@@ -153,7 +160,7 @@ function AppRoutes() {
             element={
               <ClassroomPage
                 currentUser={currentUser}
-                getAccessTokenSilently={getAccessTokenSilently}
+                getAccessTokenSilently={getAccessToken}
               />
             }
           />
@@ -162,7 +169,7 @@ function AppRoutes() {
             element={
               <TeacherManagementPage
                 currentUser={currentUser}
-                getAccessTokenSilently={getAccessTokenSilently}
+                getAccessTokenSilently={getAccessToken}
               />
             }
           />
@@ -171,7 +178,7 @@ function AppRoutes() {
             element={
               <StudentManagementPage
                 currentUser={currentUser}
-                getAccessTokenSilently={getAccessTokenSilently}
+                getAccessTokenSilently={getAccessToken}
               />
             }
           />
@@ -180,7 +187,7 @@ function AppRoutes() {
             element={
               <PresetsSettingsPage
                 currentUser={currentUser}
-                getAccessTokenSilently={getAccessTokenSilently}
+                getAccessTokenSilently={getAccessToken}
               />
             }
           />
@@ -189,7 +196,7 @@ function AppRoutes() {
             element={
               <HolidaysSettingsPage
                 currentUser={currentUser}
-                getAccessTokenSilently={getAccessTokenSilently}
+                getAccessTokenSilently={getAccessToken}
               />
             }
           />
@@ -198,7 +205,7 @@ function AppRoutes() {
             element={
               <CalendarPage
                 currentUser={currentUser}
-                getAccessTokenSilently={getAccessTokenSilently}
+                getAccessTokenSilently={getAccessToken}
               />
             }
           />
@@ -207,7 +214,7 @@ function AppRoutes() {
             element={
               <CalendarBulkEditPage
                 currentUser={currentUser}
-                getAccessTokenSilently={getAccessTokenSilently}
+                getAccessTokenSilently={getAccessToken}
               />
             }
           />

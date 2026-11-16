@@ -15,6 +15,15 @@ import {
   users,
 } from './db/schema';
 import { lessonPresetDisplay, lessonTeacherDisplay } from './lessonDisplay';
+import {
+  dispatchLessonReminder,
+  dispatchReminderKind,
+} from './lessonReminderJob';
+import {
+  isReminderKind,
+  reminderDateForKind,
+  reminderSecretsMatch,
+} from './lib/lessonReminder';
 import { isD1StudentUnavailableActiveUniqueViolation } from './lib/sqliteConstraint';
 import { getActiveStudentAndClassroom } from './lib/studentRead';
 import {
@@ -355,6 +364,35 @@ app.route('/time-slots', timeSlotsApp);
 app.route('/lessons', lessonsApp);
 app.route('/holidays', holidaysApp);
 
+/** GAS の時間トリガーから呼ぶ。共有キーがないと実行しない。 */
+app.post('/lesson-reminders', async (c) => {
+  const configured = c.env.GAS_REMINDER_SECRET?.trim() ?? '';
+  if (!configured) {
+    return c.json({ message: 'reminder is not configured' }, 500);
+  }
+  const headerSecret = c.req.header('x-reminder-secret')?.trim() ?? '';
+  const bearer =
+    c.req
+      .header('authorization')
+      ?.replace(/^Bearer\s+/i, '')
+      .trim() ?? '';
+  const provided = headerSecret || bearer;
+  if (!provided || !reminderSecretsMatch(provided, configured)) {
+    return c.json({ message: 'unauthorized' }, 401);
+  }
+  const kind = (c.req.query('kind') ?? '').trim();
+  if (!isReminderKind(kind)) {
+    return c.json({ message: 'kind is invalid' }, 400);
+  }
+  const now = new Date();
+  const status = await dispatchReminderKind(
+    c.env,
+    kind,
+    reminderDateForKind(kind, now),
+  );
+  return c.json({ status, kind }, 200);
+});
+
 app.get('/me', auth, async (c) => {
   const { sub } = c.var.jwtPayload;
   if (!sub) {
@@ -401,4 +439,18 @@ rootApp.get('*', async (c) => {
 
 export default {
   fetch: rootApp.fetch,
+  async scheduled(
+    event: ScheduledController,
+    env: Bindings,
+    ctx: ExecutionContext,
+  ) {
+    const scheduledAt = new Date(event.scheduledTime);
+    const task = dispatchLessonReminder(
+      env,
+      event.cron,
+      Number.isNaN(scheduledAt.getTime()) ? new Date() : scheduledAt,
+    );
+    ctx.waitUntil(task);
+    await task;
+  },
 };
