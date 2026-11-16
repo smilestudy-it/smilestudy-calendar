@@ -11,15 +11,6 @@
     "enabled": true,
   },
   "compatibility_flags": ["nodejs_compat"],
-  /**
-   * Cron は UTC。
-   * 0 21 * * * = 06:00 JST（当日授業のある生徒）
-   * 0 11 * * * = 20:00 JST（翌日授業のある講師）
-   * 送信先はシークレット GAS_REMINDER_URL / GAS_REMINDER_SECRET。
-   */
-  "triggers": {
-    "crons": ["0 21 * * *", "0 11 * * *"],
-  },
   "d1_databases": [
     {
       "binding": "DB",

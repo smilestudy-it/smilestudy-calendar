@@ -15,7 +15,15 @@ import {
   users,
 } from './db/schema';
 import { lessonPresetDisplay, lessonTeacherDisplay } from './lessonDisplay';
-import { dispatchLessonReminder } from './lessonReminderJob';
+import {
+  dispatchLessonReminder,
+  dispatchReminderKind,
+} from './lessonReminderJob';
+import {
+  isReminderKind,
+  reminderDateForKind,
+  reminderSecretsMatch,
+} from './lib/lessonReminder';
 import { isD1StudentUnavailableActiveUniqueViolation } from './lib/sqliteConstraint';
 import { getActiveStudentAndClassroom } from './lib/studentRead';
 import {
@@ -355,6 +363,35 @@ app.route('/lesson-types', lessonTypesApp);
 app.route('/time-slots', timeSlotsApp);
 app.route('/lessons', lessonsApp);
 app.route('/holidays', holidaysApp);
+
+/** GAS の時間トリガーから呼ぶ。共有キーがないと実行しない。 */
+app.post('/lesson-reminders', async (c) => {
+  const configured = c.env.GAS_REMINDER_SECRET?.trim() ?? '';
+  if (!configured) {
+    return c.json({ message: 'reminder is not configured' }, 500);
+  }
+  const headerSecret = c.req.header('x-reminder-secret')?.trim() ?? '';
+  const bearer =
+    c.req
+      .header('authorization')
+      ?.replace(/^Bearer\s+/i, '')
+      .trim() ?? '';
+  const provided = headerSecret || bearer;
+  if (!provided || !reminderSecretsMatch(provided, configured)) {
+    return c.json({ message: 'unauthorized' }, 401);
+  }
+  const kind = (c.req.query('kind') ?? '').trim();
+  if (!isReminderKind(kind)) {
+    return c.json({ message: 'kind is invalid' }, 400);
+  }
+  const now = new Date();
+  const status = await dispatchReminderKind(
+    c.env,
+    kind,
+    reminderDateForKind(kind, now),
+  );
+  return c.json({ status, kind }, 200);
+});
 
 app.get('/me', auth, async (c) => {
   const { sub } = c.var.jwtPayload;

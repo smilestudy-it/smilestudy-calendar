@@ -4,12 +4,16 @@
  */
 import { toTokyoDateKey, toTokyoHm } from './tokyoDate';
 
-/** 06:00 JST。Cloudflare Cron は UTC なので 21:00 UTC。 */
+/** 06:00 JST 相当。エンドポイントとローカルの scheduled 試験で使う。 */
 export const STUDENT_SAME_DAY_CRON = '0 21 * * *';
-/** 20:00 JST。Cloudflare Cron は UTC なので 11:00 UTC。 */
+/** 20:00 JST 相当。エンドポイントとローカルの scheduled 試験で使う。 */
 export const TEACHER_NEXT_DAY_CRON = '0 11 * * *';
 
-export type ReminderKind = 'student_same_day' | 'teacher_next_day';
+export type ReminderKind =
+  | 'student_same_day'
+  | 'teacher_next_day'
+  | 'unavailable_registration_open'
+  | 'unavailable_registration_deadline';
 
 export type ReminderLesson = {
   startAt: string;
@@ -178,7 +182,39 @@ ${noticeBox('こちらは自動メールとなっておりますので、こち�
   };
 }
 
-/** Cron から、通知種別と授業の暦日（Asia/Tokyo）を決める。未知の Cron は null。 */
+/** リマインド種別なら true。 */
+export function isReminderKind(kind: string): kind is ReminderKind {
+  return (
+    kind === 'student_same_day' ||
+    kind === 'teacher_next_day' ||
+    kind === 'unavailable_registration_open' ||
+    kind === 'unavailable_registration_deadline'
+  );
+}
+
+/** 通知種別ごとの基準日。講師向けだけ翌日、それ以外は発火日。 */
+export function reminderDateForKind(kind: ReminderKind, now: Date): string {
+  const today = toTokyoDateKey(now);
+  if (kind === 'teacher_next_day') {
+    return addTokyoDays(today, 1);
+  }
+  return today;
+}
+
+/** 共有キーの一致。長さが違う場合は不一致。 */
+export function reminderSecretsMatch(
+  provided: string,
+  expected: string,
+): boolean {
+  if (provided.length !== expected.length) {
+    return false;
+  }
+  let diff = 0;
+  for (let i = 0; i < provided.length; i++) {
+    diff |= provided.charCodeAt(i) ^ expected.charCodeAt(i);
+  }
+  return diff === 0;
+}
 export function reminderTargetForCron(
   cron: string,
   now: Date,
@@ -221,7 +257,7 @@ function lessonOf(
  * 生徒向けは削除済み生徒を除き、講師向けは削除済み講師を除く。
  */
 export function buildReminderRecipients(
-  kind: ReminderKind,
+  kind: Extract<ReminderKind, 'student_same_day' | 'teacher_next_day'>,
   date: string,
   rows: ReminderLessonRow[],
 ): ReminderRecipient[] {
@@ -265,4 +301,81 @@ export function buildReminderRecipients(
           : renderTeacherMail(date, recipient.name, recipient.lessons);
       return { email: recipient.email, name: recipient.name, ...mail };
     });
+}
+
+export type ActiveStudent = {
+  email: string;
+  name: string;
+};
+
+function monthDeadlineLabel(dateKey: string): string {
+  const [year, month] = dateKey.split('-').map(Number);
+  return `${year}年${month}月25日`;
+}
+
+function renderUnavailableNotice(
+  kind: Extract<
+    ReminderKind,
+    'unavailable_registration_open' | 'unavailable_registration_deadline'
+  >,
+  dateKey: string,
+  recipientName: string,
+): { subject: string; html: string } {
+  const { dateLabel, weekday } = formatTokyoDateLabel(dateKey);
+  const name = escapeHtml(recipientName);
+  const deadline = monthDeadlineLabel(dateKey);
+  const opening = kind === 'unavailable_registration_open';
+  const subject = opening
+    ? `【スマイルスタディ】受講不可時間帯のご登録のお願い（${deadline}まで）`
+    : `【スマイルスタディ】本日（${dateLabel}）が受講不可時間帯の登録期限です`;
+  const lead = opening
+    ? '翌月の授業日程を組ませていただくため、受講不可時間帯のご登録をお願いいたします。'
+    : '受講不可時間帯のご登録期限が本日となっておりますので、改めてご案内いたします。';
+  const requestItems = opening
+    ? `<li>ご登録の期限は<strong style="color:#1a73e8;">${deadline}</strong>までです。</li>`
+    : `<li>ご登録は<strong style="color:#d93025;">本日（${dateLabel}${weekday}）まで</strong>にお願いいたします。</li>
+<li>本日を過ぎますと、翌月の日程を希望に沿って組むことが難しくなる場合がございます。</li>`;
+  return {
+    subject,
+    html: mailShell(`
+<p>お世話になっております。</p>
+<p>${name}さん</p>
+<p>${lead}</p>
+<p><strong>【お願い】</strong></p>
+<ul>
+${requestItems}
+<li>学校・部活動・習い事・通院・送迎など、<strong>どうしても授業ができない時間帯のみ</strong>ご登録ください。</li>
+<li>ご登録は、共有カレンダーの「受講不可時間帯を登録」からお願いいたします。</li>
+</ul>
+<p><strong>【ご注意】</strong></p>
+${noticeBox('こちらは自動メールとなっておりますので、こちらにご返信をいただいてもご返答はできませんのでお気をつけください。ご連絡は必ずComiruにてお願いいたします。')}
+<p>何かご不明な点がございましたら、お気軽にお問い合わせください。</p>
+<p>よろしくお願いいたします。</p>`),
+  };
+}
+
+/** 削除されていない生徒全員へ、受講不可の登録案内を1通ずつ作る。 */
+export function buildUnavailableNoticeRecipients(
+  kind: Extract<
+    ReminderKind,
+    'unavailable_registration_open' | 'unavailable_registration_deadline'
+  >,
+  date: string,
+  students: ActiveStudent[],
+): ReminderRecipient[] {
+  return students
+    .filter((student) => student.email.trim() !== '')
+    .map((student) => {
+      const name = student.name.trim() || '生徒';
+      const mail = renderUnavailableNotice(kind, date, name);
+      return {
+        email: student.email.trim(),
+        name,
+        ...mail,
+      };
+    })
+    .sort(
+      (a, b) =>
+        a.email.localeCompare(b.email) || a.name.localeCompare(b.name, 'ja'),
+    );
 }

@@ -11,6 +11,7 @@ import {
   type ReminderKind,
   type ReminderLessonRow,
   buildReminderRecipients,
+  buildUnavailableNoticeRecipients,
   reminderTargetForCron,
   tokyoDayBounds,
 } from './lib/lessonReminder';
@@ -28,7 +29,7 @@ export async function postReminderToGas(input: {
   kind: ReminderKind;
   date: string;
   recipients: GasReminderPayload['recipients'];
-}): Promise<'sent' | 'skipped'> {
+}): Promise<'sent' | 'skipped' | 'unauthorized'> {
   if (input.recipients.length === 0) {
     console.log(
       `lesson reminder skipped: no recipients (${input.kind} ${input.date})`,
@@ -51,13 +52,29 @@ export async function postReminderToGas(input: {
     method: 'POST',
     headers: { 'content-type': 'application/json' },
     body: JSON.stringify(payload),
+    redirect: 'follow',
   });
+  const text = await res.text();
   if (!res.ok) {
-    throw new Error(
-      `GAS reminder webhook failed: ${res.status} ${await res.text()}`,
-    );
+    throw new Error(`GAS reminder webhook failed: ${res.status} ${text}`);
   }
-  return 'sent';
+
+  let result: { success?: boolean; error?: string };
+  try {
+    result = JSON.parse(text) as { success?: boolean; error?: string };
+  } catch {
+    throw new Error(`GAS reminder webhook returned invalid JSON: ${text}`);
+  }
+  if (result.success) {
+    return 'sent';
+  }
+  if (result.error === 'UNAUTHORIZED') {
+    console.error(
+      `lesson reminder unauthorized by GAS (${input.kind} ${input.date})`,
+    );
+    return 'unauthorized';
+  }
+  throw new Error(`GAS mail sending failed: ${text}`);
 }
 
 async function loadLessonsOnTokyoDate(
@@ -116,24 +133,65 @@ async function loadLessonsOnTokyoDate(
   }));
 }
 
+/** 指定した通知を集め、GAS へ送る。 */
+export async function dispatchReminderKind(
+  env: LessonReminderEnv,
+  kind: ReminderKind,
+  date: string,
+): Promise<'sent' | 'skipped' | 'unauthorized'> {
+  const recipients = isUnavailableNotice(kind)
+    ? buildUnavailableNoticeRecipients(
+        kind,
+        date,
+        await loadActiveStudents(env),
+      )
+    : buildReminderRecipients(
+        kind,
+        date,
+        await loadLessonsOnTokyoDate(env, date),
+      );
+  return postReminderToGas({
+    url: env.GAS_REMINDER_URL,
+    secret: env.GAS_REMINDER_SECRET,
+    kind,
+    date,
+    recipients,
+  });
+}
+
+function isUnavailableNotice(
+  kind: ReminderKind,
+): kind is Extract<
+  ReminderKind,
+  'unavailable_registration_open' | 'unavailable_registration_deadline'
+> {
+  return (
+    kind === 'unavailable_registration_open' ||
+    kind === 'unavailable_registration_deadline'
+  );
+}
+
+async function loadActiveStudents(env: LessonReminderEnv) {
+  const db = getDb(env);
+  return db
+    .select({
+      email: students.email,
+      name: students.name,
+    })
+    .from(students)
+    .where(isNull(students.deletedAt));
+}
+
 /** Cron 発火時刻（UTC）から対象を決め、GAS へ送る。 */
 export async function dispatchLessonReminder(
   env: LessonReminderEnv,
   cron: string,
   scheduledAt: Date,
-): Promise<void> {
+): Promise<'sent' | 'skipped' | 'ignored' | 'unauthorized'> {
   const target = reminderTargetForCron(cron, scheduledAt);
   if (!target) {
     console.error(`lesson reminder ignored unknown cron: ${cron}`);
-    return;
+    return 'ignored';
   }
-  const rows = await loadLessonsOnTokyoDate(env, target.date);
-  const recipients = buildReminderRecipients(target.kind, target.date, rows);
-  await postReminderToGas({
-    url: env.GAS_REMINDER_URL,
-    secret: env.GAS_REMINDER_SECRET,
-    kind: target.kind,
-    date: target.date,
-    recipients,
-  });
+  return dispatchReminderKind(env, target.kind, target.date);
 }
