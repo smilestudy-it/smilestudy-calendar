@@ -23,6 +23,7 @@ export type ReminderLesson = {
   subjectName: string;
   lessonTypeName: string;
   counterpartName: string;
+  studentName: string;
 };
 
 export type ReminderRecipient = {
@@ -122,7 +123,7 @@ function renderStudentMail(
   const schedule = scheduleBlocks(
     lessons,
     (lesson) =>
-      `${escapeHtml(lesson.counterpartName)} - ${name} (${escapeHtml(lesson.subjectName)})`,
+      `${escapeHtml(lesson.counterpartName)} - ${escapeHtml(lesson.studentName)} (${escapeHtml(lesson.subjectName)})`,
   );
   return {
     subject: `【スマイルスタディ】${dateLabel}の授業スケジュール`,
@@ -249,6 +250,7 @@ function lessonOf(
     subjectName: row.subjectName,
     lessonTypeName: row.lessonTypeName,
     counterpartName,
+    studentName: row.studentName.trim() || '（不明）',
   };
 }
 

@@ -111,6 +111,24 @@ describe('buildReminderRecipients', () => {
     expect(recipients[0]?.html).toContain('color:#d93025;');
   });
 
+  it('labels each lesson with that student when one email is shared', () => {
+    const recipients = buildReminderRecipients(
+      'student_same_day',
+      '2026-11-16',
+      [
+        row(),
+        row({
+          studentName: 'C',
+          startAt: new Date('2026-11-16T06:00:00.000Z'),
+          subjectName: '数学',
+        }),
+      ],
+    );
+    expect(recipients).toHaveLength(1);
+    expect(recipients[0]?.html).toContain('B - A (英語)');
+    expect(recipients[0]?.html).toContain('B - C (数学)');
+  });
+
   it('groups a teacher lessons for the next day and skips a deleted teacher', () => {
     const recipients = buildReminderRecipients(
       'teacher_next_day',
